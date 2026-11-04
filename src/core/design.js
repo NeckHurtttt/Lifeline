@@ -6,7 +6,7 @@ const suma = (lista, fn) => lista.reduce((s, e) => s + fn(e), 0);
 const etiqueta = (id) => (id === 'soporte_vital' ? 'soporte vital' : id);
 
 /** @param {import('./mission.js').Design} design */
-export function computeDesign(design, scenarioId, difficulty) {
+export function computeDesign(design, scenarioId, difficulty, budgetMult = 1) {
   const mods = design.modules.map((m) => ({ placed: m, def: MODULES[m.type] })).filter((m) => m.def);
   const instr = design.instruments.map((id) => INSTRUMENTS[id]).filter(Boolean);
   const launcher = LAUNCHERS[design.launcher];
@@ -25,7 +25,7 @@ export function computeDesign(design, scenarioId, difficulty) {
   const kwDe = (e, esModulo) => (esModulo && e.solar ? e.kw * solar : e.kw);
   const powerNet = suma(mods, (m) => kwDe(m.def, true)) + suma(instr, (i) => i.kw);
   const energyPerDay = powerNet * 24;
-  const budget = diff.budget;
+  const budget = diff.budget * budgetMult;
   const dataPerDay = suma(instr, (i) => i.dataPerDay);
   const sciencePerDay = suma(instr, (i) => i.sciencePerDay);
   const downlinkPerDay = suma(mods, (m) => m.def.downlink || 0);

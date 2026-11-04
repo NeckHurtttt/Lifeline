@@ -58,6 +58,10 @@ export function runReentryStep(state, stepId, rng, choice) {
       if (s.resources.fuel < DEORBIT_FUEL) {
         loseDay(s);
         log.push('No hay combustible suficiente para salir de órbita: se espera reabastecimiento (−1 día)');
+        if (s.scenarioId === 'estacion') {
+          s.resources.fuel += DEORBIT_FUEL;
+          log.push('La estación transfiere combustible para el próximo intento');
+        }
         return { ok: false, state: s, log, failure: 'Sin combustible' };
       }
       s.resources.fuel -= DEORBIT_FUEL;
