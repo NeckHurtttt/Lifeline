@@ -74,10 +74,10 @@ export function render(root, app, go) {
   mount(root,
     h('h1', { style: { fontSize: '1.8rem' } }, '🚀 Despegue', h('span', { class: 'dim small' }, ` · ${MODE_TXT[mode]}`)),
     h('div', { class: 'grid3' },
-      h('div', { class: 'panel' }, h('h2', {}, 'Pasos del despegue'), els.steps),
-      h('div', { class: 'panel', style: { textAlign: 'center' } }, els.sky, els.clock, els.tel, els.action,
+      h('div', { class: 'panel c-violet' }, h('h2', {}, 'Pasos del despegue'), els.steps),
+      h('div', { class: 'panel c-blue', style: { textAlign: 'center' } }, els.sky, els.clock, els.tel, els.action,
         h('div', { class: 'capsule', style: { marginTop: '.5rem' } }, ...s.crew.map((c) => crewAvatar(c, { size: 56 })))),
-      h('div', { class: 'panel' }, h('h2', {}, '📻 Radio de Control'), els.radio)),
+      h('div', { class: 'panel c-cyan' }, h('h2', {}, '📻 Radio de Control'), els.radio)),
   );
 
   const say = (text, cls = '') => { radioLog.unshift(h('div', { class: cls }, `[${clockText(t)}] ${text}`)); els.radio.replaceChildren(...radioLog.slice(0, 60)); radio(); };

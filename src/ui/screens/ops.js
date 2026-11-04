@@ -1,47 +1,85 @@
-// Pantalla de operaciones diarias: recursos, nave, tripulación, alertas, eventos, minimisiones y bitácora.
-import { h, mount, bar, modal, fmt } from '../dom.js';
+// Pantalla de operaciones: recursos, nave, tripulación con avatares, alertas, eventos, minimisiones y bitácora, con Nova guiando.
+import { h, mount, bar, modal, fmt, tabs } from '../dom.js';
 import { MODULES, INSTRUMENTS, DIFFICULTY } from '../../data/catalog.js';
 import { ROLES, TRAITS } from '../../data/crew.js';
 import { EVENTS } from '../../data/events.js';
 import { MINIMISSIONS } from '../../data/minimissions.js';
 import { TASKS, validateSchedule } from '../../core/tasks.js';
 import { advanceDay, runUntilInterrupt, daysLeft } from '../../core/sim.js';
-import { prepareFor, resolveEvent, recommendedOption } from '../../core/events.js';
-import { acceptMini } from '../../core/minimissions.js';
+import { prepareFor, resolveEvent, recommendedOption, previewOption } from '../../core/events.js';
+import { acceptMini, previewMini } from '../../core/minimissions.js';
 import { setPriority } from '../../core/energy.js';
 import { restoreRng } from '../../core/rng.js';
 import { save } from '../../core/save.js';
 import { whoDecides } from '../main.js';
 import { alarm, beep } from '../audio.js';
+import { say } from '../guide.js';
+import { crewAvatar, moodOf, MOOD_TEXT } from '../avatar.js';
 
 const TASK_IDS = Object.keys(TASKS).filter((t) => t !== 'trabajo');
+const TASK_ICON = { mantenimiento: '🧹', reparacion: '🔧', experimentos: '🔬', cultivo: '🌱', produccion: '💧', medico: '🩺', ejercicio: '🏃', descanso: '🛋️', sueño: '😴', comunicacion: '📞', eva: '👨‍🚀', refugio: '🛡️' };
+const TURNS = ['🌅 Mañana', '☀️ Tarde', '🌙 Noche'];
+const RATIONS = { completa: '🍽️ Completa', media: '🥣 Media', nada: '🚫 Nada' };
 const RAD_LIMIT = 600;
+const RES = [
+  ['o2', '🫧', 'Aire'], ['water', '💧', 'Agua'], ['food', '🍎', 'Comida'], ['meds', '💊', 'Medicinas'],
+  ['parts', '⚙️', 'Piezas'], ['fuel', '⛽', 'Combustible'], ['battery', '🔋', 'Batería'], ['dataStored', '💾', 'Datos por enviar'],
+];
+const EVENT_ICON = {
+  micrometeoritos: '☄️', basura_tardia: '🗑️', tormenta_solar: '🌞', carga_a_tiempo: '📦', carga_explota: '💥', captura_brazo: '🦾',
+  fuga_amoniaco: '🧪', incendio: '🔥', robot_detecta_fuga: '🤖', fuga_misteriosa: '🌬️', experimento_exitoso: '🎉', aurora: '🌌',
+  radio_escuelas: '📻', falla_bano: '🚽', bacterias: '🦠', nueva_tripulacion: '👋', reboost: '🚀', choque_carga: '💢',
+  propulsor_atascado: '🔩', falla_computadora: '💻', perdida_comunicacion: '📵', fuga_reciclador: '💧', sobrecalentamiento: '🌡️',
+  falla_bateria: '🪫', panel_danado: '☀️', corto_circuito: '⚡',
+};
+const MINI_ICON = { lanzar_cubesats: '🛰️', recuperar_satelite: '🧲', retirar_basura: '🧹', capturar_carga: '📦', experimento_externo: '🔭', cambiar_panel: '☀️', fotografiar_desastre: '📸', radio_escuelas: '📻', cultivo_microg: '🪴', prueba_nave_comercial: '🚀' };
 const ENGINEERING = new Set(['micrometeoritos', 'basura_tardia', 'fuga_amoniaco', 'incendio', 'robot_detecta_fuga', 'fuga_misteriosa', 'falla_bano',
   'reboost', 'choque_carga', 'propulsor_atascado', 'falla_computadora', 'fuga_reciclador', 'sobrecalentamiento', 'falla_bateria', 'panel_danado', 'corto_circuito', 'captura_brazo']);
 const SCIENCE = new Set(['experimento_exitoso', 'aurora']);
 const COMMS = new Set(['radio_escuelas', 'perdida_comunicacion']);
-const roleFor = (eventId) => (ENGINEERING.has(eventId) ? 'ingeniero' : SCIENCE.has(eventId) ? 'cientifico' : COMMS.has(eventId) ? 'comunicaciones' : 'comandante');
-const STAT_SHORT = { fuerza: 'F', tecnica: 'T', ciencia: 'C', medicina: 'M', temple: 'Te' };
+const roleFor = (id) => (ENGINEERING.has(id) ? 'ingeniero' : SCIENCE.has(id) ? 'cientifico' : COMMS.has(id) ? 'comunicaciones' : 'comandante');
+const STAT = { fuerza: '💪', tecnica: '🛠️', ciencia: '🧠', medicina: '❤️‍🩹', temple: '🧘' };
+const STAT_NAME = { fuerza: 'Fuerza', tecnica: 'Técnica', ciencia: 'Ciencia', medicina: 'Medicina', temple: 'Calma' };
+const RES_NAME = { o2: '🫧 aire', water: '💧 agua', food: '🍎 comida', meds: '💊 medicinas', parts: '⚙️ piezas', fuel: '⛽ combustible', battery: '🔋 batería', science: '🧪 ciencia', reputation: '⭐ fama' };
+
+/** Efectos de una opción como etiquetas de colores. */
+function chips(effects) {
+  const out = [];
+  for (const [k, v] of Object.entries(effects ?? {})) {
+    if (RES_NAME[k]) out.push([`${v > 0 ? '+' : ''}${v} ${RES_NAME[k]}`, v > 0]);
+    else if (k === 'crewHealth') out.push([`${v > 0 ? '+' : ''}${v} ❤️ salud de todos`, v > 0]);
+    else if (k === 'crewMorale') out.push([`${v > 0 ? '+' : ''}${v} 😊 ánimo de todos`, v > 0]);
+    else if (k === 'crewRadiation') out.push([`+${v} ☢️ radiación`, false]);
+    else if (k === 'moduleDamage') for (const [t, n] of Object.entries(v)) out.push([`💥 daña ${t === 'random' ? 'un módulo' : MODULES[t]?.name ?? t} −${n}`, false]);
+    else if (k === 'moduleOff') for (const [t, n] of Object.entries(v)) out.push([`⏸️ apaga ${t === 'random' ? 'un módulo' : MODULES[t]?.name ?? t} ${n} días`, false]);
+    else if (k === 'delayResupply') out.push([`📦 carga ${v} días tarde`, false]);
+    else if (k === 'endMission') out.push(['🏠 todos vuelven antes (misión fallida)', false]);
+  }
+  if (!out.length) return [h('span', { class: 'chip ok' }, '✨ nada cambia')];
+  return out.map(([t, good]) => h('span', { class: `chip ${good ? 'ok' : 'bad'}` }, t));
+}
 
 export function render(root, app, go) {
-  let banner = null; // {text, cls}
+  let banner = null;
+  let tab = app.opsTab ?? 'resumen';
+  const pick = (t) => { tab = t; app.opsTab = t; beep(760, 30); draw(); window.scrollTo({ top: 0, behavior: 'smooth' }); };
   const living = () => app.state.crew.filter((c) => c.alive);
-
   const commit = (state) => { app.state = state; save(state); };
+  const firstName = (c) => c.name.split(' ')[0];
 
   function handle(interrupt) {
     const s = app.state;
-    if (!interrupt) { banner = { text: `Día ${s.day}: sin novedades.`, cls: '' }; return; }
+    if (!interrupt) { banner = { text: `📅 Día ${s.day}: todo tranquilo.`, cls: '' }; return; }
     const k = interrupt.kind;
-    if (k === 'alerta') { const ev = EVENTS[interrupt.data.eventId]; banner = { text: `AVISO: ${ev.name} en ${interrupt.data.etaDays} día(s). Prepárense.`, cls: '' }; alarm('aviso'); }
+    if (k === 'alerta') { const ev = EVENTS[interrupt.data.eventId]; banner = { text: `⚠️ AVISO: ${EVENT_ICON[ev.id] ?? ''} ${ev.name} en ${interrupt.data.etaDays} día(s).`, cls: '' }; alarm('aviso'); }
     else if (k === 'evento') { alarm(interrupt.data.severity === 'grave' ? 'emergencia' : 'aviso'); banner = null; }
-    else if (k === 'mini') { banner = { text: `Nueva minimisión ofrecida: ${MINIMISSIONS[interrupt.data.id].name}.`, cls: '' }; beep(900, 120); }
+    else if (k === 'mini') { banner = { text: `🎯 Nueva minimisión: ${MINI_ICON[interrupt.data.id] ?? ''} ${MINIMISSIONS[interrupt.data.id].name}.`, cls: '' }; beep(900, 120); }
     else if (k === 'muerte') { banner = { text: interrupt.data.join(' · '), cls: 'red' }; alarm('emergencia'); }
-    else if (k === 'recurso') { banner = { text: `${interrupt.data.text}. Revisa raciones, labores o espera la carga.`, cls: 'red' }; alarm('aviso'); }
+    else if (k === 'recurso') { banner = { text: `🚨 ${interrupt.data.text}.`, cls: 'red' }; alarm('aviso'); }
     else if (k === 'horario') { banner = { text: interrupt.data.join(' · '), cls: 'red' }; }
     else if (k === 'fin') {
-      if (s.phase === 'report') { alarm('emergencia'); setTimeout(() => go('report'), 1500); banner = { text: s.outcome?.reason ?? 'Fin de la misión', cls: 'red' }; }
-      else banner = { text: 'Día 365 cumplido. Preparen la reentrada.', cls: '' };
+      if (s.phase === 'report') { alarm('emergencia'); setTimeout(() => go('report'), 1800); banner = { text: s.outcome?.reason ?? 'Fin de la misión', cls: 'red' }; }
+      else banner = { text: '🎉 ¡Cumplieron 365 días! Hora de volver a casa.', cls: '' };
     }
   }
 
@@ -60,50 +98,67 @@ export function render(root, app, go) {
     const rec = recommendedOption(p.eventId);
     const who = whoDecides(app, roleFor(p.eventId));
     const close = modal(h('div', { id: 'evento' },
-      h('h2', { class: p.severity === 'grave' ? 'red' : 'amber' }, `${ev.kind === '+' ? '★' : '⚠'} ${ev.name} · ${p.severity}`),
-      h('p', {}, ev.text[p.severity]),
-      p.prepared?.length ? h('p', { class: 'small dim' }, `Preparación hecha: ${p.prepared.join(', ')}`) : null,
+      h('div', { class: 'big-ico' }, EVENT_ICON[ev.id] ?? (ev.kind === '+' ? '🎉' : '⚠️')),
+      h('h2', { class: p.severity === 'grave' ? 'red' : ev.kind === '+' ? 'green' : 'amber' }, ev.name),
+      h('div', { class: 'small' }, { leve: '🟢 Poco grave', media: '🟠 Grave', grave: '🔴 ¡Muy grave!' }[p.severity]),
+      h('p', { style: { clear: 'both', fontSize: '1.1rem' } }, ev.text[p.severity]),
+      p.prepared?.length ? h('p', { class: 'small green' }, '✔ Se prepararon antes: ayuda.') : null,
       who ? h('p', { class: 'small' }, h('span', { class: 'tag' }, `decide ${who}`)) : null,
-      h('div', {}, ...ev.options.map((o) => h('div', { style: { margin: '.35rem 0' } },
-        h('button', { 'data-option': o.id, class: control !== 'retraso' && o.id === rec ? 'sel' : '', onclick: () => {
-          const rng = restoreRng(app.state.rng);
-          const r = resolveEvent(app.state, p.eventId, p.severity, o.id, rng);
-          close();
-          commit({ ...r.state, rng: rng.state() });
-          banner = { text: r.log.join(' '), cls: '' };
-          draw();
-        } }, o.label),
-        o.check ? h('span', { class: 'small dim' }, ` (tirada de ${o.check.stat}: mejor tripulante + 1d10 ≥ ${o.check.dc})`) : null,
-        control !== 'retraso' && o.id === rec ? h('span', { class: 'small amber' }, ' recomendado') : null))),
+      h('div', {}, ...ev.options.map((o) => {
+        const pre = previewOption(s, p.eventId, o.id);
+        const effects = pre && !pre.ok ? o.failEffects[p.severity] : o.effects[p.severity];
+        return h('div', { class: `option ${control !== 'retraso' && o.id === rec ? 'sel' : ''}` },
+          h('button', { 'data-option': o.id, onclick: () => {
+            const rng = restoreRng(app.state.rng);
+            const r = resolveEvent(app.state, p.eventId, p.severity, o.id, rng);
+            close();
+            commit({ ...r.state, rng: rng.state() });
+            banner = { text: r.log.join(' '), cls: '' };
+            beep(pre && !pre.ok ? 300 : 1000, 120);
+            draw();
+          } }, o.label),
+          control !== 'retraso' && o.id === rec ? h('span', { class: 'chip ok' }, '👍 recomendado') : null,
+          pre ? h('div', { class: 'que-pasa', style: { width: '100%' } },
+            pre.ok ? h('b', { class: 'green' }, `✔ Funciona: lo hace ${firstName(pre.who)}. `) : h('b', { class: 'red' }, `✖ No alcanza: ${firstName(pre.who)} no sabe lo suficiente. `),
+            `${pre.parts.map((x) => `${x.label} ${x.value >= 0 ? '+' : ''}${x.value}`).join(' · ')} = ${pre.total} de ${pre.need}`) : null,
+          h('div', { style: { width: '100%' } }, h('span', { class: 'small dim' }, 'Lo que pasa: '), ...chips(effects)));
+      })),
     ), { grave: p.severity === 'grave' });
+    say(`¡${ev.name}! Mira cada opción: abajo dice si funciona y qué pasa con cada una.`, { mood: ev.kind === '+' ? 'feliz' : 'alerta', target: '#evento' });
   }
 
   function resources() {
     const s = app.state; const r = s.resources; const left = daysLeft(s); const n = living().length || 1;
-    const line = (name, frac, text, opts) => h('div', { class: 'res' }, h('span', {}, name), bar(frac, opts), h('span', { class: 'small' }, text));
-    const days = (k) => (Number.isFinite(left[k]) ? `${fmt(left[k])} días` : 'reciclado');
-    return h('div', { class: 'panel', id: 'recursos' },
-      h('h2', {}, 'Recursos'),
-      line('O₂', Number.isFinite(left.o2) ? left.o2 / 60 : 1, `${fmt(r.o2)} kg · ${days('o2')}`),
-      line('Agua', left.water / 60, `${fmt(r.water)} L · ${days('water')}`),
-      line('Comida', left.food / 60, `${fmt(r.food)} kg · ${days('food')}`),
-      line('Medicinas', r.meds / (20 * n), `${fmt(r.meds)}`),
-      line('Piezas', r.parts / 30, `${fmt(r.parts)}`),
-      line('Combustible', r.fuel / 100, `${fmt(r.fuel)} %`),
-      line('Batería', r.batteryMax ? r.battery / r.batteryMax : 0, `${fmt(r.battery)}/${r.batteryMax} kWh`),
-      line('Datos', r.dataStored / 500, `${fmt(r.dataStored)} GB en cola`, { invert: true }),
-      h('div', { class: 'small dim' }, `Ciencia ${fmt(s.science)} · Reputación ${fmt(s.reputation)} · Próxima carga: día ${s.nextResupply}`));
+    const max = { meds: 20 * n, parts: 30, fuel: 100, battery: r.batteryMax || 1, dataStored: 500 };
+    return h('div', { class: 'panel c-blue', id: 'recursos' },
+      h('h2', {}, '📦 Lo que tenemos'),
+      h('div', { class: 'res-grid' }, ...RES.map(([k, ico, name]) => {
+        const days = ['o2', 'water', 'food'].includes(k) ? left[k] : null;
+        const frac = days !== null ? (Number.isFinite(days) ? days / 60 : 1) : r[k] / max[k];
+        const low = k === 'dataStored' ? frac > 0.8 : frac < 0.15;
+        return h('div', { class: `res-card ${low ? 'low' : ''}`, title: name },
+          h('div', { class: 'res-ico' }, ico),
+          h('div', {}, h('div', { class: 'res-name' }, name),
+            h('div', { class: 'res-val' }, days !== null ? (Number.isFinite(days) ? `${fmt(days)} días` : '♻️ se recicla') : `${fmt(r[k])}${k === 'battery' ? ` / ${r.batteryMax}` : ''}`),
+            bar(frac, k === 'dataStored' ? { invert: true } : {})));
+      })),
+      h('div', { class: 'row', style: { marginTop: '.5rem' } },
+        h('span', { class: 'pill violet' }, `🧪 Ciencia ${fmt(s.science)}`),
+        h('span', { class: 'pill amber' }, `⭐ Fama ${fmt(s.reputation)}`),
+        h('span', { class: 'pill blue' }, `📦 Próxima carga: día ${s.nextResupply}`)));
   }
 
   function ship() {
     const s = app.state;
     const cols = Math.max(...s.modules.map((m) => m.x)) + 1;
-    return h('div', { class: 'panel' },
-      h('h2', {}, 'Nave ', whoDecides(app, 'ingeniero') ? h('span', { class: 'tag' }, `decide ${whoDecides(app, 'ingeniero')}`) : null),
-      h('div', { class: 'small dim' }, 'Clic: encender/apagar. Prioridad: el número más bajo se apaga primero si falta energía.'),
+    const who = whoDecides(app, 'ingeniero');
+    return h('div', { class: 'panel c-violet', id: 'estacion' },
+      h('h2', {}, '🛰️ La estación ', who ? h('span', { class: 'tag' }, `decide ${who}`) : null),
+      h('div', { class: 'help' }, 'Toca un módulo para prenderlo o apagarlo. El número es su turno para apagarse si falta electricidad (el más bajo, primero).'),
       h('div', { class: 'ship', style: { gridTemplateColumns: `repeat(${cols}, 1fr)` } },
         ...s.modules.slice().sort((a, b) => a.y - b.y || a.x - b.x).map((m) => h('div', {
-          class: `cell full ${m.on ? '' : 'off'}`, style: { gridColumn: m.x + 1, gridRow: m.y + 1 },
+          class: `cell full ${m.on ? '' : 'off'} ${m.health < 40 ? 'roto' : ''}`, style: { gridColumn: m.x + 1, gridRow: m.y + 1 }, 'data-module': m.id,
+          title: `${MODULES[m.type].name}: ${MODULES[m.type].desc}`,
           onclick: (e) => {
             if (e.target.tagName === 'INPUT') return;
             const st = structuredClone(app.state);
@@ -111,51 +166,71 @@ export function render(root, app, go) {
             if (mm.health <= 0) return;
             mm.on = !mm.on; commit(st); beep(mm.on ? 800 : 400, 40); draw();
           },
-        }, h('b', {}, MODULES[m.type].name), m.offDays ? h('div', { class: 'amber' }, `fuera ${m.offDays} d`) : null,
-        bar(m.health / 100), h('div', { class: 'row small' }, m.on ? 'ON' : 'OFF',
-          h('input', { type: 'number', min: 1, max: 10, value: m.priority, style: { width: '3.2rem' }, title: 'Prioridad', onchange: (e) => { commit(setPriority(app.state, m.id, Number(e.target.value))); } }))))),
-      s.design.instruments.length ? h('div', { class: 'small dim', style: { marginTop: '.3rem' } }, 'Instrumentos: ', s.design.instruments.map((i) => INSTRUMENTS[i].name).join(', ')) : null);
+        }, h('div', { class: 'ico' }, MODULES[m.type].icon), h('b', {}, MODULES[m.type].name),
+        m.offDays ? h('div', { class: 'amber small' }, `⏸️ ${m.offDays} días`) : null,
+        bar(m.health / 100), h('div', { class: 'row small' }, m.on ? '🟢' : '⚫',
+          h('input', { type: 'number', min: 1, max: 10, value: m.priority, style: { width: '3.4rem' }, title: 'Turno para apagarse', onchange: (e) => { commit(setPriority(app.state, m.id, Number(e.target.value))); } }))))),
+      s.design.instruments.length ? h('div', { class: 'small', style: { marginTop: '.4rem' } }, '🔬 ', s.design.instruments.map((i) => `${INSTRUMENTS[i].icon} ${INSTRUMENTS[i].name}`).join(' · ')) : null);
   }
 
-  function crew() {
+  function crewCards() {
     const s = app.state;
     const setTurn = (id, turn, val) => { const st = structuredClone(app.state); st.schedule[id][turn] = val; commit(st); draw(); };
     const setRation = (id, val) => { const st = structuredClone(app.state); st.rations[id] = val; commit(st); draw(); };
-    return h('div', { class: 'panel' },
+    const statRow = (label, v, opts, text) => [h('span', {}, label), bar(v, opts), h('span', { class: 'small' }, text)];
+    return h('div', { class: 'panel c-pink', id: 'tripulacion' },
       h('div', { class: 'row', style: { justifyContent: 'space-between' } },
-        h('h2', {}, 'Tripulación'),
+        h('h2', {}, '🧑‍🚀 La tripulación'),
         h('div', { class: 'row' },
-          h('button', { onclick: () => { app.routine = structuredClone(app.state.schedule); banner = { text: 'Rutina guardada.', cls: '' }; draw(); } }, 'Guardar rutina'),
-          h('button', { disabled: !app.routine, onclick: () => { const st = structuredClone(app.state); for (const id of Object.keys(st.schedule)) if (app.routine[id]) st.schedule[id] = [...app.routine[id]]; commit(st); draw(); } }, 'Repetir rutina'))),
-      h('table', { id: 'tripulacion' },
-        h('tr', {}, ...['Tripulante', 'Stats', 'Salud', 'Fatiga', 'Moral', 'Hueso', `Radiación (límite ${RAD_LIMIT} mSv)`, 'Turno 1', 'Turno 2', 'Turno 3', 'Ración'].map((t) => h('th', {}, t))),
-        ...s.crew.map((c) => h('tr', { class: c.alive ? '' : 'muted' },
-          h('td', {}, h('b', {}, c.name), h('div', { class: 'small dim' }, `${ROLES[c.role]?.name ?? c.role}${c.traits.length ? ' · ' + c.traits.map((t) => TRAITS[t]?.name ?? t).join(', ') : ''}${c.alive ? '' : c.evacuated ? ' · EVACUADO' : ' · FALLECIDO'}`)),
-          h('td', { class: 'small', style: { whiteSpace: 'nowrap' } }, Object.entries(c.stats).map(([k, v]) => `${STAT_SHORT[k]}${v}`).join(' ')),
-          h('td', {}, bar(c.health / 100), h('span', { class: 'small' }, fmt(c.health))),
-          h('td', {}, bar(c.fatigue / 100, { invert: true }), h('span', { class: 'small' }, fmt(c.fatigue))),
-          h('td', {}, bar(c.morale / 100), h('span', { class: 'small' }, fmt(c.morale))),
-          h('td', {}, bar(c.bone / 100, { warn: 0.8, danger: 0.7 }), h('span', { class: 'small' }, fmt(c.bone))),
-          h('td', {}, bar(c.radiation / (RAD_LIMIT * 1.2), { invert: true, warn: 0.4, danger: 1 - 1 / 1.2, mark: 1 / 1.2 }), h('span', { class: 'small' }, `${fmt(c.radiation)} mSv`)),
-          ...[0, 1, 2].map((turn) => h('td', {}, c.alive ? h('select', { 'data-turn': `${c.id}:${turn}`, onchange: (e) => setTurn(c.id, turn, e.target.value) },
-            ...TASK_IDS.map((t) => h('option', { value: t, selected: (s.schedule[c.id]?.[turn] === 'trabajo' ? 'experimentos' : s.schedule[c.id]?.[turn]) === t }, TASKS[t].name))) : '')),
-          h('td', {}, c.alive ? h('select', { onchange: (e) => setRation(c.id, e.target.value) },
-            ...['completa', 'media', 'nada'].map((r) => h('option', { value: r, selected: s.rations[c.id] === r }, r))) : '')))));
+          h('button', { onclick: () => { app.routine = structuredClone(app.state.schedule); banner = { text: '💾 Rutina guardada.', cls: '' }; draw(); } }, '💾 Guardar rutina'),
+          h('button', { disabled: !app.routine, onclick: () => { const st = structuredClone(app.state); for (const id of Object.keys(st.schedule)) if (app.routine[id]) st.schedule[id] = [...app.routine[id]]; commit(st); draw(); } }, '🔁 Repetir rutina'))),
+      h('div', { class: 'help' }, 'Cada día tiene 3 turnos. Elige qué hace cada uno. ¡Todos deben dormir 😴 al menos un turno!'),
+      h('div', { class: 'crew-grid' }, ...s.crew.map((c) => {
+        const sleeping = s.schedule[c.id]?.includes('sueño') ? null : 'sinsueño';
+        const mood = moodOf(c);
+        return h('div', { class: `crew-card ${['enfermo', 'radiacion', 'agotado', 'hambre', 'triste', 'muerto'].includes(mood) || sleeping ? 'mal' : ''}`, 'data-crew': c.id },
+          h('div', { class: 'top' },
+            crewAvatar(c, { size: 80 }),
+            h('div', {},
+              h('div', { class: 'name' }, c.name),
+              h('div', { class: 'small' }, h('span', { class: 'pill role' }, ROLES[c.role]?.name ?? c.role)),
+              h('div', { class: `estado ${mood === 'feliz' || mood === 'normal' ? 'green' : 'amber'}` }, MOOD_TEXT[mood]),
+              h('div', { class: 'small dim' }, Object.entries(c.stats).map(([k, v]) => `${STAT[k]}${v}`).join(' '), ' ',
+                ...c.traits.map((t) => h('span', { class: `chip ${TRAITS[t]?.positive ? 'ok' : 'bad'}`, title: TRAITS[t]?.desc }, TRAITS[t]?.name ?? t))))),
+          c.alive ? [
+            h('div', { class: 'stats' },
+              ...statRow('❤️ Salud', c.health / 100, {}, fmt(c.health)),
+              ...statRow('🥱 Cansancio', c.fatigue / 100, { invert: true }, fmt(c.fatigue)),
+              ...statRow('😊 Ánimo', c.morale / 100, {}, fmt(c.morale)),
+              ...statRow('🦴 Huesos', c.bone / 100, { warn: 0.8, danger: 0.7 }, fmt(c.bone)),
+              ...statRow('☢️ Radiación', c.radiation / (RAD_LIMIT * 1.2), { invert: true, warn: 0.4, danger: 1 - 1 / 1.2, mark: 1 / 1.2 }, fmt(c.radiation))),
+            h('div', { class: 'turnos' }, ...[0, 1, 2].map((turn) => h('label', {}, TURNS[turn],
+              h('select', { 'data-turn': `${c.id}:${turn}`, onchange: (e) => setTurn(c.id, turn, e.target.value) },
+                ...TASK_IDS.map((t) => h('option', { value: t, selected: (s.schedule[c.id]?.[turn] === 'trabajo' ? 'experimentos' : s.schedule[c.id]?.[turn]) === t }, `${TASK_ICON[t]} ${TASKS[t].name}`)))))),
+            h('label', { class: 'small row', style: { marginTop: '.3rem' } }, 'Ración de comida',
+              h('select', { 'data-ration': c.id, onchange: (e) => setRation(c.id, e.target.value) },
+                ...Object.entries(RATIONS).map(([r, t]) => h('option', { value: r, selected: s.rations[c.id] === r }, t)))),
+          ] : null);
+      })));
   }
 
   function alerts() {
     const s = app.state;
-    return h('div', { class: 'panel', id: 'alertas' },
-      h('h2', {}, 'Alertas'),
-      s.alerts.length ? null : h('div', { class: 'small dim' }, 'Sin avisos.'),
+    return h('div', { class: 'panel c-amber', id: 'alertas' },
+      h('h2', {}, '⚠️ Avisos'),
+      s.alerts.length ? null : h('div', { class: 'help' }, '😌 Nada a la vista.'),
       ...s.alerts.map((a, idx) => {
-        const ev = EVENTS[a.eventId];
-        return h('div', { style: { marginBottom: '.4rem' } },
-          h('div', { class: 'amber' }, `⚠ ${ev.name} en ${a.etaDays} día(s)`, a.real ? h('span', { class: 'tag' }, `dato real ${a.real.cls} · ${a.real.date}`) : null),
-          h('div', { class: 'row small' }, ...ev.prepare.map((p) => h('button', {
-            class: a.prepared.includes(p.id) ? 'sel' : '', disabled: a.prepared.includes(p.id),
+        const ev = EVENT_ICON[a.eventId] ?? '⚠️';
+        const def = EVENTS[a.eventId];
+        return h('div', { class: 'alert-card' },
+          h('div', { class: 'row' }, h('span', { style: { fontSize: '1.8rem' } }, ev), h('div', {},
+            h('b', {}, def.name), h('div', { class: 'amber' }, `llega en ${a.etaDays} día(s)`),
+            a.real ? h('span', { class: 'tag' }, `☀️ dato real de NASA: fulguración ${a.real.cls} del ${a.real.date}`) : null)),
+          def.prepare.length ? h('div', { class: 'help' }, 'Prepárense antes, así el problema será menor:') : null,
+          h('div', { class: 'row small' }, ...def.prepare.map((p) => h('button', {
+            class: a.prepared.includes(p.id) ? 'sel' : '', disabled: a.prepared.includes(p.id), 'data-prep': p.id,
             onclick: () => { commit(prepareFor(app.state, idx, p.id)); beep(700, 40); draw(); },
-          }, p.label, Object.keys(p.cost ?? {}).length ? ` (${Object.entries(p.cost).map(([k, v]) => `${k} ${v}`).join(', ')})` : ''))));
+          }, a.prepared.includes(p.id) ? '✔ ' : '', p.label, Object.keys(p.cost ?? {}).length ? ` (${Object.entries(p.cost).map(([k, v]) => `${v} ${RES_NAME[k] ?? k}`).join(', ')})` : ''))));
       }));
   }
 
@@ -164,31 +239,72 @@ export function render(root, app, go) {
     const offers = s.minis.filter((m) => m.status === 'oferta');
     const active = s.minis.filter((m) => m.status === 'activa');
     const busy = new Set(active.flatMap((m) => m.crewIds));
-    return h('div', { class: 'panel', id: 'minis' },
-      h('h2', {}, 'Minimisiones'),
-      !offers.length && !active.length ? h('div', { class: 'small dim' }, 'Ninguna ahora. Llegan ofertas de vez en cuando.') : null,
+    return h('div', { class: 'panel c-green', id: 'minis' },
+      h('h2', {}, '🎯 Minimisiones'),
+      !offers.length && !active.length ? h('div', { class: 'help' }, 'Ninguna ahora. Te van a pedir trabajos especiales de vez en cuando.') : null,
       ...offers.map((m) => {
         const def = MINIMISSIONS[m.id];
         const picks = new Set();
-        return h('div', { style: { marginBottom: '.5rem' } },
-          h('div', {}, h('b', {}, def.name), h('span', { class: 'small dim' }, ` · vence día ${m.deadline} · ${def.days} día(s)${def.eva ? ' · EVA' : ''}`)),
+        const preview = h('div', { class: 'que-pasa' }, 'Elige quién va para ver si le alcanza.');
+        const updatePreview = () => {
+          if (!picks.size) { preview.textContent = 'Elige quién va para ver si le alcanza.'; return; }
+          const r = previewMini(app.state, m.id, [...picks]);
+          preview.replaceChildren(r.ok ? h('b', { class: 'green' }, '✔ Va a funcionar. ') : h('b', { class: 'red' }, '✖ No alcanza todavía. '),
+            `${r.parts.map((x) => `${x.label} ${x.value >= 0 ? '+' : ''}${x.value}`).join(' · ')} = ${r.total} de ${r.need}`);
+        };
+        return h('div', { class: 'mini-card' },
+          h('div', { class: 'row' }, h('span', { style: { fontSize: '1.8rem' } }, MINI_ICON[m.id] ?? '🎯'),
+            h('div', {}, h('b', {}, def.name), h('div', { class: 'small dim' }, `hasta el día ${m.deadline} · dura ${def.days} día(s)${def.eva ? ' · sale afuera 👨‍🚀' : ''}`))),
           h('div', { class: 'small' }, def.desc),
-          h('div', { class: 'small dim' }, `Requiere ${def.requires.crew} tripulante(s)${def.requires.role ? ` (uno ${def.requires.role})` : ''}${def.requires.modules?.length ? ` · módulos: ${def.requires.modules.join(', ')}` : ''}${def.instruments?.length ? ` · instrumentos: ${def.instruments.join(', ')}` : ''} · tirada ${def.check.stat} ≥ ${def.check.dc}`),
-          h('div', { class: 'row small' }, ...living().filter((c) => !busy.has(c.id)).map((c) => h('label', {},
-            h('input', { type: 'checkbox', onchange: (e) => (e.target.checked ? picks.add(c.id) : picks.delete(c.id)) }), c.name.split(' ')[0])),
+          h('div', { class: 'small dim' }, `Necesita: ${def.requires.crew} persona(s)${def.requires.role ? ` (una ${ROLES[def.requires.role]?.name ?? def.requires.role})` : ''}${def.requires.modules?.length ? ` · ${def.requires.modules.map((t) => `${MODULES[t].icon} ${MODULES[t].name}`).join(', ')}` : ''}${def.instruments?.length ? ` · ${def.instruments.map((i) => INSTRUMENTS[i]?.name ?? i).join(', ')}` : ''} · usa ${STAT[def.check.stat] ?? ''} ${STAT_NAME[def.check.stat] ?? def.check.stat}`),
+          h('div', { class: 'row small' }, ...living().filter((c) => !busy.has(c.id)).map((c) => h('label', { class: 'pick' },
+            h('input', { type: 'checkbox', onchange: (e) => { (e.target.checked ? picks.add(c.id) : picks.delete(c.id)); updatePreview(); } }), firstName(c)))),
+          preview,
           h('button', { 'data-accept': m.id, onclick: () => {
             const r = acceptMini(app.state, m.id, [...picks]);
-            if (r.error) { banner = { text: r.error, cls: 'red' }; draw(); return; }
-            commit(r.state); banner = { text: `Aceptada: ${def.name}`, cls: '' }; beep(900, 60); draw();
-          } }, 'Aceptar')));
+            if (r.error) { banner = { text: `❌ ${r.error}`, cls: 'red' }; draw(); return; }
+            commit(r.state); banner = { text: `🚀 ¡En marcha: ${def.name}!`, cls: '' }; beep(900, 60); draw();
+          } }, '✔ Aceptar'));
       }),
-      ...active.map((m) => h('div', { class: 'small' }, `▶ ${MINIMISSIONS[m.id].name}: faltan ${m.daysLeft} día(s) · ${m.crewIds.map((id) => s.crew.find((c) => c.id === id)?.name.split(' ')[0]).join(', ')}`)));
+      ...active.map((m) => h('div', { class: 'small' }, `▶ ${MINI_ICON[m.id] ?? ''} ${MINIMISSIONS[m.id].name}: faltan ${m.daysLeft} día(s) · ${m.crewIds.map((id) => firstName(s.crew.find((c) => c.id === id))).join(', ')}`)));
   }
 
   function logPanel() {
     const s = app.state;
-    return h('div', { class: 'panel' }, h('h2', {}, 'Bitácora'),
-      h('div', { class: 'log', id: 'bitacora' }, ...s.log.slice(-80).reverse().map((l) => h('div', { class: l.kind }, `D${l.day} · ${l.text}`))));
+    return h('div', { class: 'panel c-cyan' }, h('h2', {}, '📖 Diario de a bordo'),
+      h('div', { class: 'log', id: 'bitacora' }, ...s.log.slice(-80).reverse().map((l) => h('div', { class: l.kind }, h('b', {}, `Día ${l.day} `), l.text))));
+  }
+
+  /** Lo más importante que Nova debe decir ahora, y a qué apuntar. */
+  function coach(sched) {
+    const s = app.state;
+    if (s.phase === 'reentry') return ['¡Un año completo! 🎉 Ahora hay que volver a la Tierra. Toca INICIAR REENTRADA.', 'feliz', '#reentrada', null];
+    if (sched.length) return [`${sched[0]}. Elige 😴 Sueño en uno de sus turnos.`, 'alerta', `[data-crew="${s.crew.find((c) => sched[0].startsWith(c.name))?.id}"] .turnos`, 'tripulacion'];
+    const unprepped = s.alerts.findIndex((a) => EVENTS[a.eventId].prepare.length && !a.prepared.length);
+    if (unprepped >= 0) return [`Viene ${EVENTS[s.alerts[unprepped].eventId].name}. ¡Prepárense ahora y será menos grave!`, 'alerta', '#alertas', 'misiones'];
+    const left = daysLeft(s);
+    const lowRes = ['food', 'water', 'o2'].find((k) => left[k] < 10);
+    if (lowRes) return [`¡Queda poca ${{ food: 'comida 🍎', water: 'agua 💧', o2: 'aire 🫧' }[lowRes]}! Pon raciones medias, alguien en ${lowRes === 'food' ? 'cultivo 🌱' : 'producción de agua 💧'} o espera la carga del día ${s.nextResupply}.`, 'alerta', '#recursos', 'resumen'];
+    const sick = living().find((c) => c.health < 50);
+    if (sick) return [`${firstName(sick)} está enfermo. Pon a alguien en 🩺 Atención médica.`, 'alerta', `[data-crew="${sick.id}"]`, 'tripulacion'];
+    const tired = living().find((c) => c.fatigue >= 70);
+    if (tired) return [`${firstName(tired)} está muy cansado. Dale un turno de 🛋️ Descanso.`, 'pensando', `[data-crew="${tired.id}"]`, 'tripulacion'];
+    const broken = s.modules.find((m) => m.health < 40);
+    if (broken) return [`El módulo ${MODULES[broken.type].name} está muy dañado. Pon a alguien en 🔧 Reparación.`, 'alerta', `[data-module="${broken.id}"]`, 'estacion'];
+    const weakBone = living().find((c) => c.bone < 85);
+    if (weakBone) return [`Los huesos de ${firstName(weakBone)} se debilitan sin gravedad. Dale 🏃 Ejercicio.`, 'pensando', `[data-crew="${weakBone.id}"]`, 'tripulacion'];
+    const offer = s.minis.find((m) => m.status === 'oferta');
+    if (offer) return [`Hay una minimisión: ${MINIMISSIONS[offer.id].name}. Elige quién va y mira si le alcanza.`, 'pensando', '#minis', 'misiones'];
+    if (s.resources.dataStored > 300) return ['Se están juntando muchos datos. Pon a alguien en 📞 Comunicación para mandarlos.', 'pensando', '#recursos', 'resumen'];
+    if (s.day === 0) return ['¡Bienvenidos a la estación! En la pestaña 🧑‍🚀 Tripulación eliges qué hace cada astronauta. Cuando estés listo, toca ▶ AVANZAR.', 'feliz', '#avanzar', null];
+    return ['Todo bajo control. 👍 Toca ▶ AVANZAR y yo te aviso cuando pase algo.', 'feliz', '#avanzar', null];
+  }
+
+  function crewMini() {
+    const s = app.state;
+    return h('div', { class: 'panel c-pink' }, h('h2', {}, '🧑‍🚀 ¿Cómo están?'),
+      h('div', { class: 'mini-crew' }, ...s.crew.map((c) => h('div', { class: 'who', onclick: () => pick('tripulacion') },
+        crewAvatar(c, { size: 64 }), h('div', {}, h('b', {}, firstName(c))), h('div', { class: 'small dim' }, MOOD_TEXT[moodOf(c)])))));
   }
 
   function draw() {
@@ -196,23 +312,38 @@ export function render(root, app, go) {
     const sched = validateSchedule(Object.fromEntries(Object.entries(s.schedule).filter(([id]) => s.crew.find((c) => c.id === id)?.alive)))
       .map((e) => { const id = e.split(' ')[0]; const c = s.crew.find((x) => x.id === id); return c ? e.replace(id, c.name) : e; });
     const blocked = sched.length > 0 || !!s.pending || s.phase !== 'ops';
-    mount(root, 
-      h('div', { class: 'row', style: { justifyContent: 'space-between' } },
-        h('h1', { style: { fontSize: '1.8rem' }, id: 'dia' }, `DÍA ${s.day} / ${s.totalDays}`),
+    const pct = Math.min(100, (s.day / s.totalDays) * 100);
+    mount(root,
+      h('div', { class: 'day-head' },
+        h('div', {},
+          h('h1', { style: { fontSize: '2rem', margin: 0 }, id: 'dia' }, `📅 DÍA ${s.day} de ${s.totalDays}`),
+          h('div', { class: 'trip' }, h('div', { class: 'trip-fill', style: { width: `${pct}%` } }), h('span', { class: 'trip-ship', style: { left: `${pct}%` } }, '🛰️'), h('span', { class: 'trip-end' }, '🏠'))),
         h('div', { class: 'row' },
-          h('button', { id: 'avanzar1', disabled: blocked, onclick: () => advance(false) }, 'Avanzar 1 día'),
-          h('button', { id: 'avanzar', class: 'big', disabled: blocked, onclick: () => advance(true) }, 'Avanzar hasta el próximo evento'),
-          s.phase === 'reentry' ? h('button', { id: 'reentrada', class: 'big warn', onclick: () => go('reentry') }, 'INICIAR REENTRADA') : null,
-          s.pending ? h('button', { class: 'warn', onclick: eventModal }, 'Ver evento') : null)),
-      sched.length ? h('div', { class: 'banner red', id: 'horario' }, sched.join(' · '), ' — cada tripulante debe dormir al menos un turno.') : null,
+          h('button', { id: 'avanzar1', disabled: blocked, onclick: () => advance(false) }, '⏭️ 1 día'),
+          h('button', { id: 'avanzar', class: 'big', disabled: blocked, onclick: () => advance(true) }, '▶ AVANZAR'),
+          s.phase === 'reentry' ? h('button', { id: 'reentrada', class: 'big warn', onclick: () => go('reentry') }, '🌍 INICIAR REENTRADA') : null,
+          s.pending ? h('button', { class: 'warn', onclick: eventModal }, '⚠️ Ver problema') : null)),
+      sched.length ? h('div', { class: 'banner red', id: 'horario' }, '😴 ', sched.join(' · '), ' — todos deben dormir al menos un turno.') : null,
       banner ? h('div', { class: `banner ${banner.cls}`, id: 'aviso' }, banner.text) : null,
-      h('div', { class: 'grid3' },
-        h('div', {}, resources(), alerts()),
-        h('div', {}, ship(), minis()),
-        h('div', {}, logPanel())),
-      crew(),
+      tabs([
+        { id: 'resumen', label: '🏠 Resumen', color: 'c-blue', badge: ['food', 'water', 'o2'].some((k) => daysLeft(s)[k] < 10) ? '!' : 0 },
+        { id: 'tripulacion', label: '🧑‍🚀 Tripulación', color: 'c-pink', badge: sched.length + living().filter((c) => c.health < 50 || c.fatigue >= 70).length },
+        { id: 'estacion', label: '🛰️ Estación', color: 'c-violet', badge: s.modules.filter((m) => m.health < 40 || !m.on).length },
+        { id: 'misiones', label: '⚠️ Avisos y misiones', color: 'c-amber', badge: s.alerts.length + s.minis.filter((m) => m.status === 'oferta').length },
+        { id: 'diario', label: '📖 Diario', color: 'c-cyan' },
+      ], tab, pick),
+      tab === 'resumen' ? h('div', { class: 'grid2' }, h('div', {}, resources()), h('div', {}, crewMini(), alerts())) : null,
+      tab === 'tripulacion' ? crewCards() : null,
+      tab === 'estacion' ? ship() : null,
+      tab === 'misiones' ? h('div', { class: 'grid2' }, alerts(), minis()) : null,
+      tab === 'diario' ? logPanel() : null,
     );
     if (s.pending && !document.getElementById('evento')) eventModal();
+    else if (!s.pending) {
+      const [t, mood, target, where] = coach(sched);
+      const elsewhere = where && where !== tab;
+      say(elsewhere ? `${t} (Toca la pestaña señalada.)` : t, { mood, target: elsewhere ? `[data-tab="${where}"]` : target, quiet: true });
+    }
   }
 
   draw();

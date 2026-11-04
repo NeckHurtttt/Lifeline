@@ -1,5 +1,5 @@
 // Pantalla de diseño: cuadrícula de módulos, instrumentos, cohete, órbita, carga y tripulación, con Nova guiando.
-import { h, mount, bar, modal, fmt } from '../dom.js';
+import { h, mount, bar, modal, fmt, tabs } from '../dom.js';
 import { MODULES, INSTRUMENTS, LAUNCHERS, ORBITS, GRID, DIFFICULTY } from '../../data/catalog.js';
 import { ROLES } from '../../data/crew.js';
 import { LESSONS } from '../../data/lessons.js';
@@ -30,6 +30,8 @@ const EMPTY = () => ({
   modules: [mod('cabina', 0, 0), mod('soporte_vital', 1, 0)], instruments: [], launcher: 'condor1', orbit: 'leo_estacion',
   crewRoles: ['comandante', 'piloto', 'ingeniero'], cargoDays: 90,
 });
+
+const TAB_OF = (target) => (/data-mod|#nave/.test(target) ? 'nave' : target === '#instrumentos' ? 'ciencia' : target === '#cohetes' ? 'cohete' : /#tripulantes|#carga/.test(target) ? 'astronautas' : null);
 
 const STORMS_PER_DIFF = { facil: 2, medio: 4, dificil: 7 };
 
@@ -73,6 +75,7 @@ export function render(root, app, go, params = {}) {
   let selected = 'paneles';
   let launching = false;
   let explain = null; // texto de Nova al elegir algo
+  let tab = app.designTab ?? 'nave';
   const flares = fetchFlares();
   const budgetMult = app.mode === 'libre' ? app.budgetMult : 1;
   const who = (role) => { const n = whoDecides(app, role); return n ? h('span', { class: 'tag' }, `decide ${n}`) : null; };
@@ -125,9 +128,16 @@ export function render(root, app, go, params = {}) {
         h('div', { class: 'row' },
           h('button', { onclick: () => { Object.assign(d, SUGGESTED()); explain = null; draw(); say('Te puse una nave que funciona. ¡Puedes cambiarla como quieras!', { mood: 'feliz' }); } }, '✨ Usar una nave de ejemplo'),
           h('button', { onclick: () => go('title') }, '🏠 Menú'))),
-      h('div', { class: 'grid3' },
+      h('div', { class: 'design-layout' },
         h('div', {},
-          h('div', { class: 'panel' },
+          tabs([
+            { id: 'nave', label: '🧩 1. Nave', color: 'c-blue', badge: r.errors.some((e) => /módulo|energía|casilla|cuadrícula/i.test(e)) ? '!' : 0 },
+            { id: 'ciencia', label: '🔬 2. Ciencia', color: 'c-green', badge: r.errors.some((e) => /instrumentos/i.test(e)) ? '!' : 0 },
+            { id: 'cohete', label: '🚀 3. Cohete y órbita', color: 'c-pink', badge: r.errors.some((e) => /pesa/i.test(e)) ? '!' : 0 },
+            { id: 'astronautas', label: '🧑‍🚀 4. Astronautas y comida', color: 'c-cyan', badge: r.errors.some((e) => /tripulantes|Carga/i.test(e)) ? '!' : 0 },
+          ], tab, (t) => { tab = t; app.designTab = t; explain = null; beep(760, 30); draw(); }),
+          tab === 'nave' ? h('div', { class: 'grid2 nave-tab' },
+          h('div', { class: 'panel c-violet' },
             h('h2', {}, '1. Elige una pieza ', who('ingeniero')),
             h('div', { class: 'help' }, 'Toca una pieza y luego un cuadro de tu nave.'),
             h('ul', { class: 'plain', id: 'catalogo' }, ...Object.values(MODULES).map((m) => h('li', {},
@@ -136,29 +146,12 @@ export function render(root, app, go, params = {}) {
                 say(`${m.icon} ${m.name}: ${m.desc} Pesa ${m.mass} t y cuesta ${m.cost} millones.`, { quiet: true, target: '#nave' });
               } }, `${m.icon} ${m.name}`, m.required ? h('span', { class: 'amber small' }, ' (obligatorio)') : null,
               h('div', { class: 'dim small' }, `${m.mass} t · ${m.kw > 0 ? '+' : ''}${m.kw} kW · 💰${m.cost}`)))))),
-        ),
-        h('div', {},
-          h('div', { class: 'panel' },
+          h('div', { class: 'panel c-blue' },
             h('h2', {}, '2. Tu nave ', who('ingeniero')),
             h('div', { class: 'ship', id: 'nave', style: { gridTemplateColumns: `repeat(${GRID.cols}, 1fr)` } },
               ...Array.from({ length: GRID.rows }, (_, y) => Array.from({ length: GRID.cols }, (_, x) => cell(x, y)))),
-            h('div', { class: 'help', style: { marginTop: '.3rem' } }, 'Clic derecho sobre una pieza para quitarla.')),
-          h('div', { class: 'panel', id: 'tablero' },
-            h('h2', {}, '¿Puede volar?'),
-            row('🏋️ Peso', r.capacity ? r.mass / r.capacity : 1, `${fmt(r.mass, 1)} de ${fmt(r.capacity, 1)} t`, null, { invert: true, warn: 0.15, danger: 0.0001 }),
-            row('💰 Dinero', r.cost / r.budget, `${fmt(r.cost)} de ${fmt(r.budget)}`, null, { invert: true, warn: 0.1, danger: 0.0001 }),
-            row('⚡ Electricidad', Math.max(0, Math.min(1, 0.5 + r.energyPerDay / 400)), r.energyPerDay >= 0 ? `sobran ${fmt(r.energyPerDay)}` : `faltan ${fmt(-r.energyPerDay)}`, 'paneles_solares', { warn: 0.55, danger: 0.5 }),
-            row('📶 Datos', r.downlinkPerDay ? r.dataPerDay / r.downlinkPerDay : (r.dataPerDay ? 2 : 0), `junta ${fmt(r.dataPerDay)}, manda ${fmt(r.downlinkPerDay)}`, 'satelites_clima', { invert: true, warn: 0.2, danger: 0.0001 }),
-            row('🧪 Ciencia', Math.min(1, r.sciencePerDay / 20), `${fmt(r.sciencePerDay)} por día`, null, { warn: 0, danger: 0 }),
-            row('🍎 Comida', d.cargoDays / Math.max(1, r.cargoMax), `${d.cargoDays} de ${r.cargoMax} días`, 'racionamiento', { invert: true, warn: 0.1, danger: 0.0001 }),
-            h('ul', { class: 'plain', id: 'errores' },
-              ...r.errors.map((e) => h('li', { class: 'red' }, '❌ ', e)),
-              ...r.warnings.map((w) => h('li', { class: 'amber' }, '⚠️ ', w))),
-            h('div', { style: { textAlign: 'center', marginTop: '.6rem' } },
-              h('button', { class: 'big', id: 'lanzar', disabled: !ok || launching, onclick: launch }, launching ? '☀️ MIRANDO EL CLIMA ESPACIAL…' : '🚀 LANZAR'),
-              ' ', who('comandante')))),
-        h('div', {},
-          h('div', { class: 'panel', id: 'instrumentos' },
+            h('div', { class: 'help', style: { marginTop: '.3rem' } }, 'Clic derecho sobre una pieza para quitarla.'))) : null,
+          tab === 'ciencia' ? h('div', { class: 'panel c-green', id: 'instrumentos' },
             h('h2', {}, '3. Instrumentos de ciencia ', who('cientifico')),
             h('div', { class: 'help' }, `Van dentro del 🔬 laboratorio: usas ${d.instruments.length} de ${instrSlots} lugares.`),
             ...Object.values(INSTRUMENTS).map((i) => h('label', { class: 'row small', style: { margin: '.25rem 0' }, title: i.desc },
@@ -166,8 +159,8 @@ export function render(root, app, go, params = {}) {
                 d.instruments = e.target.checked ? [...d.instruments, i.id] : d.instruments.filter((x) => x !== i.id);
                 explain = i.id; draw(); say(`${i.icon} ${i.name}: ${i.desc} Da ${i.sciencePerDay} de ciencia por día.`, { quiet: true });
               } }),
-              `${i.icon} ${i.name}`, h('span', { class: 'dim' }, `🧪${i.sciencePerDay} · 💰${i.cost}`)))),
-          h('div', { class: 'panel', id: 'cohetes' },
+              `${i.icon} ${i.name}`, h('span', { class: 'dim' }, `🧪${i.sciencePerDay} · 💰${i.cost}`)))) : null,
+          tab === 'cohete' ? h('div', { class: 'panel c-pink', id: 'cohetes' },
             h('h2', {}, '4. Cohete ', who('comandante')),
             ...Object.values(LAUNCHERS).map((l) => h('label', { class: 'row small', style: { margin: '.2rem 0' } },
               h('input', { type: 'radio', name: 'cohete', 'data-launcher': l.id, checked: d.launcher === l.id, onchange: () => {
@@ -178,8 +171,8 @@ export function render(root, app, go, params = {}) {
             h('h2', { style: { marginTop: '.6rem' } }, '5. ¿A dónde? (órbita) ', who('comandante')),
             ...Object.values(ORBITS).map((o) => h('label', { class: 'row small', style: { margin: '.2rem 0' } },
               h('input', { type: 'radio', name: 'orbita', 'data-orbit': o.id, checked: d.orbit === o.id, onchange: () => { d.orbit = o.id; explain = o.id; draw(); say(`${o.icon} ${o.name}: ${o.desc}`, { quiet: true }); } }),
-              `${o.icon} ${o.name}`))),
-          h('div', { class: 'panel', id: 'tripulantes' },
+              `${o.icon} ${o.name}`))) : null,
+          tab === 'astronautas' ? h('div', { class: 'panel c-cyan', id: 'tripulantes' },
             h('h2', {}, '6. Comida y astronautas ', who('comandante')),
             h('div', { class: 'row small' }, '🍎 Comida para',
               h('input', { type: 'range', id: 'carga', min: 30, max: 365, step: 5, value: d.cargoDays, oninput: (e) => { d.cargoDays = Number(e.target.value); draw(); } }),
@@ -193,12 +186,28 @@ export function render(root, app, go, params = {}) {
                 explain = ro.id; draw();
                 say(`${ROLE_ICON[ro.id]} ${ro.name}: ${ROLE_DESC[ro.id]}. ${adding ? '¡Sube a bordo!' : 'Se queda en la Tierra.'}`, { quiet: true });
               } }, `${ROLE_ICON[ro.id]} ${ro.name}`))),
-            h('div', { class: 'small dim' }, `${d.crewRoles.length} astronauta(s). Más gente hace más cosas, pero come más.`))),
-      ),
+            h('div', { class: 'small dim' }, `${d.crewRoles.length} astronauta(s). Más gente hace más cosas, pero come más.`)) : null),
+        h('div', {},
+          h('div', { class: 'panel c-amber', id: 'tablero' },
+            h('h2', {}, '¿Puede volar?'),
+            row('🏋️ Peso', r.capacity ? r.mass / r.capacity : 1, `${fmt(r.mass, 1)} de ${fmt(r.capacity, 1)} t`, null, { invert: true, warn: 0.15, danger: 0.0001 }),
+            row('💰 Dinero', r.cost / r.budget, `${fmt(r.cost)} de ${fmt(r.budget)}`, null, { invert: true, warn: 0.1, danger: 0.0001 }),
+            row('⚡ Electricidad', Math.max(0, Math.min(1, 0.5 + r.energyPerDay / 400)), r.energyPerDay >= 0 ? `sobran ${fmt(r.energyPerDay)}` : `faltan ${fmt(-r.energyPerDay)}`, 'paneles_solares', { warn: 0.55, danger: 0.5 }),
+            row('📶 Datos', r.downlinkPerDay ? r.dataPerDay / r.downlinkPerDay : (r.dataPerDay ? 2 : 0), `junta ${fmt(r.dataPerDay)}, manda ${fmt(r.downlinkPerDay)}`, 'satelites_clima', { invert: true, warn: 0.2, danger: 0.0001 }),
+            row('🧪 Ciencia', Math.min(1, r.sciencePerDay / 20), `${fmt(r.sciencePerDay)} por día`, null, { warn: 0, danger: 0 }),
+            row('🍎 Comida', d.cargoDays / Math.max(1, r.cargoMax), `${d.cargoDays} de ${r.cargoMax} días`, 'racionamiento', { invert: true, warn: 0, danger: 0 }),
+            h('ul', { class: 'plain', id: 'errores' },
+              ...r.errors.map((e) => h('li', { class: 'red' }, '❌ ', e)),
+              ...r.warnings.map((w) => h('li', { class: 'amber' }, '⚠️ ', w))),
+            h('div', { style: { textAlign: 'center', marginTop: '.6rem' } },
+              h('button', { class: 'big', id: 'lanzar', disabled: !ok || launching, onclick: launch }, launching ? '☀️ MIRANDO EL CLIMA ESPACIAL…' : '🚀 LANZAR'),
+              ' ', who('comandante'))))),
     );
     if (!explain) {
       const [text, mood, target] = coach(d, r);
-      say(text, { mood, target, quiet: true });
+      const where = TAB_OF(target);
+      const elsewhere = where && where !== tab;
+      say(elsewhere ? `${text} (Toca la pestaña señalada.)` : text, { mood, target: elsewhere ? `[data-tab="${where}"]` : target, quiet: true });
     }
   };
   draw();

@@ -51,11 +51,11 @@ export function render(root, app, go) {
           ...['Ada Sol', 'Leo Mar', 'Iris Luz', 'Tomás Rey'].map((n, i) => crewAvatar({ name: n, role: ['comandante', 'piloto', 'ingeniero', 'medico'][i], alive: true, health: 100, morale: 90, fatigue: 0, radiation: 0, hunger: 0, thirst: 0 }, { size: 70 }))),
         h('h1', {}, 'VENTANA DE LANZAMIENTO'),
         h('div', { class: 'dim', style: { fontSize: '1.1rem' } }, '🛠️ Diseña tu nave · 🚀 Despega · 🛰️ Sobrevive un año en el espacio · 🌊 Vuelve a casa')),
-      saved ? h('div', { class: 'panel', style: { textAlign: 'center' } },
+      saved ? h('div', { class: 'panel c-green', style: { textAlign: 'center' } },
         h('button', { class: 'big', id: 'continuar', onclick: () => { app.state = saved; app.difficulty = saved.difficulty; app.mode = saved.mode ?? app.mode; go(saved.phase === 'reentry' ? 'reentry' : 'ops'); } },
           `▶ SEGUIR MI MISIÓN · DÍA ${saved.day}`)) : null,
       h('div', { class: 'grid2' },
-        h('div', { class: 'panel' },
+        h('div', { class: 'panel c-blue' },
           h('h2', {}, '1. ¿Cómo quieres jugar?'),
           ...Object.entries(MODES).map(([id, m]) => h('div', { class: 'row', style: { margin: '.35rem 0' } },
             h('button', { class: app.mode === id ? 'sel' : '', 'data-mode': id, onclick: () => { app.mode = id; if (id === 'demo') app.difficulty = 'facil'; beep(700, 40); draw(); say(`${m.icon} ${m.name}: ${m.desc}`, { quiet: true, target: '#nueva' }); } }, `${m.icon} ${m.name}`),
@@ -72,7 +72,7 @@ export function render(root, app, go) {
           app.mode === 'libre' ? h('div', { class: 'row', style: { marginTop: '.4rem' } }, 'Más o menos dinero',
             h('input', { type: 'range', min: 50, max: 150, step: 10, value: app.budgetMult * 100, oninput: (e) => { app.budgetMult = e.target.value / 100; draw(); } }),
             `${Math.round(app.budgetMult * 100)} %`) : null),
-        h('div', { class: 'panel' },
+        h('div', { class: 'panel c-pink' },
           h('h2', {}, '3. ¿Cuántos juegan en esta compu?'),
           h('div', { class: 'row' }, ...[1, 2, 3, 4].map((n) =>
             h('button', { class: app.players.length === n ? 'sel' : '', 'data-players': n, onclick: () => {

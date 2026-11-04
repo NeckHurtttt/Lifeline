@@ -38,3 +38,10 @@ export const fmt = (n, d = 0) => (Number.isFinite(n) ? n.toFixed(d) : '∞');
 export function mount(root, ...kids) {
   root.replaceChildren(...kids.flat(Infinity).filter((k) => k !== null && k !== undefined && k !== false));
 }
+
+/** Barra de subpestanas. list: [{id, label, badge?, color?}] */
+export function tabs(list, current, onPick) {
+  return h('div', { class: 'tabs', role: 'tablist' }, ...list.map((t) => h('button', {
+    class: `tab ${t.id === current ? 'on' : ''} ${t.color ?? ''}`, role: 'tab', 'data-tab': t.id, onclick: () => onPick(t.id),
+  }, t.label, t.badge ? h('span', { class: `badge ${t.badgeClass ?? ''}` }, String(t.badge)) : null)));
+}
