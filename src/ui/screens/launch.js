@@ -6,6 +6,8 @@ import { DIFFICULTY } from '../../data/catalog.js';
 import { save } from '../../core/save.js';
 import { PLAYER_ROLES } from '../main.js';
 import { beep, alarm, radio, hum } from '../audio.js';
+import { say as nova } from '../guide.js';
+import { crewAvatar } from '../avatar.js';
 
 const ABORT_NAMES = { torre_escape: 'Torre de escape', amarizaje: 'Aborto con amarizaje', aborto_orbita: 'Aborto a órbita' };
 const RADIO = {
@@ -62,15 +64,20 @@ export function render(root, app, go) {
     clock: h('div', { class: 'clock', id: 'reloj' }, clockText(t)),
     steps: h('ul', { class: 'plain steps', id: 'pasos' }),
     tel: h('div', { class: 'small' }),
+    rocket: h('div', { class: 'rocket' }, '🚀'),
+    sky: null,
     radio: h('div', { class: 'log', id: 'radio', style: { maxHeight: '320px' } }),
     action: h('div', { id: 'accion', style: { marginTop: '.6rem' } }),
   };
-  mount(root, 
-    h('h1', { style: { fontSize: '1.6rem' } }, 'Despegue', h('span', { class: 'dim small' }, ` · modo ${mode}`)),
+  els.sky = h('div', { class: 'sky' }, h('div', { class: 'planet' }), h('div', { class: 'station' }, '🛰️'), h('div', { class: 'ground' }), h('div', { class: 'tower' }), els.rocket);
+  const MODE_TXT = { auto: 'automático: solo mira', pausas: 'con pausas: ustedes deciden el clima y el GO', manual: 'manual: ustedes deciden todo, ¡hasta los abortos!' };
+  mount(root,
+    h('h1', { style: { fontSize: '1.8rem' } }, '🚀 Despegue', h('span', { class: 'dim small' }, ` · ${MODE_TXT[mode]}`)),
     h('div', { class: 'grid3' },
-      h('div', { class: 'panel' }, h('h2', {}, 'Secuencia'), els.steps),
-      h('div', { class: 'panel', style: { textAlign: 'center' } }, els.clock, els.tel, els.action),
-      h('div', { class: 'panel' }, h('h2', {}, 'Radio del control'), els.radio)),
+      h('div', { class: 'panel c-violet' }, h('h2', {}, 'Pasos del despegue'), els.steps),
+      h('div', { class: 'panel c-blue', style: { textAlign: 'center' } }, els.sky, els.clock, els.tel, els.action,
+        h('div', { class: 'capsule', style: { marginTop: '.5rem' } }, ...s.crew.map((c) => crewAvatar(c, { size: 56 })))),
+      h('div', { class: 'panel c-cyan' }, h('h2', {}, '📻 Radio de Control'), els.radio)),
   );
 
   const say = (text, cls = '') => { radioLog.unshift(h('div', { class: cls }, `[${clockText(t)}] ${text}`)); els.radio.replaceChildren(...radioLog.slice(0, 60)); radio(); };
@@ -79,7 +86,10 @@ export function render(root, app, go) {
   const drawTel = () => {
     const v = tel(t);
     els.clock.textContent = clockText(t);
-    els.tel.replaceChildren(h('div', {}, `ALT ${v.alt.toFixed(1)} km · VEL ${v.vel.toFixed(2)} km/s · Q ${v.q.toFixed(1)} kPa`));
+    els.tel.replaceChildren(h('div', {}, `⬆️ Altura ${v.alt.toFixed(1)} km · 💨 Velocidad ${v.vel.toFixed(2)} km/s · 🌬️ Empuje del aire ${v.q.toFixed(1)}`));
+    els.rocket.style.bottom = `${18 + Math.min(190, v.alt * 1.2)}px`;
+    els.rocket.classList.toggle('go', t >= -6 && t < 480);
+    els.sky.classList.toggle('space', t >= 190);
   };
   const wait = (ms) => new Promise((res) => setTimeout(res, ms));
   const ask = (build) => new Promise((res) => {
@@ -95,6 +105,7 @@ export function render(root, app, go) {
       const criteria = ['Rayos a menos de 10 millas', 'Nubes de yunque', 'Viento en altura > 30 m/s', 'Mar en zonas de aborto'];
       say(w.go ? 'Clima: GO. Todos los criterios en verde.' : `Clima: NO GO. ${w.reasons.join('; ')}.`, w.go ? '' : 'aviso');
       if (mode !== 'auto') {
+        setTimeout(() => nova(w.go ? '¡El cielo está bien! Todo en verde ✔. Toca Continuar.' : `El clima está malo (${w.reasons[0].toLowerCase()}). Hay que esperar a mañana: se gasta un día de comida y la tripulación se pone un poco triste.`, { mood: w.go ? 'feliz' : 'alerta', target: '#seguir-clima' }), 30);
         await ask((res) => h('div', { class: 'panel', id: 'clima' },
           h('h3', {}, 'Criterios de clima'),
           h('ul', { class: 'plain small', style: { textAlign: 'left' } }, ...criteria.map((c) => {
@@ -117,12 +128,13 @@ export function render(root, app, go) {
     for (;;) {
       const votes = {};
       const players = app.players;
+      setTimeout(() => nova(`Hora del GO / NO GO. Cada jugador dice si está listo. Si alguien dice NO GO, esperamos y se vuelve a preguntar.`, { target: '#gonogo' }), 30);
       const result = await ask((res) => {
         const box = h('div', { class: 'panel', id: 'gonogo' }, h('h3', {}, 'Sondeo Go/No-Go'));
         const pv = {};
         const finish = () => res(pv);
         for (const p of players) {
-          const line = h('div', { class: 'row', style: { justifyContent: 'center', margin: '.3rem 0' } },
+          const line = h('div', { class: 'vote-card' },
             h('b', {}, p.name), h('span', { class: 'dim small' }, p.roles.map((r) => PLAYER_ROLES[r]).join('+')),
             h('button', { 'data-vote': `${p.name}:go`, onclick: (e) => { pv[p.name] = 'go'; e.target.classList.add('sel'); if (Object.keys(pv).length === players.length) finish(); } }, 'GO'),
             h('button', { class: 'danger', 'data-vote': `${p.name}:nogo`, onclick: (e) => { pv[p.name] = 'nogo'; e.target.classList.add('sel'); if (Object.keys(pv).length === players.length) finish(); } }, 'NO GO'));
@@ -150,6 +162,7 @@ export function render(root, app, go) {
     const correct = r.abortMode;
     let chosen = correct;
     if (mode === 'manual') {
+      setTimeout(() => nova('¡EMERGENCIA! Elige rápido cómo salvar a la tripulación. Pista: hasta T+3:10 usa la torre de escape; hasta T+8:00, amarizaje; después, aborto a órbita.', { mood: 'alerta', target: '#aborto' }), 30);
       chosen = await new Promise((res) => {
         let left = 5;
         const timer = setInterval(() => { left -= 1; const c = document.getElementById('cuenta'); if (c) c.textContent = `${left} s`; if (left <= 0) { clearInterval(timer); res(null); } }, 1000);
@@ -182,6 +195,7 @@ export function render(root, app, go) {
       const step = LAUNCH_STEPS[i];
       t = step.t; drawSteps(step.id); drawTel();
       say(RADIO[step.id]);
+      if (!['clima', 'hold_go_nogo'].includes(step.id)) nova(`${step.label}: ${step.desc}`, { quiet: true, mood: step.id === 'despegue' || step.id === 'insercion' ? 'feliz' : 'normal' });
       beep(step.t >= 0 ? 1000 : 700, 50);
       if (step.id === 'clima') await weather();
       if (step.id === 'hold_go_nogo') await goNoGo();
@@ -215,6 +229,7 @@ export function render(root, app, go) {
         for (let f = 1; f <= frames && !cancelled; f++) { t = step.t + ((next.t - step.t) * f) / frames; drawTel(); await wait(speed / frames); }
       } else await wait(speed);
     }
+    els.sky.classList.add('dock');
     s = { ...s, phase: 'ops' };
     s.log = [...s.log, { day: 0, text: 'Acople con la estación. Comienza la misión de 365 días.', kind: 'bueno' }];
     finish();
@@ -225,7 +240,10 @@ export function render(root, app, go) {
     app.state = s;
     if (s.phase === 'ops') save(s);
     els.action.replaceChildren(h('button', { class: 'big', id: 'continuar', onclick: () => go(s.phase === 'ops' ? 'ops' : 'report') },
-      s.phase === 'ops' ? 'A LA ESTACIÓN' : 'VER INFORME'));
+      s.phase === 'ops' ? '🛰️ ENTRAR A LA ESTACIÓN' : '📋 VER CÓMO NOS FUE'));
+    nova(s.phase === 'ops' ? '¡Lo lograron! Ya están en la estación. Ahora empieza la vida en el espacio. 🛰️'
+      : s.crew.some((c) => c.alive) ? 'Tuvimos que abortar, pero la tripulación está a salvo. Veamos qué pasó.' : 'Perdimos la nave… Veamos qué pasó para hacerlo mejor la próxima vez.',
+    { mood: s.phase === 'ops' ? 'feliz' : 'alerta', target: '#continuar' });
     if (s.phase === 'ops' && mode === 'auto') setTimeout(() => !cancelled && go('ops'), 1200);
   }
 

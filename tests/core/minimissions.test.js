@@ -76,8 +76,8 @@ test('éxito aplica reward y cost al aceptar; fallo aplica failure', () => {
   assert.equal(r.state.minis[0].status, 'hecha');
   assert.equal(r.state.reputation, rep + 4);
   assert.equal(r.state.crew[0].morale, 58);
-  s.crew.forEach((c) => { c.stats.temple = 1; });
-  const g = progressMinis(s, stubRng(1));
+  s.crew.forEach((c) => { c.stats.temple = 0; c.fatigue = 80; }); // 0 + 5 − 2 = 3 < 6
+  const g = progressMinis(s, stubRng(10));
   assert.equal(g.state.minis[0].status, 'fallida');
   assert.equal(g.state.crew[0].morale, 48);
 });

@@ -5,6 +5,8 @@ let humNode = null;
 
 function ac() {
   if (muted) return null;
+  // No crear sonido antes de que la persona toque algo (el navegador lo bloquea).
+  if (!ctx && globalThis.navigator?.userActivation && !navigator.userActivation.hasBeenActive) return null;
   try {
     ctx ??= new AudioContext();
     if (ctx.state === 'suspended') ctx.resume();

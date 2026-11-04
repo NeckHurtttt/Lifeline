@@ -1,5 +1,6 @@
 import { MINIMISSIONS } from '../data/minimissions.js';
 import { applyEffects } from './events.js';
+import { skillCheck } from './skill.js';
 
 const OFFER_PROB = 0.04;
 const MAX_OPEN = 2;
@@ -67,6 +68,11 @@ export function acceptMini(state, miniId, crewIds = []) {
   return { state: s };
 }
 
+/** ¿Funcionaría la minimisión con estos tripulantes? */
+export function previewMini(state, miniId, crewIds) {
+  return skillCheck(state, MINIMISSIONS[miniId].check, crewIds);
+}
+
 export function progressMinis(state, rng) {
   let s = structuredClone(state);
   expire(s);
@@ -82,8 +88,8 @@ export function progressMinis(state, rng) {
     e = s.minis.find((m) => m.id === id && m.status === 'activa');
     e.daysLeft -= 1;
     if (e.daysLeft > 0) continue;
-    const best = Math.max(0, ...e.crewIds.map((cid) => s.crew.find((c) => c.id === cid)?.stats[def.check.stat] ?? 0));
-    const ok = best + rng.int(1, 10) >= def.check.dc;
+    const r = skillCheck(s, def.check, e.crewIds);
+    const ok = r.ok;
     s = applyEffects(s, ok ? def.reward : def.failure);
     s.flags = s.flags ?? {};
     const f = s.minis.find((m) => m.id === id && m.status === 'activa');
@@ -93,7 +99,7 @@ export function progressMinis(state, rng) {
       if (id === 'experimento_externo') s.flags.extraSciencePerDay = (s.flags.extraSciencePerDay ?? 0) + 2;
       if (id === 'cambiar_panel') for (const m of s.modules) if (m.type === 'paneles') m.health = 100;
     } else if (def.mandatory) s.flags.lastCargoLost = true;
-    log.push(`${def.name}: ${ok ? 'éxito' : 'fracaso'}`);
+    log.push(`${def.name}: ${ok ? 'éxito' : 'fracaso'} (${r.text})`);
   }
   return { state: s, log };
 }

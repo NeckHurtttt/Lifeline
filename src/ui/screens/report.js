@@ -5,6 +5,8 @@ import { clearSave } from '../../core/save.js';
 import { LESSONS } from '../../data/lessons.js';
 import { MODULES, LAUNCHERS } from '../../data/catalog.js';
 import { beep } from '../audio.js';
+import { say } from '../guide.js';
+import { crewAvatar, moodOf, MOOD_TEXT } from '../avatar.js';
 
 const RANK_KEY = 'vdl.ranking';
 const MEDALS = { oro: '🥇 ORO', plata: '🥈 PLATA', bronce: '🥉 BRONCE' };
@@ -63,10 +65,12 @@ export function render(root, app, go) {
     h('div', { style: { textAlign: 'center' } },
       h('h1', { class: rep.success ? '' : 'red', id: 'resultado' }, rep.success ? 'MISIÓN CUMPLIDA' : 'MISIÓN FALLIDA'),
       h('div', { class: 'dim' }, rep.reason),
-      rep.medal ? h('div', { class: 'medal' }, MEDALS[rep.medal]) : null),
+      rep.medal ? h('div', { class: 'medal' }, MEDALS[rep.medal]) : null,
+      h('div', { class: 'capsule', style: { margin: '.6rem 0' } }, ...s.crew.map((c) => h('div', { style: { textAlign: 'center' } },
+        crewAvatar(c, { size: 76 }), h('div', { class: 'small' }, h('b', {}, c.name.split(' ')[0])), h('div', { class: 'small dim' }, MOOD_TEXT[moodOf(c)]))))),
     h('div', { class: 'grid3' },
-      h('div', { class: 'panel' },
-        h('h2', {}, 'Resumen'),
+      h('div', { class: 'panel c-blue' },
+        h('h2', {}, '📊 Resumen'),
         h('table', {},
           ...[['Puntaje', rep.score], ['Días', rep.daysSurvived], ['Sobrevivientes', `${rep.survivors} / ${s.crew.length}`], ['Ciencia', rep.science],
             ['Dificultad', s.difficulty], ['Clima espacial', s.flareSource === 'donki' ? 'NASA DONKI en vivo' : 'registro DONKI 2024 (respaldo)']]
@@ -75,26 +79,30 @@ export function render(root, app, go) {
         h('ul', { class: 'plain small' }, ...s.crew.map((c) => h('li', { class: c.alive ? '' : 'red' },
           `${c.alive ? '✔' : c.evacuated ? '↩' : '✖'} ${c.name} · salud ${Math.round(c.health)} · ${Math.round(c.radiation)} mSv`)))),
       h('div', {},
-        h('div', { class: 'panel' }, h('h2', {}, 'Recursos día a día'), chart(s.history ?? [])),
-        h('div', { class: 'panel', id: 'causas' },
-          h('h2', {}, 'Qué pasó y qué cambiar'),
+        h('div', { class: 'panel c-violet' }, h('h2', {}, '📈 Recursos día a día'), chart(s.history ?? [])),
+        h('div', { class: 'panel c-amber', id: 'causas' },
+          h('h2', {}, '🤔 Qué pasó y qué cambiar'),
           ...rep.causes.map((c, i) => h('div', { style: { margin: '.4rem 0' } },
             h('div', {}, '▸ ', c),
             h('div', { class: 'amber small' }, '  → ', rep.suggestions[i]))))),
-      h('div', { class: 'panel' },
-        h('h2', {}, 'Lecciones para la Tierra'),
+      h('div', { class: 'panel c-green' },
+        h('h2', {}, '🌍 Lo que sirve en la Tierra'),
         ...rep.lessons.map((lid) => LESSONS[lid]).filter(Boolean).map((l) => h('div', { class: 'lesson' },
           h('b', {}, l.title), h('div', { class: 'small' }, l.space), h('div', { class: 'small dim' }, '🌍 ', l.earth))))),
     h('div', { class: 'row', style: { justifyContent: 'center', margin: '1rem 0' } },
       h('button', { class: 'big', id: 'redisenar', onclick: () => { app.state = null; go('design', { design: s.design }); } }, 'REDISEÑAR Y REINTENTAR'),
       h('button', { onclick: (e) => copy(e.target) }, 'Copiar diseño (JSON)'),
       h('button', { onclick: () => { app.state = null; app.lastDesign = null; app.lastSeed = null; go('title'); } }, 'Menú')),
-    h('div', { class: 'panel', id: 'ranking' },
-      h('h2', {}, 'Ranking local (top 10)'),
+    h('div', { class: 'panel c-pink', id: 'ranking' },
+      h('h2', {}, '🏆 Mejores misiones en esta compu'),
       h('table', {},
         h('tr', {}, ...['#', 'Puntaje', 'Medalla', 'Días', 'Dif.', 'Jugadores', 'Diseño', 'Fecha'].map((t) => h('th', {}, t))),
         ...ranking.map((r, i) => h('tr', { class: r.id === id ? 'sel' : '' },
           h('td', {}, i + 1), h('td', {}, r.score), h('td', {}, r.medal ? MEDALS[r.medal] : (r.success ? '—' : '✖')), h('td', {}, r.days),
           h('td', {}, r.difficulty), h('td', { class: 'small' }, r.players), h('td', { class: 'small dim' }, r.design), h('td', { class: 'small' }, r.date))))),
   );
+  say(rep.success
+    ? `¡Misión cumplida! ${rep.medal ? `Ganaron ${MEDALS[rep.medal]}.` : ''} Mira abajo qué podrían mejorar para sacar más puntos.`
+    : `Esta vez no se pudo. Mira "Qué pasó y qué cambiar" y prueba de nuevo con REDISEÑAR.`,
+  { mood: rep.success ? 'feliz' : 'pensando', target: rep.success ? '#causas' : '#redisenar' });
 }

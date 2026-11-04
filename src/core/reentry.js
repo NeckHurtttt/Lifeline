@@ -2,16 +2,16 @@
 import { DIFFICULTY } from '../data/catalog.js';
 
 export const REENTRY_STEPS = [
-  { id: 'desacople', label: 'Desacople de la estación' },
-  { id: 'encendido_salida', label: 'Encendido de salida de órbita' },
-  { id: 'sep_modulo_servicio', label: 'Separación del módulo de servicio' },
-  { id: 'interfaz_entrada', label: 'Interfaz de entrada a 120 km' },
-  { id: 'apagon_plasma', label: 'Apagón de plasma: ~4 min sin radio' },
-  { id: 'escudo_termico', label: 'Escudo térmico a 1600 °C' },
-  { id: 'paracaidas_freno', label: 'Paracaídas de freno' },
-  { id: 'paracaidas_principales', label: 'Paracaídas principales (3)' },
-  { id: 'amerizaje', label: 'Amerizaje' },
-  { id: 'recuperacion', label: 'Recuperación de la tripulación' },
+  { id: 'desacople', desc: 'La cápsula se suelta de la estación.', label: 'Desacople de la estación' },
+  { id: 'encendido_salida', desc: 'Un empujón de motor para frenar y empezar a bajar (gasta 10 de combustible).', label: 'Encendido de salida de órbita' },
+  { id: 'sep_modulo_servicio', desc: 'Se suelta la parte de atrás de la nave.', label: 'Separación del módulo de servicio' },
+  { id: 'interfaz_entrada', desc: 'La cápsula toca el aire de la Tierra a 120 km de altura.', label: 'Interfaz de entrada a 120 km' },
+  { id: 'apagon_plasma', desc: 'El aire se calienta tanto que brilla y la radio no funciona.', label: 'Apagón de plasma: ~4 min sin radio' },
+  { id: 'escudo_termico', desc: 'El escudo aguanta 1600 °C. Si la cabina está dañada, puede fallar.', label: 'Escudo térmico a 1600 °C' },
+  { id: 'paracaidas_freno', desc: 'Un paracaídas chico frena primero.', label: 'Paracaídas de freno' },
+  { id: 'paracaidas_principales', desc: 'Se abren 3 paracaídas gigantes.', label: 'Paracaídas principales (3)' },
+  { id: 'amerizaje', desc: '¡Splash! La cápsula cae al mar.', label: 'Amerizaje' },
+  { id: 'recuperacion', desc: 'Un barco recoge a los astronautas.', label: 'Recuperación de la tripulación' },
 ];
 
 const DEORBIT_FUEL = 10;

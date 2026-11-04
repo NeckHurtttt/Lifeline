@@ -5,6 +5,8 @@ import { restoreRng } from '../../core/rng.js';
 import { DIFFICULTY } from '../../data/catalog.js';
 import { save } from '../../core/save.js';
 import { beep, alarm, radio, hum } from '../audio.js';
+import { say as nova } from '../guide.js';
+import { crewAvatar } from '../avatar.js';
 
 const ANGLES = {
   normal: 'Normal: el ángulo de diseño',
@@ -25,11 +27,14 @@ export function render(root, app, go) {
   const action = h('div', { id: 'accion', style: { marginTop: '.6rem' } });
   const risk = Math.round(heatShieldRisk(s) * 100);
   mount(root, 
-    h('h1', { style: { fontSize: '1.6rem' } }, 'Reentrada · vuelta a casa'),
+    h('h1', { style: { fontSize: '1.8rem' } }, '🌍 Vuelta a casa'),
+    h('div', { class: 'panel c-blue', style: { textAlign: 'center' } },
+      h('div', { class: 'sky space', id: 'cielo' }, h('div', { class: 'planet' }), h('div', { class: 'rocket', id: 'capsula', style: { transform: 'translateX(-50%) rotate(135deg)', bottom: '200px' } }, '🛸')),
+      h('div', { class: 'capsule', style: { marginTop: '.5rem' } }, ...s.crew.map((c) => crewAvatar(c, { size: 60 })))),
     h('div', { class: 'grid2' },
-      h('div', { class: 'panel' }, h('h2', {}, 'Secuencia'), steps,
+      h('div', { class: 'panel c-violet' }, h('h2', {}, 'Pasos'), steps,
         h('div', { class: `small ${risk > 20 ? 'red' : risk > 5 ? 'amber' : 'dim'}` }, `Riesgo del escudo térmico: ${risk} % (según la salud de la cabina)`)),
-      h('div', { class: 'panel' }, h('h2', {}, 'Bitácora'), out, action)),
+      h('div', { class: 'panel c-cyan' }, h('h2', {}, '📻 Radio'), action, out)),
   );
   const say = (text, cls = '') => { lines.unshift(h('div', { class: cls }, text)); out.replaceChildren(...lines); radio(); };
   const drawSteps = (now) => steps.replaceChildren(...REENTRY_STEPS.map((st) =>
@@ -43,9 +48,14 @@ export function render(root, app, go) {
       const step = REENTRY_STEPS[i];
       drawSteps(step.id);
       beep(600, 50);
+      const cap = document.getElementById('capsula');
+      if (cap) cap.style.bottom = `${200 - (i / (REENTRY_STEPS.length - 1)) * 180}px`;
+      if (i >= 4) document.getElementById('cielo')?.classList.remove('space');
+      nova(`${step.label}: ${step.desc}`, { quiet: true, mood: step.id === 'escudo_termico' ? 'alerta' : step.id === 'recuperacion' ? 'feliz' : 'normal' });
       let choice;
       if (step.id === 'interfaz_entrada' && mode === 'manual') {
-        choice = await new Promise((res) => action.replaceChildren(h('div', { class: 'panel', id: 'angulo' },
+        setTimeout(() => nova('Elige cómo entrar al aire. Normal es lo seguro. Empinado lastima más. Rasante puede rebotar y perder un día.', { mood: 'pensando', target: '#angulo' }), 30);
+        choice = await new Promise((res) => action.replaceChildren(h('div', { class: 'panel c-amber', id: 'angulo' },
           h('div', { class: 'amber' }, 'Elige el ángulo de entrada'),
           ...Object.entries(ANGLES).map(([id, txt]) => h('div', {}, h('button', { 'data-angle': id, onclick: () => res(id) }, txt))))));
         action.replaceChildren();
@@ -77,7 +87,8 @@ export function render(root, app, go) {
     s.log = [...s.log, { day: s.day, text: s.outcome?.reason ?? 'Fin de la reentrada', kind: 'fin' }];
     app.state = s;
     save(s);
-    action.replaceChildren(h('button', { class: 'big', id: 'continuar', onclick: () => go('report') }, 'VER INFORME'));
+    action.replaceChildren(h('button', { class: 'big', id: 'continuar', onclick: () => go('report') }, '📋 VER CÓMO NOS FUE'));
+    nova(s.outcome?.success ? '¡Splash! 🌊 ¡Están en casa! Vamos a ver cómo les fue.' : 'No salió bien… Veamos qué pasó para aprender.', { mood: s.outcome?.success ? 'feliz' : 'alerta', target: '#continuar' });
   }
 
   run();

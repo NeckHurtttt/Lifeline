@@ -1,6 +1,7 @@
 // Eventos, avisos, desastres y cadenas. Funciones puras: devuelven estado nuevo (structuredClone).
 import { DIFFICULTY, MODULES, SCENARIOS } from '../data/catalog.js';
 import { EVENTS } from '../data/events.js';
+import { skillCheck } from './skill.js';
 
 const SEVERITIES = ['leve', 'media', 'grave'];
 const POSITIVE_CHANCE = 0.06;
@@ -136,12 +137,16 @@ export function applyEffects(state, effects) {
   return s;
 }
 
-export function recommendedOption(eventId) {
-  return EVENTS[eventId].options[0].id;
+/** Vista previa técnica de una opción: ¿funcionaría ahora? (null si no tiene comprobación). */
+export function previewOption(state, eventId, optionId) {
+  const opt = EVENTS[eventId].options.find((o) => o.id === optionId);
+  if (!opt?.check) return null;
+  const prep = state.pending?.eventId === eventId ? state.pending.prepared ?? [] : [];
+  return skillCheck(state, opt.check, null, { prepared: prep.length > 0 });
 }
 
-function bestStat(s, stat) {
-  return Math.max(0, ...s.crew.filter((c) => c.alive).map((c) => c.stats[stat] ?? 0));
+export function recommendedOption(eventId) {
+  return EVENTS[eventId].options[0].id;
 }
 
 export function resolveEvent(state, eventId, severity, optionId, rng, prepared) {
@@ -159,10 +164,9 @@ export function resolveEvent(state, eventId, severity, optionId, rng, prepared) 
   log.unshift(`${ev.name} (${sev}): ${ev.text[sev]}`);
   let effects = opt.effects[sev];
   if (opt.check) {
-    const roll = bestStat(s, opt.check.stat) + rng.int(1, 10);
-    const ok = roll >= opt.check.dc;
-    log.push(`${opt.label}: comprobación de ${opt.check.stat} ${roll}/${opt.check.dc}, ${ok ? 'éxito' : 'fallo'}.`);
-    if (!ok) effects = opt.failEffects[sev];
+    const r = skillCheck(s, opt.check, null, { prepared: prep.length > 0 });
+    log.push(`${opt.label}: ${r.text}.`);
+    if (!r.ok) effects = opt.failEffects[sev];
   } else log.push(`Decisión: ${opt.label}.`);
   s = applyEffects(s, effects);
   s.pending = null;
