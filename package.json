@@ -1,0 +1,7 @@
+{
+  "name": "ventana-de-lanzamiento",
+  "type": "module",
+  "scripts": {
+    "test": "node --test tests/"
+  }
+}
