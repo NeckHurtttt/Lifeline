@@ -33,15 +33,33 @@ test('errores: tripulantes, instrumento, sin oferta', () => {
   assert.equal(acceptMini(s, 'radio_escuelas', ['c1']).error, 'No hay oferta de esa minimisión');
 });
 
+// rng que siempre ofrece y elige la opción cuyo id es `want`
+const pickOnly = (want) => ({ ...stubRng(5), pick: (a) => a.find((d) => d.id === want) ?? a[0] });
+
 test('recuperar_satelite no se ofrece antes de retirar_basura', () => {
-  const only = (id) => { for (const k of Object.keys(MINIMISSIONS)) if (k !== id) MINIMISSIONS[k].mandatory = true; };
-  const saved = Object.fromEntries(Object.entries(MINIMISSIONS).map(([k, v]) => [k, v.mandatory]));
-  only('recuperar_satelite');
-  try {
-    assert.equal(offerMinis(mk(), stubRng(5)).minis.length, 0);
-    const s = mk(); s.minis.push(entry('retirar_basura', { status: 'hecha' }));
-    assert.equal(offerMinis(s, stubRng(5)).minis.at(-1).id, 'recuperar_satelite');
-  } finally { for (const [k, v] of Object.entries(saved)) { if (v === undefined) delete MINIMISSIONS[k].mandatory; else MINIMISSIONS[k].mandatory = v; } }
+  const ids = (s) => s.minis.map((m) => m.id);
+  const s0 = mk();
+  const rng = createRng(11);
+  let s = s0;
+  for (let d = 0; d < 600; d++) { s.day = d; s = offerMinis(s, rng); s.minis.forEach((m) => { if (m.status === 'oferta') m.status = 'fallida'; }); }
+  assert.ok(!ids(s).includes('recuperar_satelite'));
+  const t = mk(); t.minis.push(entry('retirar_basura', { status: 'hecha' }));
+  assert.equal(offerMinis(t, pickOnly('recuperar_satelite')).minis.at(-1).id, 'recuperar_satelite');
+});
+
+test('una minimisión hecha no se vuelve a ofrecer', () => {
+  const s = mk(); s.minis.push(entry('retirar_basura', { status: 'hecha' }), entry('recuperar_satelite', { status: 'hecha' }));
+  for (let i = 0; i < 50; i++) {
+    const r = offerMinis(s, pickOnly('recuperar_satelite'));
+    assert.ok(!r.minis.some((m) => m.id === 'recuperar_satelite' && m.status === 'oferta'));
+  }
+});
+
+test('aceptar una oferta vencida falla y la marca vencida', () => {
+  const s = mk([mod('antena', 5, 0)]); s.minis.push(entry('radio_escuelas', { deadline: 5 })); s.day = 5;
+  const r = acceptMini(s, 'radio_escuelas', ['c1']);
+  assert.equal(r.error, 'No hay oferta de esa minimisión');
+  assert.equal(r.state.minis[0].status, 'vencida');
 });
 
 test('máx. 2 ofertas abiertas y nunca ofrece capturar_carga', () => {
@@ -58,11 +76,10 @@ test('éxito aplica reward y cost al aceptar; fallo aplica failure', () => {
   assert.equal(r.state.minis[0].status, 'hecha');
   assert.equal(r.state.reputation, rep + 4);
   assert.equal(r.state.crew[0].morale, 58);
-  const f = progressMinis(s, stubRng(1)); // temple<=9 + 1 < 6? depende; fuerza dc
   s.crew.forEach((c) => { c.stats.temple = 1; });
   const g = progressMinis(s, stubRng(1));
   assert.equal(g.state.minis[0].status, 'fallida');
-  assert.equal(g.state.crew[0].morale, 48); assert.ok(f);
+  assert.equal(g.state.crew[0].morale, 48);
 });
 
 test('cost se aplica al aceptar', () => {

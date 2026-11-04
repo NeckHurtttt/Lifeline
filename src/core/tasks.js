@@ -52,7 +52,7 @@ export function applyTasks(state, rng) {
   const exercised = new Set();
   const slept = new Set();
   const sheltered = new Set();
-  const busy = new Set((s.minis ?? []).flatMap((m) => m.crewIds ?? []));
+  const busy = new Set((s.minis ?? []).filter((m) => m.status === 'activa').flatMap((m) => m.crewIds ?? []));
   const active = s.crew.filter((c) => c.alive && !busy.has(c.id));
   const on = (type) => s.modules.some((m) => m.type === type && m.on);
   const mult = DIFFICULTY[s.difficulty].repairMult;

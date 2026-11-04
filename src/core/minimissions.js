@@ -23,10 +23,9 @@ export function offerMinis(state, rng) {
   const s = structuredClone(state);
   expire(s);
   if (open(s).length >= MAX_OPEN || !rng.chance(OFFER_PROB)) return s;
-  const taken = new Set(s.minis.filter((m) => m.status === 'oferta' || m.status === 'activa').map((m) => m.id));
+  const taken = new Set(s.minis.filter((m) => ['oferta', 'activa', 'hecha'].includes(m.status)).map((m) => m.id));
   const candidates = Object.values(MINIMISSIONS).filter((d) => {
     if (d.mandatory || taken.has(d.id)) return false;
-    if (s.minis.some((m) => m.id === d.id && m.status === 'hecha' && !d.chainUnlock)) return false;
     if (d.chainUnlock && !s.minis.some((m) => m.id === d.chainUnlock && m.status === 'hecha')) return false;
     return true;
   });
@@ -45,6 +44,13 @@ export function forceMini(state, miniId) {
 export function acceptMini(state, miniId, crewIds = []) {
   const entry = state.minis.find((m) => m.id === miniId && m.status === 'oferta');
   if (!entry) return { state, error: 'No hay oferta de esa minimisión' };
+  if (state.day >= entry.deadline) {
+    const s = structuredClone(state);
+    const e = s.minis.find((m) => m.id === miniId && m.status === 'oferta');
+    e.status = 'vencida';
+    if (MINIMISSIONS[miniId].mandatory) s.flags = { ...(s.flags ?? {}), lastCargoLost: true };
+    return { state: s, error: 'No hay oferta de esa minimisión' };
+  }
   const def = MINIMISSIONS[miniId];
   for (const t of def.requires.modules ?? []) if (!hasModule(state, t)) return { state, error: `Falta el módulo: ${t}` };
   for (const i of def.instruments ?? []) if (!state.design.instruments.includes(i)) return { state, error: `Falta el instrumento: ${i}` };

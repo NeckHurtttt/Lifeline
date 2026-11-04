@@ -127,3 +127,13 @@ test('medico cura al mas dañado y gasta medicina', () => {
   assert.equal(state.crew[1].radiation, 5);
   assert.equal(state.resources.meds, s.resources.meds - 1);
 });
+
+test('solo las minimisiones activas apartan a la tripulación', () => {
+  const s = idle(mk());
+  const [a, b] = s.crew;
+  s.minis.push({ id: 'radio_escuelas', status: 'hecha', crewIds: [a.id], deadline: 9, daysLeft: 0 });
+  s.minis.push({ id: 'lanzar_cubesats', status: 'activa', crewIds: [b.id], deadline: 9, daysLeft: 1 });
+  const { ctx } = applyTasks(s, rng());
+  assert.ok(ctx.slept.has(a.id));
+  assert.ok(!ctx.slept.has(b.id));
+});
