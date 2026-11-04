@@ -102,3 +102,57 @@ test('fatiga >= 80 baja moral; sin dormir sube 40', () => {
   assert.equal(state.crew[0].fatigue, 90);
   assert.equal(state.crew[0].morale, 50 - 1 - 5);
 });
+
+test('sereno reduce a la mitad las perdidas de moral', () => {
+  const s = noTraits(mk());
+  s.crew.forEach((c) => { c.morale = 50; c.fatigue = 50; });
+  s.crew[0].traits = ['sereno'];
+  const { state } = applyDailyLife(s, ctx(s, { slept: new Set() }));
+  assert.equal(state.crew[0].morale, 47);
+  assert.equal(state.crew[1].morale, 44);
+});
+
+test('resistente: radiacion x0.8', () => {
+  const s = noTraits(mk());
+  s.crew[0].traits = ['resistente'];
+  const { state } = applyDailyLife(s, ctx(s));
+  assert.ok(Math.abs(state.crew[0].radiation - 0.4) < 1e-9);
+});
+
+test('fragil: dano de salud x1.2', () => {
+  const s = noTraits(mk());
+  s.resources.o2 = 0;
+  s.crew[0].traits = ['fragil'];
+  const { state } = applyDailyLife(s, ctx(s, { lifeSupportOn: false }));
+  assert.ok(Math.abs(state.crew[0].health - 52) < 1e-9);
+  assert.equal(state.crew[1].health, 60);
+});
+
+test('insomne: duerme -25, sin dormir +50', () => {
+  const s = noTraits(mk());
+  s.crew.forEach((c) => { c.fatigue = 50; });
+  s.crew[0].traits = ['insomne'];
+  let r = applyDailyLife(s, ctx(s));
+  assert.equal(r.state.crew[0].fatigue, 25);
+  assert.equal(r.state.crew[1].fatigue, 15);
+  r = applyDailyLife(s, ctx(s, { slept: new Set() }));
+  assert.equal(r.state.crew[0].fatigue, 100);
+});
+
+test('soporte vital sin agua: la electrolisis sale del tanque de O2', () => {
+  const s = noTraits(mk());
+  s.resources.water = 0;
+  const { state } = applyDailyLife(s, ctx(s));
+  assert.ok(Math.abs(s.resources.o2 - state.resources.o2 - 3.36) < 0.01);
+  state.crew.forEach((c) => assert.equal(c.health, 100));
+});
+
+test('soporte vital sin agua ni O2: salud -40 (x1.2 fragil)', () => {
+  const s = noTraits(mk());
+  s.resources.water = 0;
+  s.resources.o2 = 0;
+  s.crew[0].traits = ['fragil'];
+  const { state } = applyDailyLife(s, ctx(s));
+  assert.ok(Math.abs(state.crew[0].health - 52) < 1e-9);
+  assert.equal(state.crew[1].health, 60);
+});

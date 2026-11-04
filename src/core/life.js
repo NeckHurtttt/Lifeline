@@ -28,7 +28,11 @@ export function applyDailyLife(state, ctx) {
     (t, c) => t + (ctx.lifeSupportOn ? WATER * ration(c) * RECYCLE_LOSS + O2_AS_WATER : WATER * ration(c)),
     0,
   );
-  const o2Need = ctx.lifeSupportOn ? 0 : living.length * O2;
+  let o2Need = ctx.lifeSupportOn ? 0 : living.length * O2;
+  if (ctx.lifeSupportOn && waterNeed > 0 && r.water < waterNeed) {
+    // el agua que falta para la electrólisis se cubre con el tanque de O₂
+    o2Need = living.length * O2 * (1 - r.water / waterNeed);
+  }
 
   const foodShort = r.food < foodNeed;
   const waterShort = r.water < waterNeed;
@@ -51,19 +55,23 @@ export function applyDailyLife(state, ctx) {
     let dmg = 0;
     if (c.hunger >= 100 || c.thirst >= 100) dmg += 15;
     if (o2Short) dmg += 40;
+    if (c.traits.includes('fragil')) dmg *= 1.2;
     c.health = clamp(c.health - dmg);
 
     if (!ctx.exercised.has(c.id)) c.bone = clamp(c.bone - (c.traits.includes('atleta') ? 0.25 : 0.5));
 
     const slept = ctx.slept.has(c.id);
-    c.fatigue = clamp(c.fatigue + (slept ? -35 : 40));
+    const insomne = c.traits.includes('insomne');
+    c.fatigue = clamp(c.fatigue + (slept ? (insomne ? -25 : -35) : (insomne ? 50 : 40)));
 
-    let morale = c.morale - 1 - (c.traits.includes('claustrofobico') ? 1 : 0);
-    if (c.fatigue >= 80) morale -= 5;
+    let loss = 1 + (c.traits.includes('claustrofobico') ? 1 : 0);
+    if (c.fatigue >= 80) loss += 5;
+    if (c.traits.includes('sereno')) loss /= 2;
+    let morale = c.morale - loss;
     if (ration(c) === 1 && !foodShort && !waterShort && slept) morale += 3;
     c.morale = clamp(morale);
 
-    c.radiation += 0.5 * (ctx.sheltered ? 0.2 : 1);
+    c.radiation += 0.5 * (ctx.sheltered ? 0.2 : 1) * (c.traits.includes('resistente') ? 0.8 : 1);
 
     if (c.health <= 0) {
       c.alive = false;
