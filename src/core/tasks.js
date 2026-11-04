@@ -1,5 +1,8 @@
 import { MODULES, INSTRUMENTS, DIFFICULTY } from '../data/catalog.js';
 import { ROLES } from '../data/crew.js';
+import { crewScore } from './skill.js';
+
+export const EVA_SAFE = 8;
 
 const EXP = { name: 'Experimentos', stat: 'ciencia', needsModule: 'laboratorio' };
 /** Labores disponibles: id -> {name, stat, needsModule|null}. */
@@ -107,8 +110,8 @@ export function applyTasks(state, rng) {
         const m = worst(s.modules.filter((x) => EXTERNAL.has(x.type) && x.health < 100));
         if (m) m.health = clamp(m.health + 30 * eff);
         c.radiation += 1;
-        const p = 0.08 - 0.005 * statOf(c, t) + (c.traits.includes('torpe') ? 0.1 : 0);
-        if (rng.chance(Math.max(0, p))) {
+        // Sin azar: con poca habilidad de traje, cansancio o torpeza hay percance.
+        if (crewScore(s, c, 'eva').total < EVA_SAFE) {
           c.health = clamp(c.health - 20);
           log.push(`${c.name} sufrió un percance en la EVA`);
         }

@@ -6,6 +6,7 @@ import * as ops from './screens/ops.js';
 import * as reentry from './screens/reentry.js';
 import * as report from './screens/report.js';
 import { setMuted, isMuted, beep } from './audio.js';
+import { hideGuide } from './guide.js';
 
 export const PLAYER_ROLES = {
   comandante: 'Comandante',
@@ -52,6 +53,7 @@ export function go(name, params = {}) {
   root.replaceChildren();
   document.querySelectorAll('.modal-bg, .static').forEach((e) => e.remove());
   app.screen = name;
+  hideGuide();
   updateBar();
   const r = screens[name].render(root, app, go, params);
   if (typeof r === 'function') cleanup = r;
