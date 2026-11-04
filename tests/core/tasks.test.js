@@ -1,0 +1,129 @@
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import { applyTasks, validateSchedule, TASKS } from '../../src/core/tasks.js';
+import { createMission } from '../../src/core/mission.js';
+import { createRng } from '../../src/core/rng.js';
+
+const mod = (type, x, y) => ({ id: `${type}-${x}-${y}`, type, x, y });
+const mk = (types = [], difficulty = 'medio') => createMission({
+  design: {
+    modules: [mod('cabina', 0, 0), mod('soporte_vital', 1, 0), ...types.map((t, i) => mod(t, i, 1))],
+    instruments: ['camara_tierra'], launcher: 'condor1', orbit: 'leo_estacion',
+    crewRoles: ['ingeniero', 'comandante'], cargoDays: 90,
+  },
+  scenarioId: 'estacion', difficulty, seed: 5,
+});
+const idle = (s) => { s.crew.forEach((c) => { c.traits = []; s.schedule[c.id] = ['descanso', 'descanso', 'sueño']; }); return s; };
+const rng = () => createRng(1);
+
+test('validateSchedule exige turno de sueño', () => {
+  assert.deepEqual(validateSchedule({ c1: ['trabajo', 'trabajo', 'trabajo'] }), ['c1 no tiene turno de sueño']);
+  assert.deepEqual(validateSchedule({ c1: ['trabajo', 'trabajo', 'sueño'] }), []);
+});
+
+test('trabajo es alias de experimentos', () => {
+  assert.deepEqual(TASKS.trabajo, TASKS.experimentos);
+});
+
+test('reparacion con taller en medio', () => {
+  const s = idle(mk(['taller']));
+  const eng = s.crew[0]; eng.stats.tecnica = 8;
+  s.schedule[eng.id] = ['reparacion', 'sueño', 'sueño'];
+  const m = s.modules.find((x) => x.type === 'taller'); m.health = 40;
+  const parts = s.resources.parts;
+  const { state } = applyTasks(s, rng());
+  assert.ok(Math.abs(state.modules.find((x) => x.type === 'taller').health - (40 + 15 * 1.5 * 8 / 7)) < 1e-9);
+  assert.equal(state.resources.parts, parts - 2);
+  assert.equal(s.modules.find((x) => x.type === 'taller').health, 40);
+});
+
+test('reparacion sin piezas', () => {
+  const s = idle(mk());
+  s.resources.parts = 1;
+  s.modules[0].health = 50;
+  s.schedule[s.crew[0].id] = ['reparacion', 'sueño', 'sueño'];
+  const { state, log } = applyTasks(s, rng());
+  assert.equal(state.modules[0].health, 50);
+  assert.ok(log.includes('Faltan piezas para reparar'));
+});
+
+test('cultivo sin invernadero no produce; con invernadero si', () => {
+  const s = idle(mk());
+  s.schedule[s.crew[0].id] = ['cultivo', 'sueño', 'sueño'];
+  assert.equal(applyTasks(s, rng()).state.resources.food, s.resources.food);
+  const g = idle(mk(['invernadero']));
+  g.crew[0].stats.ciencia = 7; g.crew[0].role = 'cientifico';
+  g.schedule[g.crew[0].id] = ['cultivo', 'sueño', 'sueño'];
+  assert.ok(Math.abs(applyTasks(g, rng()).state.resources.food - g.resources.food - 1.5) < 1e-9);
+});
+
+test('ejercicio, sueño y refugio en ctx', () => {
+  const s = idle(mk(['refugio']));
+  s.schedule[s.crew[0].id] = ['ejercicio', 'sueño', 'refugio'];
+  s.schedule[s.crew[1].id] = ['refugio', 'descanso', 'sueño'];
+  const { ctx } = applyTasks(s, rng());
+  assert.ok(ctx.exercised.has(s.crew[0].id));
+  assert.ok(ctx.slept.has(s.crew[1].id));
+  assert.equal(ctx.sheltered, true);
+  assert.equal(ctx.lifeSupportOn, true);
+  s.schedule[s.crew[1].id] = ['descanso', 'descanso', 'sueño'];
+  assert.equal(applyTasks(s, rng()).ctx.sheltered, false);
+});
+
+test('fatiga +10 por turno de trabajo', () => {
+  const s = idle(mk());
+  const c = s.crew[0]; c.fatigue = 0;
+  s.schedule[c.id] = ['mantenimiento', 'produccion', 'sueño'];
+  assert.equal(applyTasks(s, rng()).state.crew[0].fatigue, 20);
+});
+
+test('experimentos con laboratorio generan datos y ciencia; bajada diaria', () => {
+  const s = idle(mk(['laboratorio', 'antena']));
+  s.crew[0].role = 'cientifico'; s.crew[0].stats.ciencia = 7;
+  s.schedule[s.crew[0].id] = ['experimentos', 'sueño', 'sueño'];
+  const { state } = applyTasks(s, rng());
+  assert.ok(state.science > 0);
+  assert.ok(state.resources.dataStored >= 0);
+});
+
+test('datos en exceso se pierden con log', () => {
+  const s = idle(mk());
+  s.resources.dataStored = 700;
+  const { state, log } = applyTasks(s, rng());
+  // cabina downlink 10: bajan 10, quedan 690, se pierden 190
+  assert.equal(state.resources.dataStored, 500);
+  assert.ok(log.includes('Se perdieron 190.0 GB de datos: falta enlace'));
+  assert.ok(Math.abs(state.science - 1) < 1e-9);
+});
+
+test('comunicacion suma enlace y moral', () => {
+  const s = idle(mk());
+  s.resources.dataStored = 100;
+  s.crew.forEach((c) => { c.morale = 50; });
+  s.schedule[s.crew[0].id] = ['comunicacion', 'sueño', 'sueño'];
+  const { state } = applyTasks(s, rng());
+  assert.equal(state.resources.dataStored, 80);
+  assert.equal(state.crew[0].morale, 58);
+  assert.equal(state.crew[1].morale, 63); // 2 descansos (+10) + 3
+});
+
+test('eva repara externos y da radiacion', () => {
+  const s = idle(mk(['paneles']));
+  const c = s.crew[0]; c.stats.fuerza = 7; c.stats.temple = 7; c.role = 'piloto';
+  s.modules.find((m) => m.type === 'paneles').health = 50;
+  s.schedule[c.id] = ['eva', 'sueño', 'sueño'];
+  const { state } = applyTasks(s, { chance: () => false });
+  assert.equal(state.modules.find((m) => m.type === 'paneles').health, 80);
+  assert.equal(state.crew[0].radiation, c.radiation + 1);
+});
+
+test('medico cura al mas dañado y gasta medicina', () => {
+  const s = idle(mk());
+  const doc = s.crew[0]; doc.role = 'medico'; doc.stats.medicina = 7;
+  s.crew[1].health = 50; s.crew[1].radiation = 10;
+  s.schedule[doc.id] = ['medico', 'sueño', 'sueño'];
+  const { state } = applyTasks(s, rng());
+  assert.equal(state.crew[1].health, 65);
+  assert.equal(state.crew[1].radiation, 5);
+  assert.equal(state.resources.meds, s.resources.meds - 1);
+});
