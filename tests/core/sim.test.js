@@ -73,10 +73,16 @@ test('informe con comida agotada nombra la comida', () => {
 });
 
 test('puntaje y medalla', () => {
-  const s = mk(); s.outcome = { success: true, reason: 'ok' }; s.science = 400; s.reputation = 50;
+  const s = mk(); s.outcome = { success: true, reason: 'ok' }; s.science = 3000; s.reputation = 50;
   const rep = buildReport(s);
-  assert.equal(rep.score, 4 * 1000 + 4000 + 250);
+  assert.equal(rep.score, 4 * 1000 + 30000 + 250);
+  assert.equal(rep.scienceGoal, 2920);
   assert.equal(rep.medal, 'oro');
+  s.science = 1500;
+  assert.equal(buildReport(s).medal, 'plata');
+  s.science = 400;
+  assert.equal(buildReport(s).medal, 'bronce');
+  s.science = 3000;
   s.crew[0].alive = false; s.crew[1].alive = false; s.crew[2].alive = false;
   assert.equal(buildReport(s).medal, 'bronce');
 });

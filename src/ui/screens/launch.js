@@ -1,4 +1,5 @@
 // Pantalla de despegue: reloj T−/T+, pasos, telemetría, clima, Go/No-Go y abortos.
+import { art } from '../art.js';
 import { h, mount } from '../dom.js';
 import { launchSteps, checkWeather, goNoGoPoll, runLaunchStep, applyAbort, scrubLaunch } from '../../core/launch.js';
 import { restoreRng } from '../../core/rng.js';
@@ -72,12 +73,12 @@ export function render(root, app, go) {
     clock: h('div', { class: 'clock', id: 'reloj' }, clockText(t)),
     steps: h('ul', { class: 'plain steps', id: 'pasos' }),
     tel: h('div', { class: 'small' }),
-    rocket: h('div', { class: 'rocket' }, '🚀'),
+    rocket: h('div', { class: 'rocket' }, art('cohete')),
     sky: null,
     radio: h('div', { class: 'log', id: 'radio', style: { maxHeight: '320px' } }),
     action: h('div', { id: 'accion', style: { marginTop: '.6rem' } }),
   };
-  els.sky = h('div', { class: 'sky' }, h('div', { class: 'planet' }), h('div', { class: 'station' }, DEST_ICON), h('div', { class: 'ground' }), h('div', { class: 'tower' }), els.rocket);
+  els.sky = h('div', { class: 'sky' }, h('div', { class: 'planet' }), h('div', { class: 'station' }, art({ estacion: 'estacion', luna: 'luna', marte: 'marte' }[s.scenarioId])), h('div', { class: 'ground' }), h('div', { class: 'tower' }), els.rocket);
   const MODE_TXT = { auto: 'automático: solo mira', pausas: 'con pausas: ustedes deciden el clima y el GO', manual: 'manual: ustedes deciden todo, ¡hasta los abortos!' };
   mount(root,
     h('h1', { style: { fontSize: '1.8rem' } }, '🚀 Despegue', h('span', { class: 'dim small' }, ` · ${MODE_TXT[mode]}`)),

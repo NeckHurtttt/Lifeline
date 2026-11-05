@@ -63,7 +63,7 @@ function launchEvent(s, eventId, rng) {
 export function rollEvents(state, rng) {
   const s = structuredClone(state);
   s.alerts ??= [];
-  if (rng.chance(DIFFICULTY[s.difficulty].disasterRate)) {
+  if (rng.chance(DIFFICULTY[s.difficulty].disasterRate * (SCENARIOS[s.scenarioId]?.disasterMult ?? 1))) {
     const id = weightedPick(pool(s, true), rng);
     if (id) launchEvent(s, id, rng);
   }

@@ -1,9 +1,10 @@
 // Pantalla de operaciones: recursos, nave, tripulación con avatares, alertas, eventos, minimisiones y bitácora, con Nova guiando.
+import { MOD_CODE, RES_CODE, NODE_CODE } from '../art.js';
 import { h, mount, bar, modal, fmt, tabs } from '../dom.js';
 import { MODULES, INSTRUMENTS, DIFFICULTY, SCENARIOS } from '../../data/catalog.js';
 import { siteOf, isNight, daysToNight, daysToDawn } from '../../core/surface.js';
 import { canExplore, ensureMap, startExpedition, previewExpedition, tripDays, hasRoverPres, NODE_TYPES } from '../../core/explore.js';
-import { phaseDue, resolvePhase, previewPhase, PHASES, inBlackout, radioDelayMin, isMars, ASCENT_FUEL, ASCENT_DAY, LANDING_DAY, TRANSIT_DAYS } from '../../core/mars.js';
+import { phaseDue, resolvePhase, previewPhase, PHASES, inBlackout, radioDelayMin, isMars, ASCENT_FUEL, planOf } from '../../core/mars.js';
 import { ROLES, TRAITS } from '../../data/crew.js';
 import { EVENTS } from '../../data/events.js';
 import { MINIMISSIONS } from '../../data/minimissions.js';
@@ -133,7 +134,7 @@ export function render(root, app, go) {
     let left = TRESERVE_SECONDS[s.difficulty];
     const who = whoDecides(app, roleFor(p.eventId));
     const close = modal(h('div', { id: 'evento' },
-      h('div', { class: 'big-ico' }, EVENT_ICON[ev.id] ?? (ev.kind === '+' ? '🎉' : '⚠️')),
+      h('div', { class: `big-ico code ${ev.kind === '+' ? '' : 'alerta'}` }, ev.kind === '+' ? 'BUENO' : ev.disaster ? 'EMERGENCIA' : 'ALERTA'),
       h('h2', { class: p.severity === 'grave' ? 'red' : ev.kind === '+' ? 'green' : 'amber' }, ev.name),
       h('div', { class: 'small' }, { leve: '🟢 Poco grave', media: '🟠 Grave', grave: '🔴 ¡Muy grave!' }[p.severity]),
       h('p', { style: { clear: 'both', fontSize: '1.1rem' } }, ev.text[p.severity]),
@@ -189,7 +190,7 @@ export function render(root, app, go) {
       start.replaceWith(h('button', { class: 'big', id: 'seguirFase', onclick: () => { close(); if (app.state.phase === 'report') go('report'); else draw(); } }, 'CONTINUAR ▶'));
     } }, phase === 'edl' ? '🪂 ¡A ATERRIZAR!' : '🚀 ¡DESPEGAR!');
     close = modal(h('div', { id: 'fase' },
-      h('div', { class: 'big-ico' }, phase === 'edl' ? '🪂' : '🚀'),
+      h('div', { class: 'big-ico code' }, phase === 'edl' ? 'EDL' : 'ASCENSO'),
       h('h2', {}, P.title),
       h('p', { style: { clear: 'both' } }, P.desc),
       list,
@@ -208,12 +209,12 @@ export function render(root, app, go) {
     if (!isMars(s)) return null;
     const radio = inBlackout(s, s.day + 1) ? '📵 Conjunción solar: sin radio con la Tierra' : `📡 La radio tarda ${radioDelayMin(s, s.day + 1)} min en llegar a la Tierra`;
     if (s.flags?.landed && !s.flags?.ascended) {
-      const proj = s.resources.fuel + fuelRate(s) * Math.max(0, ASCENT_DAY - s.day);
+      const proj = s.resources.fuel + fuelRate(s) * Math.max(0, planOf(s).ascent - s.day);
       return h('div', { class: `small ${proj >= ASCENT_FUEL ? 'green' : 'red'}`, id: 'tramo' },
-        `🔴 Sol ${s.day - LANDING_DAY} de 365 en Marte · ⛽ combustible para volver: ${fmt(s.resources.fuel)} de ${ASCENT_FUEL} (al despegar tendrás ~${fmt(proj)}) · ${radio}`);
+        `Sol ${s.day - planOf(s).landing} de ${planOf(s).surface} en Marte · ⛽ combustible para volver: ${fmt(s.resources.fuel)} de ${ASCENT_FUEL} (al despegar tendrás ~${fmt(proj)}) · ${radio}`);
     }
-    if (s.flags?.ascended) return h('div', { class: 'small', id: 'tramo' }, `🌍 Regreso: día ${s.day - ASCENT_DAY} de ${TRANSIT_DAYS} · ${radio}`);
-    return h('div', { class: 'small', id: 'tramo' }, `🚀 Viaje a Marte: día ${s.day} de ${TRANSIT_DAYS} · sin gravedad y con más radiación · ${radio}`);
+    if (s.flags?.ascended) return h('div', { class: 'small', id: 'tramo' }, `Regreso: día ${s.day - planOf(s).ascent} de ${planOf(s).transit} · ${radio}`);
+    return h('div', { class: 'small', id: 'tramo' }, `Viaje a Marte: día ${s.day} de ${planOf(s).transit} · sin gravedad y con más radiación · ${radio}`);
   }
 
   let mapSel = null;
@@ -243,7 +244,7 @@ export function render(root, app, go) {
       Object.entries({ cx: n.x, cy: n.y, r: n.type === 'base' ? 7 : 6 }).forEach(([k, v]) => c.setAttribute(k, v));
       const t = document.createElementNS(NS, 'text');
       Object.entries({ x: n.x, y: n.y + 2.2, 'text-anchor': 'middle', 'font-size': 6 }).forEach(([k, v]) => t.setAttribute(k, v));
-      t.textContent = n.type === 'base' ? (SC.id === 'marte' ? '🔴' : '🏠') : n.known ? NODE_TYPES[n.type].icon : '❔';
+      t.textContent = n.known ? NODE_CODE[n.type] : '?';
       g.append(c, t);
       if (n.known && n.type !== 'base') g.addEventListener('click', () => { mapSel = n.id; beep(700, 30); draw(); });
       svg.append(g);
@@ -295,7 +296,7 @@ export function render(root, app, go) {
         const frac = days !== null ? (Number.isFinite(days) ? days / 60 : 1) : r[k] / max[k];
         const low = k === 'dataStored' ? frac > 0.8 : frac < 0.15;
         return h('div', { class: `res-card ${low ? 'low' : ''}`, title: name },
-          h('div', { class: 'res-ico' }, ico),
+          h('div', { class: 'res-ico code' }, RES_CODE[k]),
           h('div', {}, h('div', { class: 'res-name' }, name),
             h('div', { class: 'res-val' }, days !== null ? (Number.isFinite(days) ? `${fmt(days)} días` : '♻️ se recicla') : `${fmt(r[k])}${k === 'battery' ? ` / ${r.batteryMax}` : ''}`),
             bar(frac, k === 'dataStored' ? { invert: true } : {})));
@@ -324,7 +325,7 @@ export function render(root, app, go) {
             if (mm.health <= 0) return;
             mm.on = !mm.on; commit(st); beep(mm.on ? 800 : 400, 40); draw();
           },
-        }, h('div', { class: 'ico' }, MODULES[m.type].icon), h('b', {}, MODULES[m.type].name),
+        }, h('div', { class: 'ico code' }, MOD_CODE[m.type]), h('b', {}, MODULES[m.type].name),
         m.offDays ? h('div', { class: 'amber small' }, `⏸️ ${m.offDays} días`) : null,
         bar(m.health / 100), h('div', { class: 'row small' }, m.on ? '🟢' : '⚫',
           h('input', { type: 'number', min: 1, max: 10, value: m.priority, style: { width: '3.4rem' }, title: 'Turno para apagarse', onchange: (e) => { commit(setPriority(app.state, m.id, Number(e.target.value))); } }))))),
@@ -509,7 +510,7 @@ export function render(root, app, go) {
     const s = app.state;
     if (s.phase === 'reentry') return ['¡Un año completo! 🎉 Ahora hay que volver a la Tierra. Toca INICIAR REENTRADA.', 'feliz', '#reentrada', null];
     if (sched.length) return [`${sched[0]}. Arrástralo a 😴 Sueño en algún turno.`, 'alerta', '[data-job="sueño"]', 'tripulacion'];
-    if (isMars(s) && s.flags?.landed && !s.flags?.ascended && s.resources.fuel + fuelRate(s) * Math.max(0, ASCENT_DAY - s.day) < ASCENT_FUEL) {
+    if (isMars(s) && s.flags?.landed && !s.flags?.ascended && s.resources.fuel + fuelRate(s) * Math.max(0, planOf(s).ascent - s.day) < ASCENT_FUEL) {
       return ['⛽ ¡Al ritmo de ahora no vamos a tener combustible para volver! Repara y deja encendida la planta de combustible.', 'alerta', '[data-module^="planta_combustible"]', 'estacion'];
     }
     const evaBad = [0, 1, 2].map((t) => evaGoNoGo(s, t)).findIndex((g) => g.crew.length && !g.go);
@@ -539,7 +540,7 @@ export function render(root, app, go) {
     if (s.day === 0 && SC.id === 'marte') return ['¡Empieza el viaje a Marte! Son 210 días sin gravedad: 🏃 ejercicio diario para los huesos y 🛡️ refugio en las tormentas solares. Arrastra a cada uno a su trabajo y toca ▶ AVANZAR.', 'feliz', '#avanzar', null];
     if (s.day === 0 && SC.id !== 'estacion') return [`¡Bienvenidos a ${SC.home}! Aquí hay gravedad baja y más radiación. ${site?.nightDays ? `Ojo: cada tanto llega la noche de ${site.nightDays} días.` : ''} Arrastra a cada astronauta a su trabajo y toca ▶ AVANZAR.`, 'feliz', '#avanzar', null];
     if (s.day === 0) return ['¡Bienvenidos a la estación! En la pestaña 🧑‍🚀 Tripulación eliges qué hace cada astronauta. Cuando estés listo, toca ▶ AVANZAR.', 'feliz', '#avanzar', null];
-    return ['Todo bajo control. 👍 Toca ▶ AVANZAR y yo te aviso cuando pase algo.', 'feliz', '#avanzar', null];
+    return ['Sin novedades. Avanza y te llamo si pasa algo.', 'feliz', '#avanzar', null];
   }
 
   function crewMini() {
@@ -562,7 +563,7 @@ export function render(root, app, go) {
           dayNight(),
           marsLeg(),
           isWeekend(s.day + 1) ? h('div', { class: 'small amber' }, '🗓️ Mañana es fin de semana: día ligero. Descanso y llamadas a casa dan más ánimo; trabajar lo baja un poco.') : null,
-          h('div', { class: 'trip' }, h('div', { class: 'trip-fill', style: { width: `${pct}%` } }), h('span', { class: 'trip-ship', style: { left: `${pct}%` } }, DEST), h('span', { class: 'trip-end' }, '🏠'))),
+          h('div', { class: 'trip' }, h('div', { class: 'trip-fill', style: { width: `${pct}%` } }), h('span', { class: 'trip-ship', style: { left: `${pct}%` } }, '▲'), h('span', { class: 'trip-end small' }, 'FIN'))),
         h('div', { class: 'row' },
           h('button', { id: 'avanzar1', disabled: blocked, onclick: () => advance(false) }, '⏭️ 1 día'),
           h('button', { id: 'avanzar', class: 'big', disabled: blocked, onclick: () => advance(true) }, '▶ AVANZAR'),

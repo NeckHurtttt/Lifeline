@@ -56,7 +56,7 @@ function extras(mood) {
   switch (mood) {
     case 'durmiendo': return '<g class="zzz" font-family="sans-serif" font-weight="bold" fill="#bfe8ff"><text x="70" y="22" font-size="11">z</text><text x="77" y="13" font-size="14">Z</text></g>';
     case 'agotado': return '<path class="sweat" d="M68 36 q4 7 0 10 q-4 -3 0 -10z" fill="#7fd0ff"/>';
-    case 'hambre': return '<g class="thought"><circle cx="76" cy="22" r="9" fill="#fff" opacity=".9"/><text x="70.5" y="26.5" font-size="11">🍎</text></g>';
+    case 'hambre': return '<g class="thought"><circle cx="76" cy="22" r="9" fill="#fff" opacity=".9"/><circle cx="76" cy="23.5" r="4" fill="#d94b3b"/><path d="M76 19.5 q1 -2 3 -2" stroke="#3b7a2a" stroke-width="1.4" fill="none"/></g>';
     case 'triste': return '<path class="tear" d="M38 52 q2 5 0 7 q-2 -2 0 -7z" fill="#7fd0ff"/>';
     case 'enfermo': return '<circle cx="34" cy="54" r="3.5" fill="#9fd36b" opacity=".7"/><circle cx="66" cy="54" r="3.5" fill="#9fd36b" opacity=".7"/>';
     case 'radiacion': return '<g class="rad"><circle cx="50" cy="48" r="34" fill="none" stroke="#c6ff3d" stroke-width="2" stroke-dasharray="4 5"/></g>';

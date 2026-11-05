@@ -53,7 +53,10 @@ export function generateCrew(roles, rng) {
  * @param {{design:Design, scenarioId:string, difficulty:Difficulty, seed:number}} p
  * @returns {MissionState}
  */
-export function createMission({ design, scenarioId, difficulty, seed }) {
+/** Plazos cortos del modo demo (unos 10 minutos de juego). */
+export const DEMO_DAYS = { estacion: 60, luna: 56, marte: { transit: 30, surface: 60 } };
+
+export function createMission({ design, scenarioId, difficulty, seed, demo = false }) {
   const rng = createRng(seed);
   const crew = generateCrew(design.crewRoles, rng);
   // Los contratados en la entrevista reemplazan a los generados (mismo puesto).
@@ -79,7 +82,9 @@ export function createMission({ design, scenarioId, difficulty, seed }) {
     rations[c.id] = 'completa';
   }
   return {
-    seed, rng: rng.state(), day: 0, totalDays: sc.days + 2 * (sc.travelDays ?? 0), difficulty, scenarioId,
+    seed, rng: rng.state(), day: 0, difficulty, scenarioId,
+    ...(demo && scenarioId === 'marte' ? { plan: DEMO_DAYS.marte, totalDays: DEMO_DAYS.marte.surface + 2 * DEMO_DAYS.marte.transit }
+      : { totalDays: demo ? DEMO_DAYS[scenarioId] ?? 60 : sc.days + 2 * (sc.travelDays ?? 0) }),
     phase: 'launch', design, modules, crew, schedule, rations,
     resources: {
       o2: 0.84 * mult,

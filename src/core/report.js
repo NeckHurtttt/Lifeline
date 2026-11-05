@@ -10,8 +10,11 @@ export function buildReport(state) {
   const success = state.outcome?.success ?? false;
   const science = Math.round(state.science);
   const score = Math.round(survivors * 1000 + state.science * 10 + state.reputation * 5);
+  // Meta de ciencia según destino y duración (una misión bien llevada la alcanza; a ciegas, no).
+  const goalPerDay = { estacion: 8, luna: 9, marte: 7 }[state.scenarioId] ?? 8;
+  const scienceGoal = Math.round(goalPerDay * (state.totalDays ?? 365));
   let medal = null;
-  if (success) medal = survivors === total && science >= 300 ? 'oro' : survivors >= total / 2 ? 'plata' : 'bronce';
+  if (success) medal = survivors === total && science >= scienceGoal ? 'oro' : survivors >= total / 2 && science >= scienceGoal / 2 ? 'plata' : 'bronce';
 
   const hist = state.history ?? [];
   const keys = ['o2', 'water', 'food', 'battery'];
@@ -55,7 +58,7 @@ export function buildReport(state) {
   if (state.scenarioId === 'marte' && found.length < 3) add('En Marte no hay rescate rápido: todo depende de la planificación', 'Lleva repuestos y fabrica tu propio combustible', 'conjuncion');
   const top = found.slice(0, 5);
   return {
-    success, reason, score, medal, daysSurvived: state.day, survivors, science,
+    success, reason, score, medal, daysSurvived: state.day, survivors, science, scienceGoal,
     resources: { min, end },
     causes: top.map((f) => f.cause),
     suggestions: top.map((f) => f.suggestion),

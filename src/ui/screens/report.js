@@ -11,7 +11,7 @@ import { say } from '../guide.js';
 import { crewAvatar, moodOf, MOOD_TEXT } from '../avatar.js';
 
 const RANK_KEY = 'vdl.ranking';
-const MEDALS = { oro: '🥇 ORO', plata: '🥈 PLATA', bronce: '🥉 BRONCE' };
+const MEDALS = { oro: 'MEDALLA DE ORO', plata: 'MEDALLA DE PLATA', bronce: 'MEDALLA DE BRONCE' };
 const SERIES = [['o2', 'O₂', '#7dd3ff'], ['water', 'Agua', '#33ff66'], ['food', 'Comida', '#ffb000'], ['battery', 'Batería', '#c78bff']];
 
 function readRanking() {

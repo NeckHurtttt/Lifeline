@@ -32,12 +32,12 @@ const ROLE_DESC = {
 };
 
 const TOUR = [
-  ['¡Hola! Soy Nova, de Control de Misión. Te voy a acompañar todo el viaje. 🚀', 'feliz'],
-  ['Primero DISEÑAS tu nave: pones módulos como piezas de Lego, eliges cohete y cuánta comida llevar.', 'normal'],
-  ['Después viene el DESPEGUE, como uno de verdad: cuenta regresiva, clima y todos dicen "GO".', 'normal'],
-  ['Luego tu tripulación vive 1 AÑO en el espacio. Tú decides qué hace cada uno: dormir, comer, hacer ciencia, arreglar…', 'pensando'],
-  ['Pasarán cosas buenas y malas. Yo te aviso antes y te señalo qué tocar con una flecha 👇.', 'alerta'],
-  ['Al final vuelven a la Tierra y ves cómo te fue. ¡Ganas si al menos uno vuelve sano!', 'feliz'],
+  ['Soy Nova, de Control de Misión. Voy a estar en la radio todo el viaje.', 'feliz'],
+  ['Primero se arma la nave: módulo por módulo, el cohete, la comida y la gente que va. Cada astronauta se elige por entrevista.', 'normal'],
+  ['Después viene el despegue, igual que uno real: cuenta regresiva, clima y cada equipo dice si está listo.', 'normal'],
+  ['Allá arriba tú repartes el trabajo de cada turno: dormir, reparar, hacer ciencia, curar.', 'pensando'],
+  ['Van a pasar cosas. Casi siempre aviso antes y te marco qué tocar.', 'alerta'],
+  ['Al final vuelven a la Tierra y vemos qué salió bien y qué no. La misión vale si vuelve al menos uno sano.', 'feliz'],
 ];
 
 export function render(root, app, go) {
@@ -47,7 +47,7 @@ export function render(root, app, go) {
 
   const nextTour = () => {
     tour += 1;
-    if (tour >= TOUR.length) { tour = -1; say('¡Listo! Elige cómo jugar y toca NUEVA MISIÓN.', { mood: 'feliz', target: '#nueva' }); return; }
+    if (tour >= TOUR.length) { tour = -1; say('Elige cómo jugar y toca NUEVA MISIÓN cuando quieras.', { mood: 'feliz', target: '#nueva' }); return; }
     const [t, mood] = TOUR[tour];
     say(t, { mood, buttons: [{ label: tour === TOUR.length - 1 ? '¡Entendido!' : 'Siguiente ▶', onclick: nextTour }] });
   };
@@ -97,7 +97,7 @@ export function render(root, app, go) {
             h('button', { class: app.players.length === n ? 'sel' : '', 'data-players': n, onclick: () => {
               app.players = makePlayers(n, names); updateBar(); draw();
               say(n === 1 ? 'Tú solo decides todo. ¡Eres el jefe de toda la misión!' : `Cada uno tiene un trabajo. Cuando haya que decidir algo, aparecerá el nombre de quien decide.`, { quiet: true, target: '#roles' });
-            } }, '🧑‍🚀'.repeat(n)))),
+            } }, `${n} ${n === 1 ? 'JUGADOR' : 'JUGADORES'}`))),
           h('table', { id: 'roles', style: { marginTop: '.5rem' } },
             ...app.players.map((p, i) => h('tr', {},
               h('td', {}, h('input', { value: p.name, size: 12, oninput: (e) => { p.name = e.target.value; names[i] = e.target.value; updateBar(); } })),
@@ -110,6 +110,6 @@ export function render(root, app, go) {
     );
   };
   draw();
-  say(saved ? `¡Hola otra vez! Tu misión va en el día ${saved.day}. Toca SEGUIR para continuar.` : '¡Hola! Soy Nova, de Control de Misión. ¿Primera vez? Toca "¿Cómo se juega?" y te explico.',
+  say(saved ? `¡Hola otra vez! Tu misión va en el día ${saved.day}. Toca SEGUIR para continuar.` : 'Aquí Nova, Control de Misión. Si es tu primera vez, toca "¿Cómo se juega?".',
     { mood: 'feliz', target: saved ? '#continuar' : '#como', buttons: saved ? [] : [{ label: 'Explícame', onclick: () => { tour = -1; nextTour(); } }] });
 }

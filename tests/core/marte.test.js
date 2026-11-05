@@ -103,3 +103,19 @@ test('una misión completa a Marte con la base de ejemplo es posible', () => {
   assert.ok(s.crew.some((x) => x.alive && !x.evacuated), `fin día ${s.day}: ${s.outcome?.reason} combustible ${s.resources.fuel}`);
   assert.equal(s.phase, 'reentry');
 });
+
+test('modo demo: Marte en 120 días con las mismas fases', () => {
+  let s = createMission({ design: marsDesign(), scenarioId: 'marte', difficulty: 'facil', seed: 4, demo: true });
+  assert.equal(s.totalDays, 120);
+  s.phase = 'ops';
+  const fases = [];
+  for (let i = 0; i < 500 && s.phase === 'ops'; i++) {
+    const r = runUntilInterrupt(s, 200);
+    s = r.state;
+    if (r.interrupt?.kind === 'fase') { fases.push([r.interrupt.data.phase, s.day]); s = resolvePhase(s, r.interrupt.data.phase).state; }
+    if (s.pending) s = { ...s, pending: null };
+    s.minis = s.minis.map((m) => (m.status === 'oferta' ? { ...m, status: 'vencida' } : m));
+  }
+  assert.deepEqual(fases, [['edl', 30], ['ascenso', 90]]);
+  assert.ok(s.day <= 120);
+});

@@ -1,5 +1,11 @@
 // Guía animada de Control de Misión: habla, cambia de cara y señala con una flecha qué tocar.
 import { guideSvg } from './avatar.js';
+import { plain } from './dom.js';
+
+/** Nova habla como una persona de Control de Misión: sin emojis y sin tantos signos de exclamación. */
+function natural(text) {
+  return plain(text).replace(/¡([^!¡]*)!/g, (m, a) => `${a}.`).replace(/\.\.(?!\.)/g, '.').replace(/\.\s*\./g, '.').replace(/\s+([.,:;?])/g, '$1').trim();
+}
 import { beep } from './audio.js';
 
 let box = null;
@@ -24,7 +30,7 @@ function ensure() {
   });
   arrow = document.createElement('div');
   arrow.id = 'flecha';
-  arrow.textContent = '👇';
+  arrow.textContent = '▼';
   document.body.append(arrow);
   window.addEventListener('scroll', () => place(), { passive: true });
   window.addEventListener('resize', () => place());
@@ -60,6 +66,7 @@ function point(target) {
  * @param {{mood?:'normal'|'feliz'|'alerta'|'pensando', target?:string|Element|null, buttons?:{label:string,onclick:Function}[], quiet?:boolean}} opts
  */
 export function say(text, { mood = 'normal', target = null, buttons = [], quiet = false } = {}) {
+  text = natural(text);
   ensure();
   const same = current.text === text;
   current.text = text;

@@ -1,4 +1,5 @@
 // Pantalla de diseño: cuadrícula de módulos, instrumentos, cohete, órbita, carga y tripulación, con Nova guiando.
+import { MOD_CODE } from '../art.js';
 import { h, mount, bar, modal, fmt, tabs } from '../dom.js';
 import { MODULES, INSTRUMENTS, LAUNCHERS, ORBITS, GRID, DIFFICULTY, SCENARIOS } from '../../data/catalog.js';
 import { availableIn } from '../../core/surface.js';
@@ -109,7 +110,7 @@ function coach(d, r) {
     if (/datos/.test(w)) return ['Tus instrumentos juntan más datos de los que puedes mandar. Una 📶 ANTENA ayuda. Puedes lanzar igual.', 'pensando', '[data-mod="antena"]'];
     return [`Consejo: ${w}. Puedes lanzar igual.`, 'pensando', /comida/.test(w) ? '#carga' : '#tablero'];
   }
-  return ['¡Todo listo! Tu nave puede volar. Cuando quieras, toca 🚀 LANZAR.', 'feliz', '#lanzar'];
+  return ['La nave cumple todo. Cuando estés conforme, LANZAR.', 'feliz', '#lanzar'];
 }
 
 export function render(root, app, go, params = {}) {
@@ -186,7 +187,7 @@ export function render(root, app, go, params = {}) {
     say('Revisando el clima espacial con datos reales de NASA… ☀️', { mood: 'pensando' });
     const seed = app.lastSeed ?? Math.floor(Math.random() * 2 ** 31);
     const f = await flares;
-    const state = createMission({ design: structuredClone(d), scenarioId: scn, difficulty: app.difficulty, seed });
+    const state = createMission({ design: structuredClone(d), scenarioId: scn, difficulty: app.difficulty, seed, demo: app.mode === 'demo' });
     state.mode = app.mode;
     state.realStorms = pickStorms(f.flares, app.difficulty);
     state.flareSource = f.source;
@@ -206,7 +207,7 @@ export function render(root, app, go, params = {}) {
       return h('div', {
         class: `cell ${m ? 'full' : ''}`, 'data-x': x, 'data-y': y, title: m ? `${def.name}. Clic derecho para quitar.` : `Clic para poner: ${MODULES[selected].name}`,
         onclick: () => place(x, y), oncontextmenu: (e) => { e.preventDefault(); if (m) remove(x, y); },
-      }, m ? [h('div', { class: 'ico' }, def.icon), h('b', {}, def.name), h('div', { class: 'dim small' }, def.kw > 0 ? `⚡ da ${def.kw}` : def.kw < 0 ? `⚡ usa ${-def.kw}` : '')] : h('span', { class: 'muted', style: { fontSize: '1.4rem' } }, '+'));
+      }, m ? [h('div', { class: 'ico code' }, MOD_CODE[m.type]), h('b', {}, def.name), h('div', { class: 'dim small' }, def.kw > 0 ? `⚡ da ${def.kw}` : def.kw < 0 ? `⚡ usa ${-def.kw}` : '')] : h('span', { class: 'muted', style: { fontSize: '1.4rem' } }, '+'));
     };
     const row = (label, frac, text, lesson, opts) => h('div', { class: 'res' },
       h('span', {}, label), bar(frac, opts),
@@ -236,7 +237,7 @@ export function render(root, app, go, params = {}) {
               h('button', { class: selected === m.id ? 'sel' : '', 'data-mod': m.id, style: { width: '100%', textAlign: 'left' }, onclick: () => {
                 selected = m.id; explain = m.id; draw();
                 say(`${m.icon} ${m.name}: ${m.desc} Pesa ${m.mass} t y cuesta ${m.cost} millones.`, { quiet: true, target: '#nave' });
-              } }, `${m.icon} ${m.name}`, sc.requiredModules.includes(m.id) ? h('span', { class: 'amber small' }, ' (obligatorio)') : null,
+              } }, h('span', { class: 'code' }, MOD_CODE[m.id]), ` ${m.name}`, sc.requiredModules.includes(m.id) ? h('span', { class: 'amber small' }, ' (obligatorio)') : null,
               h('div', { class: 'dim small' }, `${m.mass} t · ${m.kw > 0 ? '+' : ''}${m.kw} kW · 💰${m.cost}`)))))),
           h('div', { class: 'panel c-blue' },
             h('h2', {}, '2. Tu nave ', who('ingeniero')),

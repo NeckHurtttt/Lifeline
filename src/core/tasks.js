@@ -93,15 +93,17 @@ export function applyTasks(state, rng) {
       c.fatigue = clamp(c.fatigue + 10);
 
       if (t === 'mantenimiento') {
-        const m = worst(s.modules.filter((x) => x.health < 100));
-        if (m) m.health = clamp(m.health + 3 * eff);
+        // Revisa toda la nave: frena el desgaste de cada módulo que aún funciona.
+        for (const m of s.modules) if (m.health > 0 && m.health < 100) m.health = clamp(m.health + 0.6 * eff);
       } else if (t === 'reparacion') {
         const m = worst(s.modules.filter((x) => x.health < 100));
         if (m) {
           if (r.parts < 2) log.push('Faltan piezas para reparar');
           else {
             r.parts -= 2;
+            const roto = m.health <= 0;
             m.health = clamp(m.health + 15 * (on('taller') ? MODULES.taller.repairMult : 1) * mult * eff);
+            if (roto && m.health > 0) { m.on = true; log.push(`Reparado y encendido de nuevo: ${MODULES[m.type].name}`); }
           }
         }
       } else if (t === 'experimentos' || t === 'trabajo') {

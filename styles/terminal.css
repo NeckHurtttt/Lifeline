@@ -122,3 +122,63 @@ button.big:hover:not(:disabled) { background: var(--fg) !important; color: #0210
 .job, .turno-chip, .token { border-radius: 2px; }
 .job.over { background: rgba(77, 255, 136, .12); }
 .cand, .hire { border-radius: 3px; background: rgba(0, 0, 0, .3); }
+
+/* ===== Consola: menos "tarjetas", más instrumentos ===== */
+.panel, .panel.c-blue, .panel.c-pink, .panel.c-green, .panel.c-amber, .panel.c-violet, .panel.c-cyan {
+  border: 1px solid var(--dim); border-radius: 0; box-shadow: none; background: rgba(2, 14, 6, .9); padding: 0 .8rem .7rem; }
+.panel > h2:first-child, .panel > .row:first-child > h2 {
+  margin: 0 -.8rem .6rem; padding: .1rem .6rem; background: var(--fg); color: #021006 !important; text-shadow: none; border: none; font-size: 1.05rem; }
+.panel > .row:first-child { margin: 0 -.8rem .6rem; padding-right: .6rem; background: var(--fg); }
+.panel > .row:first-child > h2 { margin: 0; }
+.panel > .row:first-child button { background: #021006; }
+.panel.c-amber > h2:first-child { background: var(--amber); }
+
+.code { display: inline-block; padding: 0 .3em; border: 1px solid currentColor; font-size: .85em; letter-spacing: .06em; line-height: 1.15; }
+.cell .ico.code { font-size: .95rem; margin-bottom: .1rem; filter: none; }
+.big-ico.code { float: left; margin: 0 .7rem .3rem 0; padding: .1rem .5rem; font-size: 1.2rem; animation: none; background: var(--fg); color: #021006; text-shadow: none; border: none; }
+.big-ico.code.alerta { background: var(--amber); }
+.modal.grave .big-ico.code { background: var(--red); }
+
+/* etiquetas entre corchetes en vez de pastillas */
+.chip, .pill, .pill.role, .pill.amber, .pill.violet, .pill.blue, .tag { background: none !important; border: none !important; border-radius: 0 !important; padding: 0 !important; box-shadow: none !important; }
+.chip::before, .pill::before, .tag::before { content: "["; opacity: .7; }
+.chip::after, .pill::after, .tag::after { content: "]"; opacity: .7; }
+.chip.ok { color: var(--fg); } .chip.bad { color: var(--red); }
+
+/* pestañas como teclas de función */
+.tabs { counter-reset: fkey; border: none; background: none; padding: 0; gap: .3rem; }
+.tab { counter-increment: fkey; border: 1px solid var(--dim); }
+.tab::before { content: "F" counter(fkey) " "; opacity: .65; }
+.badge { position: static; display: inline-block; margin-left: .35rem; min-width: 0; height: auto; line-height: 1.2; padding: 0 .3rem; border-radius: 0; box-shadow: none; animation: none; }
+
+button.big::before { content: "[ "; } button.big::after { content: " ]"; }
+
+/* recursos como lecturas de instrumento */
+.res-grid { grid-template-columns: 1fr; gap: .15rem; }
+.res-card, .res-card.low { display: grid; grid-template-columns: 4.2rem 1fr; gap: .6rem; padding: .15rem 0; background: none; border: none; border-bottom: 1px dotted var(--line); border-radius: 0; animation: none; }
+.res-card.low { color: var(--red); }
+.res-card > div:last-child { display: grid; grid-template-columns: 8rem 7rem 1fr; align-items: center; gap: .5rem; }
+.res-ico.code { font-size: .9rem; text-align: center; align-self: center; filter: none; }
+.res-name { font-size: 1rem; color: var(--dim); }
+.res-val { font-size: 1.05rem; margin: 0; }
+
+.crew-card, .cand, .hire, .job, .alert-card, .mini-card, .option, .vote-card, .day-head, .tabs .tab, .cell, .res-card, .turno-chip {
+  border-radius: 0 !important; box-shadow: none; }
+.crew-card, .cand, .hire, .alert-card, .mini-card { border: 1px solid var(--line); background: rgba(0, 0, 0, .25); }
+.day-head { border: 1px solid var(--dim); background: rgba(2, 14, 6, .95); }
+.trip-ship { font-size: 1rem; top: -1.1rem; animation: none; }
+.trip-end { top: -1.2rem; right: -1.5rem; }
+.avatar-wrap { animation-duration: 5s; }
+
+/* dibujos de línea */
+.art { width: 100%; height: 100%; display: block; }
+.art-wrap { display: inline-block; width: 1em; height: 1em; }
+.sky .rocket { transform: translateX(-50%) !important; font-size: 1rem; width: 44px; height: 44px; color: var(--fg); }
+.sky .rocket .art-wrap, .sky .station .art-wrap { width: 100%; height: 100%; }
+.sky .rocket.go::after { content: ""; position: absolute; left: 50%; top: 100%; width: 10px; height: 18px; margin-left: -5px; transform: none;
+  background: linear-gradient(var(--amber), transparent); clip-path: polygon(0 0, 100% 0, 50% 100%); }
+.sky .station { width: 56px; height: 56px; font-size: 1rem; color: var(--fg); }
+#flecha { font-size: 1.6rem; color: var(--fg); text-shadow: 0 0 8px var(--fg); filter: none; }
+.mapa .nodo text { fill: var(--fg); font-family: var(--font); font-size: 6px; }
+.medal { font-size: 1.6rem; letter-spacing: .15em; border: 1px solid var(--fg); display: inline-block; padding: .1rem .8rem; margin: .4rem 0; }
+.job-head .ico:empty { display: none; }

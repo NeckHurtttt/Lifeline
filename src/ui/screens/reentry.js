@@ -1,4 +1,5 @@
 // Pantalla de reentrada: pasos, apagón de plasma con estática y elección de ángulo en modo manual.
+import { art } from '../art.js';
 import { h, mount } from '../dom.js';
 import { reentrySteps, runReentryStep, heatShieldRisk } from '../../core/reentry.js';
 import { restoreRng } from '../../core/rng.js';
@@ -30,7 +31,7 @@ export function render(root, app, go) {
   mount(root, 
     h('h1', { style: { fontSize: '1.8rem' } }, '🌍 Vuelta a casa'),
     h('div', { class: 'panel c-blue', style: { textAlign: 'center' } },
-      h('div', { class: 'sky space', id: 'cielo' }, h('div', { class: 'planet' }), h('div', { class: 'rocket', id: 'capsula', style: { transform: 'translateX(-50%) rotate(135deg)', bottom: '200px' } }, '🛸')),
+      h('div', { class: 'sky space', id: 'cielo' }, h('div', { class: 'planet' }), h('div', { class: 'rocket', id: 'capsula', style: { bottom: '200px' } }, art('capsula'))),
       h('div', { class: 'capsule', style: { marginTop: '.5rem' } }, ...s.crew.map((c) => crewAvatar(c, { size: 60 })))),
     h('div', { class: 'grid2' },
       h('div', { class: 'panel c-violet' }, h('h2', {}, 'Pasos'), steps,

@@ -1,4 +1,14 @@
 // Ayudas mínimas de DOM.
+
+// Estilo de consola: sin emojis. Algunos símbolos pasan a marcas de terminal; el resto se quita.
+const MARKS = [[/✅|✔️?|☑️?/gu, '✓'], [/❌|✖️?|⛔|🚫/gu, '×'], [/▶️?|⏩|⏭️?/gu, '>'], [/⚠️?|❗|‼️?/gu, '!'], [/⭐|🌟/gu, '*'], [/❔|❓/gu, '?'], [/🔒/gu, '[bloq.]'], [/🔓/gu, ''], [/➜|👉/gu, '→']];
+const EMOJI = /(?:\p{Extended_Pictographic}|\p{Regional_Indicator})(?:️|⃣|[\u{1F3FB}-\u{1F3FF}]|‍(?:\p{Extended_Pictographic}|\p{Regional_Indicator}))*️?/gu;
+/** Texto "de consola": cambia símbolos por marcas y quita emojis. */
+export function plain(text) {
+  let t = String(text);
+  for (const [re, rep] of MARKS) t = t.replace(re, rep);
+  return t.replace(EMOJI, '').replace(/️/g, '').replace(/[ \t]{2,}/g, ' ').replace(/^\s+(?=\S)/, (m) => (m.includes('\n') ? m : ''));
+}
 export function h(tag, attrs = {}, ...kids) {
   const el = document.createElement(tag);
   for (const [k, v] of Object.entries(attrs ?? {})) {
@@ -8,11 +18,11 @@ export function h(tag, attrs = {}, ...kids) {
     else if (k === 'style' && typeof v === 'object') Object.assign(el.style, v);
     else if (k === 'value') el.value = v;
     else if (v === true) el.setAttribute(k, '');
-    else el.setAttribute(k, v);
+    else el.setAttribute(k, k === 'title' ? plain(v) : v);
   }
   for (const kid of kids.flat(Infinity)) {
     if (kid === null || kid === undefined || kid === false) continue;
-    el.append(kid instanceof Node ? kid : document.createTextNode(String(kid)));
+    el.append(kid instanceof Node ? kid : document.createTextNode(plain(kid)));
   }
   return el;
 }

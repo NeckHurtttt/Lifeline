@@ -129,3 +129,8 @@ test('un año en la Luna con una base razonable y rutina sencilla es posible', (
   }
   assert.ok(s.crew.some((x) => x.alive && !x.evacuated), `fin día ${s.day}: ${s.outcome?.reason}`);
 });
+
+test('modo demo: la Luna dura 56 días (dos noches)', () => {
+  const s = createMission({ design: lunarDesign(), scenarioId: 'luna', difficulty: 'facil', seed: 1, demo: true });
+  assert.equal(s.totalDays, 56);
+});

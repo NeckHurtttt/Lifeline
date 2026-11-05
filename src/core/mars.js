@@ -17,23 +17,34 @@ const NEEDS = { food: 1.8, water: 2.75 * 0.02 + 0.95, o2: 0.84 };
 
 export const isMars = (s) => s.scenarioId === 'marte';
 
+/** Plazos de la misión (el modo demo los acorta). */
+export function planOf(s) {
+  const p = s.plan ?? { transit: TRANSIT_DAYS, surface: SURFACE_DAYS };
+  const landing = p.transit;
+  const ascent = p.transit + p.surface;
+  const start = Math.round(landing + p.surface * (CONJUNCTION.start - LANDING_DAY) / SURFACE_DAYS);
+  const len = Math.max(3, Math.round((CONJUNCTION.end - CONJUNCTION.start) * p.surface / SURFACE_DAYS));
+  return { ...p, landing, ascent, conj: { start, end: start + len, warn: start - Math.max(2, Math.round(5 * p.surface / SURFACE_DAYS)) } };
+}
+
 /** Tramo del viaje: 'ida' | 'superficie' | 'vuelta' (siempre 'superficie' fuera de Marte). */
 export function legOf(s, day = s.day) {
   if (!isMars(s)) return 'superficie';
-  if (day <= LANDING_DAY && !s.flags?.landed) return 'ida';
-  if (day <= ASCENT_DAY && !s.flags?.ascended) return 'superficie';
+  const p = planOf(s);
+  if (day <= p.landing && !s.flags?.landed) return 'ida';
+  if (day <= p.ascent && !s.flags?.ascended) return 'superficie';
   return 'vuelta';
 }
 
 export const inTransit = (s) => ['ida', 'vuelta'].includes(s.leg);
 
 /** Conjunción solar: el Sol queda entre la Tierra y Marte y no hay radio. */
-export const inBlackout = (s, day = s.day) => isMars(s) && day >= CONJUNCTION.start && day <= CONJUNCTION.end;
+export const inBlackout = (s, day = s.day) => isMars(s) && day >= planOf(s).conj.start && day <= planOf(s).conj.end;
 
 /** Minutos que tarda la radio en ir de Marte a la Tierra (varía con la distancia: 4 a 24). */
 export function radioDelayMin(s, day = s.day) {
   if (!isMars(s)) return 0;
-  const k = (Math.cos(((day - CONJUNCTION.start) / 780) * 2 * Math.PI) + 1) / 2; // 1 cerca de la conjunción
+  const k = (Math.cos(((day - planOf(s).conj.start) / 780) * 2 * Math.PI) + 1) / 2; // 1 cerca de la conjunción
   return Math.round(4 + 20 * k);
 }
 
@@ -48,8 +59,9 @@ export function marsSolarFactor(s, site) {
 /** Qué fase hay que resolver hoy, si hay alguna. */
 export function phaseDue(s) {
   if (!isMars(s)) return null;
-  if (s.day >= LANDING_DAY && !s.flags?.landed) return 'edl';
-  if (s.day >= ASCENT_DAY && s.flags?.landed && !s.flags?.ascended) return 'ascenso';
+  const p = planOf(s);
+  if (s.day >= p.landing && !s.flags?.landed) return 'edl';
+  if (s.day >= p.ascent && s.flags?.landed && !s.flags?.ascended) return 'ascenso';
   return null;
 }
 
@@ -92,7 +104,7 @@ export function resolvePhase(state, phase) {
       log.push(`Aterrizaje duro, lejos del sitio: todos los módulos −25 y la tripulación −10 de salud (${r.text}).`);
     }
     // La carga enviada dos años antes espera en la superficie.
-    const days = SURFACE_DAYS * 0.85;
+    const days = planOf(s).surface * 0.85;
     s.resources.food += NEEDS.food * n * days;
     s.resources.water += NEEDS.water * n * days;
     s.resources.o2 += NEEDS.o2 * n * days;
@@ -113,7 +125,7 @@ export function resolvePhase(state, phase) {
       return { state: s, log, ok: false };
     }
     s.resources.fuel -= ASCENT_FUEL;
-    const days = TRANSIT_DAYS * 1.1;
+    const days = planOf(s).transit * 1.1;
     s.resources.food += NEEDS.food * n * days;
     s.resources.water += NEEDS.water * n * days;
     s.resources.o2 += NEEDS.o2 * n * days;

@@ -40,7 +40,8 @@ function play(scn, dif, seed, careful) {
     if (r.interrupt?.kind === 'fase') { s = resolvePhase(s, r.interrupt.data.phase).state; continue; }
     if (s.pending) {
       const rng = restoreRng(s.rng);
-      const opt = careful ? recommendedOption(s.pending.eventId, s) : EVENTS[s.pending.eventId].options[0].id;
+      const visibles = EVENTS[s.pending.eventId].options.filter((o) => !o.hidden);
+      const opt = careful ? recommendedOption(s.pending.eventId, s) : visibles[Math.floor(rng.next() * visibles.length)].id;
       s = { ...resolveEvent(s, s.pending.eventId, s.pending.severity, opt, rng).state, rng: rng.state() };
     }
     s.minis = s.minis.map((m) => (m.status === 'oferta' ? { ...m, status: 'vencida' } : m));

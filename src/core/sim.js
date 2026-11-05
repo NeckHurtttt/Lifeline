@@ -10,9 +10,11 @@ import { expireMeds, exerciseRule } from './protocols.js';
 import { siteOf, scenarioOf, isNight, daysToNight } from './surface.js';
 import { MODULES } from '../data/catalog.js';
 import { progressExpedition } from './explore.js';
-import { legOf, phaseDue, marsSolarFactor, inBlackout, isMars, CONJUNCTION } from './mars.js';
+import { legOf, phaseDue, marsSolarFactor, inBlackout, isMars, planOf } from './mars.js';
 
 export const NIGHT_WARN_DAYS = 2;
+/** Desgaste diario de cada módulo (sin mantenimiento la nave se va rompiendo). */
+export const WEAR = { facil: 0.2, medio: 0.3, dificil: 0.4 };
 
 const LOW_DAYS = 7;
 const NEED = { food: 1.8, water: 2.75 * 0.02 + 0.95, waterNoLS: 2.75, o2: 0.84 };
@@ -87,6 +89,12 @@ export function advanceDay(state) {
 
   const site = siteOf(s);
   const sc = scenarioOf(s);
+  const wear = WEAR[s.difficulty] * (s.leg === 'superficie' && sc.id !== 'estacion' ? 1.25 : 1);
+  for (const m of s.modules) {
+    if (m.health <= 0) continue;
+    m.health = Math.max(0, m.health - wear);
+    if (m.health === 0) { m.on = false; pushLog(s, [`Se rompió por desgaste: ${MODULES[m.type].name}. Hace falta 🔧 Reparación.`], 'evento'); }
+  }
   const night = isNight(site, s.day);
   const e = applyEnergy(s, { solarFactor: night ? 0 : marsSolarFactor(s, site), heatKw: night ? sc.nightHeatKw ?? 0 : 0 });
   s = e.state; pushLog(s, e.log, 'energia');
@@ -131,12 +139,13 @@ export function advanceDay(state) {
 
   const fase = phaseDue(s);
   if (fase) return { state: s, interrupt: { kind: 'fase', data: { phase: fase } } };
-  if (isMars(s) && s.day === CONJUNCTION.warn) {
-    const text = `En ${CONJUNCTION.start - CONJUNCTION.warn} días empieza la conjunción solar: el Sol queda entre Marte y la Tierra y no habrá radio durante ${CONJUNCTION.end - CONJUNCTION.start + 1} días. Manden los datos ahora`;
+  const conj = isMars(s) ? planOf(s).conj : null;
+  if (conj && s.day === conj.warn) {
+    const text = `En ${conj.start - conj.warn} días empieza la conjunción solar: el Sol queda entre Marte y la Tierra y no habrá radio durante ${conj.end - conj.start + 1} días. Manden los datos ahora`;
     pushLog(s, [text], 'aviso');
     return { state: s, interrupt: { kind: 'aviso', data: { text } } };
   }
-  if (isMars(s) && s.day === CONJUNCTION.end + 1) pushLog(s, ['📡 Terminó la conjunción solar: vuelve la radio con la Tierra.'], 'bueno');
+  if (conj && s.day === conj.end + 1) pushLog(s, ['📡 Terminó la conjunción solar: vuelve la radio con la Tierra.'], 'bueno');
   if (site?.nightDays && daysToNight(site, s.day) === NIGHT_WARN_DAYS) {
     const text = `En ${NIGHT_WARN_DAYS} días empieza la noche: ${site.nightDays} días sin sol y mucho frío. Revisa la batería y apaga lo que no haga falta`;
     pushLog(s, [text], 'aviso');

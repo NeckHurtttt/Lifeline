@@ -73,11 +73,11 @@ export const DIFFICULTY = {
 
 export const SCENARIOS = {
   estacion: { id: 'estacion', icon: '🛰️', short: 'Estación', name: 'Estación espacial: un año en órbita', orbit: 'leo_estacion', days: 365, resupplyEvery: 60,
-    requiredModules: ['cabina', 'soporte_vital'], minScience: 0, budgetMult: 1, boneMult: 1, radiationMult: 1, nightHeatKw: 0, home: 'la estación' },
+    requiredModules: ['cabina', 'soporte_vital'], minScience: 0, scienceGoalPerDay: 8, disasterMult: 1, budgetMult: 1, boneMult: 1, radiationMult: 1, nightHeatKw: 0, home: 'la estación' },
   luna: { id: 'luna', icon: '🌙', short: 'Luna', name: 'Base lunar: un año en la Luna', orbit: 'luna_polo', days: 365, resupplyEvery: 120,
-    requiredModules: ['cabina', 'soporte_vital', 'modulo_aterrizaje'], minScience: 0, budgetMult: 1.5, boneMult: 0.5, radiationMult: 1.5, nightHeatKw: 3, home: 'la base lunar' },
+    requiredModules: ['cabina', 'soporte_vital', 'modulo_aterrizaje'], minScience: 0, scienceGoalPerDay: 9, disasterMult: 1.5, budgetMult: 1.5, boneMult: 0.5, radiationMult: 1.5, nightHeatKw: 3, home: 'la base lunar' },
   marte: { id: 'marte', icon: '🔴', short: 'Marte', name: 'Marte: 7 meses de ida, 1 año allá y 7 meses de vuelta', orbit: 'marte_jezero', days: 365, travelDays: 210, resupplyEvery: 0,
-    requiredModules: ['cabina', 'soporte_vital', 'modulo_aterrizaje', 'planta_combustible'], minScience: 0, budgetMult: 2.2, boneMult: 0.7, radiationMult: 2, nightHeatKw: 2, home: 'la base marciana' },
+    requiredModules: ['cabina', 'soporte_vital', 'modulo_aterrizaje', 'planta_combustible'], minScience: 0, scienceGoalPerDay: 7, disasterMult: 1.2, budgetMult: 2.2, boneMult: 0.7, radiationMult: 2, nightHeatKw: 2, home: 'la base marciana' },
 };
 
 export const GRID = { cols: 6, rows: 4 };

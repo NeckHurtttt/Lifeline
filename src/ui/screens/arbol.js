@@ -26,7 +26,7 @@ export function render(root, app, go) {
           const done = camp.completed[id];
           const open = camp.unlocked.includes(id);
           return h('span', { class: `tag ${open ? '' : 'dim'}`, style: { fontSize: '1rem', padding: '.2rem .6rem' } },
-            `${i + 1}. ${sc.icon} ${sc.short} ${done ? `✔ ${done.medal ? { oro: '🥇', plata: '🥈', bronce: '🥉' }[done.medal] : ''}` : open ? '▶ disponible' : '🔒'}`);
+            `${i + 1}. ${sc.short} ${done ? `✓ ${done.medal ? done.medal.toUpperCase() : ''}` : open ? '▶ disponible' : '🔒'}`);
         })),
         h('div', { class: 'help' }, 'Cumple una misión para abrir la siguiente. Cada misión da puntos ⭐ para comprar mejoras (más si traes medalla y mucha ciencia).')),
       ...LEVELS.map((ids, lvl) => h('div', { class: 'panel c-green' },
@@ -36,7 +36,7 @@ export function render(root, app, go) {
           const owned = camp.upgrades.includes(id);
           const locked = u.req && !camp.upgrades.includes(u.req);
           return h('div', { class: `cand ${owned ? 'hired' : ''}`, 'data-up': id },
-            h('div', { style: { fontSize: '1.6rem' } }, u.icon), h('b', {}, u.name),
+            h('b', {}, u.name),
             h('div', { class: 'small' }, u.desc),
             h('div', { class: 'small dim' }, '🌍 ', u.earth),
             locked ? h('div', { class: 'small amber' }, `🔒 Primero: ${UPGRADES[u.req].name}`) : null,

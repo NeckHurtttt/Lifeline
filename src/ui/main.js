@@ -70,7 +70,7 @@ export function updateBar() {
 const mute = document.getElementById('silencio');
 mute.addEventListener('click', () => {
   setMuted(!isMuted());
-  mute.textContent = isMuted() ? '🔇' : '🔊';
+  mute.textContent = isMuted() ? 'SONIDO: NO' : 'SONIDO: SÍ';
   if (!isMuted()) beep(880, 60);
 });
 
