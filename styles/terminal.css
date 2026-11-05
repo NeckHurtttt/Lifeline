@@ -183,3 +183,45 @@ button.big::before { content: "[ "; } button.big::after { content: " ]"; }
 .medal { font-size: 1.6rem; letter-spacing: .15em; border: 1px solid var(--fg); display: inline-block; padding: .1rem .8rem; margin: .4rem 0; }
 .job-head .ico:empty { display: none; }
 #tablero .tab::before { content: none; }
+
+/* ===== Monitor de la base ===== */
+.monitor { width: 100%; max-height: 260px; display: block; margin: .3rem 0; font-family: var(--font); }
+.monitor .mod rect:first-child { fill: rgba(77, 255, 136, .06); stroke: var(--dim); stroke-width: .5; }
+.monitor .mod text { fill: var(--fg); font-size: 3.6px; }
+.monitor .mod.apagado { opacity: .35; }
+.monitor .mod.roto rect:first-child { stroke: var(--red); animation: latido 1s infinite; }
+.monitor .seg { fill: var(--fg); } .monitor .seg.vacio { fill: rgba(77, 255, 136, .15); }
+.monitor .zona { fill: var(--dim); font-size: 3.2px; }
+.monitor .marca { transition: transform 1.1s ease-in-out; cursor: pointer; }
+.monitor .marca circle { fill: #021006; stroke: var(--fg); stroke-width: .5; }
+.monitor .marca text { fill: var(--fg); font-size: 3.4px; }
+.monitor .marca.mal circle { stroke: var(--amber); animation: latido 1s infinite; }
+#turno-monitor { color: var(--dim); letter-spacing: .08em; }
+#turno-monitor::after { content: "█"; animation: cursor 1s steps(1) infinite; margin-left: .3em; }
+.mini-crew { gap: .2rem 1rem; }
+.mini-crew .who { padding: 0; text-align: left; }
+
+/* ===== Velocidad del tiempo ===== */
+.velocidad { display: flex; align-items: center; gap: .25rem; border: 1px solid var(--line); padding: .15rem .3rem; }
+.velocidad button { padding: .1rem .45rem; min-width: 2.4rem; }
+
+/* ===== Panel de escotillas ===== */
+.escotillas { border: 1px solid var(--amber); padding: .4rem .6rem; margin: .4rem 0; }
+.hatch-grid { display: grid; gap: 3px; margin: .4rem 0; }
+.hatch { padding: .25rem 0; font-size: .9rem; }
+.hatch.mal { color: var(--red); border-color: var(--red); text-decoration: line-through; }
+#escotillas-log { max-height: 5.5em; overflow: auto; }
+
+/* ===== Base, energía y diario: dos columnas ===== */
+.grid-base { display: grid; grid-template-columns: 1.6fr 1fr; gap: 1rem; align-items: start; }
+.orden { margin: .2rem 0 0 1.2rem; padding: 0; }
+@media (max-width: 1100px) { .grid-base { grid-template-columns: 1fr; } }
+
+/* ===== Tablero de trabajos más compacto ===== */
+.job-grid { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: .35rem; }
+.job { min-height: 74px; padding: .3rem .45rem; }
+.job .job-desc { display: none; }
+.job.off .job-desc { display: block; }
+.job .checklist { font-size: .8rem; }
+.job-crew { min-height: 46px; }
+.cell .ico.code { margin-right: .35rem; }

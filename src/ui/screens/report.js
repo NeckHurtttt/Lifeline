@@ -12,7 +12,8 @@ import { crewAvatar, moodOf, MOOD_TEXT } from '../avatar.js';
 
 const RANK_KEY = 'vdl.ranking';
 const MEDALS = { oro: 'MEDALLA DE ORO', plata: 'MEDALLA DE PLATA', bronce: 'MEDALLA DE BRONCE' };
-const SERIES = [['o2', 'O₂', '#7dd3ff'], ['water', 'Agua', '#33ff66'], ['food', 'Comida', '#ffb000'], ['battery', 'Batería', '#c78bff']];
+// Colores de consola: verdes y ámbar; cada línea con su trazo para distinguirlas.
+const SERIES = [['o2', 'O₂', '#b8ffd0', ''], ['water', 'Agua', '#4dff88', '4 2'], ['food', 'Comida', '#ffc23d', ''], ['battery', 'Batería', '#2fb35c', '1 2']];
 
 function readRanking() {
   try { const r = JSON.parse(localStorage.getItem(RANK_KEY)); return Array.isArray(r) ? r : []; } catch { return []; }
@@ -25,18 +26,18 @@ function summary(design) {
   return `${LAUNCHERS[design.launcher]?.name ?? design.launcher} · ${design.crewRoles.length} trip. · ${design.cargoDays} d · ${mods}`;
 }
 
-function chart(history) {
+export function chart(history) {
   if (!history.length) return h('div', { class: 'small dim' }, 'Sin datos de días.');
   const W = 600; const H = 160;
   const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
   svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
   svg.setAttribute('style', 'width:100%;height:180px;background:#020402;border:1px solid #1d3a1d');
   const maxDay = Math.max(...history.map((p) => p.day), 1);
-  for (const [k, , color] of SERIES) {
+  for (const [k, , color, dash] of SERIES) {
     const max = Math.max(...history.map((p) => p[k]), 1);
     const pts = history.map((p) => `${(p.day / maxDay) * W},${H - 4 - (p[k] / max) * (H - 8)}`).join(' ');
     const pl = document.createElementNS('http://www.w3.org/2000/svg', 'polyline');
-    pl.setAttribute('points', pts); pl.setAttribute('fill', 'none'); pl.setAttribute('stroke', color); pl.setAttribute('stroke-width', '1.6');
+    pl.setAttribute('points', pts); pl.setAttribute('fill', 'none'); pl.setAttribute('stroke', color); pl.setAttribute('stroke-width', '1.6'); if (dash) pl.setAttribute('stroke-dasharray', dash);
     svg.append(pl);
   }
   return h('div', {}, svg, h('div', { class: 'row small' }, ...SERIES.map(([, name, color]) => h('span', { style: { color } }, `■ ${name}`)),

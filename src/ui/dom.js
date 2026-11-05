@@ -7,7 +7,7 @@ const EMOJI = /(?:\p{Extended_Pictographic}|\p{Regional_Indicator})(?:️|⃣|[\
 export function plain(text) {
   let t = String(text);
   for (const [re, rep] of MARKS) t = t.replace(re, rep);
-  return t.replace(EMOJI, '').replace(/️/g, '').replace(/[ \t]{2,}/g, ' ').replace(/^\s+(?=\S)/, (m) => (m.includes('\n') ? m : ''));
+  return t.replace(EMOJI, '').replace(/️/g, '').replace(/[ \t]{2,}/g, ' ');
 }
 export function h(tag, attrs = {}, ...kids) {
   const el = document.createElement(tag);

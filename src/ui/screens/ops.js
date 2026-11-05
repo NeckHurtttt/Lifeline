@@ -1,5 +1,7 @@
 // Pantalla de operaciones: recursos, nave, tripulación con avatares, alertas, eventos, minimisiones y bitácora, con Nova guiando.
 import { MOD_CODE, RES_CODE, NODE_CODE } from '../art.js';
+import { hatchClue, tryHatch, resolveHatches, WRONG_COST_S } from '../../core/hatches.js';
+import { chart } from './report.js';
 import { h, mount, bar, modal, fmt, tabs } from '../dom.js';
 import { MODULES, INSTRUMENTS, DIFFICULTY, SCENARIOS } from '../../data/catalog.js';
 import { siteOf, isNight, daysToNight, daysToDawn } from '../../core/surface.js';
@@ -107,7 +109,26 @@ export function render(root, app, go) {
     }
   }
 
+  let clock = null;
+  let speed = 0;
+  function stopClock() { clearInterval(clock); clock = null; speed = 0; }
+  function play(sp) {
+    stopClock();
+    if (!sp) { draw(); return; }
+    speed = sp;
+    clock = setInterval(() => {
+      const st = app.state;
+      if (st.pending || st.phase !== 'ops' || phaseDue(st) || document.querySelector('.modal-bg')) { stopClock(); draw(); return; }
+      const r = advanceDay(st);
+      commit(r.state);
+      if (r.interrupt) { stopClock(); handle(r.interrupt); }
+      draw();
+    }, 1000 / sp);
+    draw();
+  }
+
   function advance(all) {
+    stopClock();
     const r = all ? runUntilInterrupt(app.state) : advanceDay(app.state);
     commit(r.state);
     handle(r.interrupt);
@@ -121,10 +142,10 @@ export function render(root, app, go) {
     const control = DIFFICULTY[s.difficulty].control;
     const rec = inBlackout(s) ? null : recommendedOption(p.eventId, s);
     let timer = null;
-    const choose = (optId, bad) => {
+    const choose = (optId, bad, viaHatch = null) => {
       clearInterval(timer);
       const rng = restoreRng(app.state.rng);
-      const r = resolveEvent(app.state, p.eventId, p.severity, optId, rng);
+      const r = viaHatch === null ? resolveEvent(app.state, p.eventId, p.severity, optId, rng) : resolveHatches(app.state, viaHatch, rng);
       close();
       commit({ ...r.state, rng: rng.state() });
       banner = { text: r.log.join(' '), cls: bad ? 'red' : '' };
@@ -132,6 +153,25 @@ export function render(root, app, go) {
       draw();
     };
     let left = TRESERVE_SECONDS[s.difficulty];
+    const hatchLog = h('div', { class: 'small', id: 'escotillas-log' });
+    const clue = ev.id === 'despresurizacion' ? hatchClue(s) : null;
+    const hatchPanel = clue ? h('div', { class: 'escotillas', id: 'escotillas' },
+      h('div', { class: 'small' }, 'PANEL DE ESCOTILLAS. La tripulación espera en la cabina. Cierra la escotilla del módulo donde crees que está la fuga.'),
+      h('div', { class: 'small amber' }, clue.text),
+      h('div', { class: 'hatch-grid', style: { gridTemplateColumns: `repeat(${Math.max(...s.modules.map((m) => m.x)) + 1}, 1fr)` } },
+        ...s.modules.map((m) => h('button', {
+          class: 'hatch', 'data-hatch': m.id, disabled: m.type === 'cabina' || m.health <= 0, style: { gridColumn: m.x + 1, gridRow: m.y + 1 },
+          onclick: (e) => {
+            const t = tryHatch(app.state, m.id);
+            hatchLog.prepend(h('div', { class: t.found ? 'green' : 'red' }, t.text));
+            if (t.found) { beep(1100, 150); clearInterval(timer); setTimeout(() => choose(null, false, true), 900); return; }
+            e.currentTarget.disabled = true; e.currentTarget.classList.add('mal'); beep(300, 80);
+            left = Math.max(0, left - WRONG_COST_S);
+            const el = document.getElementById('treserve'); if (el) el.textContent = `${left} s`;
+            if (left <= 0) choose('tarde', true);
+          } }, MOD_CODE[m.type]))),
+      hatchLog,
+      h('div', { class: 'small dim' }, 'También puedes elegir una de las opciones de abajo.')) : null;
     const who = whoDecides(app, roleFor(p.eventId));
     const close = modal(h('div', { id: 'evento' },
       h('div', { class: `big-ico code ${ev.kind === '+' ? '' : 'alerta'}` }, ev.kind === '+' ? 'BUENO' : ev.disaster ? 'EMERGENCIA' : 'ALERTA'),
@@ -142,6 +182,7 @@ export function render(root, app, go) {
       ev.procedure ? h('p', { class: 'small' }, '📋 ', ev.procedure) : null,
       isMars(s) ? h('p', { class: 'small amber' }, inBlackout(s) ? '📵 Conjunción solar: Control de Misión no puede ayudar. Decide tu tripulación.' : `📡 Control de Misión responde con ${radioDelayMin(s)} min de retraso: la tripulación decide primero.`) : null,
       ev.countdown ? h('div', { class: 'treserve' }, '⏱️ Tiempo de reserva: ', h('b', { id: 'treserve' }, `${left} s`), h('span', { class: 'small dim' }, ' — si llega a 0 sin decidir, la presión baja al mínimo.')) : null,
+      hatchPanel,
       who ? h('p', { class: 'small' }, h('span', { class: 'tag' }, `decide ${who}`)) : null,
       h('div', {}, ...ev.options.filter((o) => !o.hidden).map((o) => {
         const pre = previewOption(s, p.eventId, o.id);
@@ -305,6 +346,24 @@ export function render(root, app, go) {
         h('span', { class: 'pill violet' }, `🧪 Ciencia ${fmt(s.science)}`),
         h('span', { class: 'pill amber' }, `⭐ Fama ${fmt(s.reputation)}`),
         h('span', { class: 'pill blue' }, `📦 Próxima carga: día ${s.nextResupply}`)));
+  }
+
+  function energyPanel() {
+    const s = app.state;
+    let gen = 0; let use = 0;
+    for (const m of s.modules) { if (!m.on) continue; const kw = MODULES[m.type].kw; if (kw > 0) gen += kw; else use -= kw; }
+    const rank = (m) => (m.type === 'soporte_vital' ? 2 : m.type === 'cabina' ? 1 : 0);
+    const order = s.modules.filter((m) => m.on && MODULES[m.type].kw < 0).sort((a, b) => rank(a) - rank(b) || a.priority - b.priority);
+    const r = s.resources;
+    return h('div', { class: 'panel c-amber', id: 'energia' },
+      h('h2', {}, 'Energía'),
+      h('table', {},
+        h('tr', {}, h('td', { class: 'dim' }, 'Generación instalada'), h('td', {}, `${fmt(gen, 1)} kW`)),
+        h('tr', {}, h('td', { class: 'dim' }, 'Consumo encendido'), h('td', {}, `${fmt(use, 1)} kW`)),
+        h('tr', {}, h('td', { class: 'dim' }, 'Batería'), h('td', {}, `${fmt(r.battery)} de ${fmt(r.batteryMax)} kWh`)),
+        h('tr', {}, h('td', { class: 'dim' }, 'Módulos apagados'), h('td', {}, String(s.modules.filter((m) => !m.on).length)))),
+      h('div', { class: 'small', style: { marginTop: '.4rem' } }, 'Si falta energía se apagan en este orden:'),
+      h('ol', { class: 'small orden' }, ...order.map((m) => h('li', {}, `${MOD_CODE[m.type]} ${MODULES[m.type].name}`))));
   }
 
   function ship() {
@@ -501,8 +560,15 @@ export function render(root, app, go) {
 
   function logPanel() {
     const s = app.state;
-    return h('div', { class: 'panel c-cyan' }, h('h2', {}, '📖 Diario de a bordo'),
-      h('div', { class: 'log', id: 'bitacora' }, ...s.log.slice(-80).reverse().map((l) => h('div', { class: l.kind }, h('b', {}, `Día ${l.day} `), l.text))));
+    return h('div', { class: 'grid-base' },
+      h('div', { class: 'panel c-cyan' }, h('h2', {}, '📖 Diario de a bordo'),
+        h('div', { class: 'log', id: 'bitacora' }, ...s.log.slice(-80).reverse().map((l) => h('div', { class: l.kind }, h('b', {}, `Día ${l.day} `), l.text)))),
+      h('div', { class: 'panel c-violet' }, h('h2', {}, 'Recursos día a día'), chart(s.history ?? []),
+        h('table', { class: 'small', style: { marginTop: '.5rem' } },
+          h('tr', {}, h('td', { class: 'dim' }, 'Días en misión'), h('td', {}, `${s.day} de ${s.totalDays}`)),
+          h('tr', {}, h('td', { class: 'dim' }, 'Eventos resueltos'), h('td', {}, String(s.log.filter((l) => l.kind === 'evento').length))),
+          h('tr', {}, h('td', { class: 'dim' }, 'Minimisiones hechas'), h('td', {}, String(s.minis.filter((m) => m.status === 'hecha').length))),
+          h('tr', {}, h('td', { class: 'dim' }, 'Ciencia'), h('td', {}, String(Math.round(s.science)))))));
   }
 
   /** Lo más importante que Nova debe decir ahora, y a qué apuntar. */
@@ -543,6 +609,73 @@ export function render(root, app, go) {
     return ['Sin novedades. Avanza y te llamo si pasa algo.', 'feliz', '#avanzar', null];
   }
 
+  const TASK_ROOM = { experimentos: 'laboratorio', trabajo: 'laboratorio', cultivo: 'invernadero', medico: 'enfermeria', refugio: 'refugio', comunicacion: 'antena', produccion: 'soporte_vital' };
+  const SHIFT_NAME = ['MAÑANA 06:00', 'TARDE 14:00', 'NOCHE 22:00'];
+  let monitorTimer = null;
+  let monShift = 0;
+  const initials = (c) => c.name.split(' ').map((p) => p[0]).join('').slice(0, 2);
+  function roomOf(s, c, turn) {
+    if (s.expedition?.crewIds.includes(c.id)) return 'EXP';
+    if (s.minis.some((m) => m.status === 'activa' && m.crewIds.includes(c.id))) return 'MIS';
+    const t = s.schedule[c.id]?.[turn];
+    if (t === 'eva') return 'EXT';
+    if (t === 'reparacion' || t === 'mantenimiento') return s.modules.filter((m) => m.health > 0).sort((a, b) => a.health - b.health)[0]?.id ?? null;
+    const type = TASK_ROOM[t];
+    const m = (type && s.modules.find((x) => x.type === type)) || s.modules.find((x) => x.type === 'cabina');
+    return m?.id ?? null;
+  }
+  function monitor() {
+    const s = app.state;
+    const NS = 'http://www.w3.org/2000/svg';
+    const W = 22; const H = 15;
+    const cols = Math.max(...s.modules.map((m) => m.x)) + 1;
+    const rows = Math.max(...s.modules.map((m) => m.y)) + 1;
+    const vw = cols * W + 26; const vh = Math.max(rows * H + 6, 40);
+    const el = (tag, attrs, text) => { const e = document.createElementNS(NS, tag); for (const [k, v] of Object.entries(attrs)) e.setAttribute(k, v); if (text != null) e.textContent = text; return e; };
+    const svg = el('svg', { viewBox: `0 0 ${vw} ${vh}`, class: 'monitor' });
+    const pos = {};
+    for (const m of s.modules) {
+      const x = m.x * W + 2; const y = m.y * H + 3;
+      pos[m.id] = [x + W / 2, y + H / 2];
+      const g = el('g', { class: `mod ${m.on ? '' : 'apagado'} ${m.health < 40 ? 'roto' : ''}` });
+      g.append(el('rect', { x, y, width: W - 2, height: H - 2 }), el('text', { x: x + 1.5, y: y + 4.5 }, MOD_CODE[m.type]));
+      const segs = Math.round((m.health / 100) * 8);
+      for (let i = 0; i < 8; i++) g.append(el('rect', { class: i < segs ? 'seg' : 'seg vacio', x: x + 1.5 + i * 2.2, y: y + H - 4.5, width: 1.6, height: 1.4 }));
+      svg.append(g);
+    }
+    const ex = cols * W + 4;
+    pos.EXT = [ex + 10, 10]; pos.EXP = [ex + 10, vh / 2 + 2]; pos.MIS = [ex + 10, vh - 6];
+    svg.append(el('text', { x: ex, y: 5, class: 'zona' }, 'AFUERA'), el('text', { x: ex, y: vh / 2 - 3, class: 'zona' }, 'ROVER'), el('text', { x: ex, y: vh - 11, class: 'zona' }, 'MISIÓN'));
+    const marks = s.crew.filter((c) => c.alive && !c.evacuated).map((c) => {
+      const g = el('g', { class: `marca ${['enfermo', 'radiacion', 'agotado', 'hambre'].includes(moodOf(c)) ? 'mal' : ''}`, 'data-c': c.id });
+      g.append(el('circle', { cx: 0, cy: 0, r: 3.6 }), el('text', { x: 0, y: 1.3, 'text-anchor': 'middle' }, initials(c)));
+      g.addEventListener('click', () => pick('tripulacion'));
+      svg.append(g);
+      return { c, g };
+    });
+    const label = h('div', { class: 'small', id: 'turno-monitor' });
+    const place = () => {
+      const st = app.state;
+      const count = {};
+      for (const { c, g } of marks) {
+        const room = roomOf(st, c, monShift);
+        const [cx, cy] = pos[room] ?? [6, 6];
+        const k = (count[room] = (count[room] ?? 0) + 1);
+        const off = [[-4.5, -1], [4.5, -1], [-4.5, 3.5], [4.5, 3.5], [0, 1]][(k - 1) % 5];
+        g.style.transform = `translate(${cx + off[0]}px, ${cy + off[1]}px)`;
+      }
+      label.textContent = `RELOJ DE A BORDO · TURNO ${SHIFT_NAME[monShift]}`;
+    };
+    clearInterval(monitorTimer);
+    monitorTimer = setInterval(() => { if (!document.body.contains(svg)) { clearInterval(monitorTimer); return; } monShift = (monShift + 1) % 3; place(); }, 2200);
+    place();
+    return h('div', { class: 'panel c-pink', id: 'monitor' },
+      h('h2', {}, `Monitor de ${SC.home}`),
+      label, svg,
+      h('div', { class: 'mini-crew' }, ...s.crew.map((c) => h('div', { class: 'who small', onclick: () => pick('tripulacion') },
+        h('b', {}, initials(c)), ` ${firstName(c)}: `, h('span', { class: c.alive ? (['feliz', 'normal'].includes(moodOf(c)) ? 'green' : 'amber') : 'red' }, MOOD_TEXT[moodOf(c)])))));
+  }
+
   function crewMini() {
     const s = app.state;
     return h('div', { class: 'panel c-pink' }, h('h2', {}, '🧑‍🚀 ¿Cómo están?'),
@@ -565,6 +698,8 @@ export function render(root, app, go) {
           isWeekend(s.day + 1) ? h('div', { class: 'small amber' }, '🗓️ Mañana es fin de semana: día ligero. Descanso y llamadas a casa dan más ánimo; trabajar lo baja un poco.') : null,
           h('div', { class: 'trip' }, h('div', { class: 'trip-fill', style: { width: `${pct}%` } }), h('span', { class: 'trip-ship', style: { left: `${pct}%` } }, '▲'), h('span', { class: 'trip-end small' }, 'FIN'))),
         h('div', { class: 'row' },
+          h('div', { class: 'velocidad', id: 'velocidad' }, h('span', { class: 'small dim' }, 'TIEMPO'),
+            ...[[0, '||'], [1, '1×'], [4, '4×'], [12, '12×']].map(([v, t]) => h('button', { class: speed === v ? 'sel' : '', disabled: blocked && v > 0, 'data-speed': v, onclick: () => play(v) }, t))),
           h('button', { id: 'avanzar1', disabled: blocked, onclick: () => advance(false) }, '⏭️ 1 día'),
           h('button', { id: 'avanzar', class: 'big', disabled: blocked, onclick: () => advance(true) }, '▶ AVANZAR'),
           s.phase === 'reentry' ? h('button', { id: 'reentrada', class: 'big warn', onclick: () => go('reentry') }, '🌍 INICIAR REENTRADA') : null,
@@ -579,9 +714,9 @@ export function render(root, app, go) {
         ...(canExplore(s) || s.map ? [{ id: 'mapa', label: '🗺️ Exploración', color: 'c-green', badge: s.expedition ? 0 : (s.map ?? []).filter((n) => n.known && !n.done).length }] : []),
         { id: 'diario', label: '📖 Diario', color: 'c-cyan' },
       ], tab, pick),
-      tab === 'resumen' ? h('div', { class: 'grid2' }, h('div', {}, resources()), h('div', {}, crewMini(), alerts())) : null,
+      tab === 'resumen' ? h('div', { class: 'grid2' }, h('div', {}, resources()), h('div', {}, monitor(), alerts())) : null,
       tab === 'tripulacion' ? crewCards() : null,
-      tab === 'estacion' ? ship() : null,
+      tab === 'estacion' ? h('div', { class: 'grid-base' }, ship(), energyPanel()) : null,
       tab === 'misiones' ? h('div', { class: 'grid2' }, alerts(), minis()) : null,
       tab === 'diario' ? logPanel() : null,
       tab === 'mapa' ? explorePanel() : null,
@@ -596,5 +731,5 @@ export function render(root, app, go) {
   }
 
   draw();
-  return () => document.querySelectorAll('.modal-bg').forEach((e) => e.remove());
+  return () => { stopClock(); clearInterval(monitorTimer); document.querySelectorAll('.modal-bg').forEach((e) => e.remove()); };
 }

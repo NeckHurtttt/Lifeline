@@ -82,3 +82,21 @@ test('reserva de contingencia y procedimiento de Control de Misión', () => {
   assert.equal(resolveEvent(s, 'reboost', 'leve', rec, createRng(1), []).state.reputation, 51);
   assert.equal(resolveEvent(s, 'reboost', 'leve', other, createRng(1), []).state.reputation <= 49, true);
 });
+
+test('puzle de escotillas: fuga determinista, pista y resolución', async () => {
+  const { leakModule, hatchClue, tryHatch, resolveHatches } = await import('../../src/core/hatches.js');
+  const s = mk();
+  s.pending = { eventId: 'despresurizacion', severity: 'media', prepared: [] };
+  const leak = leakModule(s);
+  assert.notEqual(leak.type, 'cabina');
+  assert.deepEqual(leakModule(s), leak);
+  assert.ok(hatchClue(s).text.length > 10);
+  const other = s.modules.find((m) => m.id !== leak.id);
+  assert.equal(tryHatch(s, other.id).found, false);
+  assert.equal(tryHatch(s, leak.id).found, true);
+  const ok = resolveHatches(s, true, createRng(1));
+  assert.equal(ok.state.pending, null);
+  assert.equal(ok.state.modules.find((m) => m.type === leak.type).on, false);
+  const late = resolveHatches(s, false, createRng(1));
+  assert.ok(late.state.resources.o2 < ok.state.resources.o2);
+});

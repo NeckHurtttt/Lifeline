@@ -103,6 +103,8 @@ export const EVENTS = {
         effects: T({ o2: -8, parts: -2 }, { o2: -20, parts: -4 }, { o2: -40, parts: -6 }),
         failEffects: T({ o2: -20 }, { o2: -50, crewHealth: -10 }, { o2: -90, crewHealth: -25, moduleDamage: { random: 50 } }) },
       { id: 'capsula', label: 'Refugiarse en la cápsula y evacuar', effects: T({ endMission: 'evacuar' }, { endMission: 'evacuar' }, { endMission: 'evacuar' }) },
+      { id: 'aislado', hidden: true, label: 'Fuga aislada cerrando escotillas',
+        effects: T({ o2: -3, reputation: 2 }, { o2: -8, parts: -1, reputation: 3 }, { o2: -15, parts: -2, reputation: 4 }) },
       { id: 'tarde', hidden: true, label: 'Se acabó el tiempo de reserva',
         effects: T({ o2: -25, crewHealth: -10, moduleOff: { random: 4 } }, { o2: -60, crewHealth: -25, moduleDamage: { random: 40 } }, { o2: -100, crewHealth: -45, moduleDamage: { random: 70 } }) },
     ],
