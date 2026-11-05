@@ -13,6 +13,7 @@ const SCN_DESC = {
 import { beep } from '../audio.js';
 import { say } from '../guide.js';
 import { crewAvatar } from '../avatar.js';
+import { decodeMission } from '../../core/share.js';
 
 const MODES = {
   campana: { icon: '🗺️', name: 'Campaña', desc: 'Estación → Luna → Marte. Cada misión cumplida abre la siguiente y da puntos para mejoras.' },
@@ -103,7 +104,18 @@ export function render(root, app, go) {
               h('td', {}, h('input', { value: p.name, size: 12, oninput: (e) => { p.name = e.target.value; names[i] = e.target.value; updateBar(); } })),
               h('td', {}, p.roles.map((r) => h('div', { class: 'small' }, h('b', {}, PLAYER_ROLES[r]), h('span', { class: 'dim' }, `: ${ROLE_DESC[r]}`))))))))),
       h('div', { style: { textAlign: 'center', margin: '1.2rem 0' } },
-        h('button', { class: 'big', id: 'nueva', onclick: () => { app.state = null; app.lastDesign = null; app.lastSeed = null; if (app.mode !== 'libre') app.budgetMult = 1; beep(990, 80); go('design'); } }, '🚀 NUEVA MISIÓN'),
+        h('button', { class: 'big', id: 'nueva', onclick: () => { app.state = null; app.lastDesign = null; app.lastSeed = null; app.objective = null; app.reto = null; if (app.mode !== 'libre') app.budgetMult = 1; beep(990, 80); go('design'); } }, '🚀 NUEVA MISIÓN'),
+        ' ', h('button', { id: 'reto', title: 'Pega el código que te pasó otro equipo: jugarán la misma misión y compararán puntajes.', onclick: () => {
+          const code = prompt('Pega el código de misión (empieza con VDL1-):');
+          if (code === null) return;
+          const m = decodeMission(code);
+          if (!m || !SCENARIOS[m.scenarioId] || !DIFFICULTY[m.difficulty]) { say('Ese código no sirve. Revisa que esté completo y empiece con VDL1-.', { mood: 'alerta' }); beep(300, 120); return; }
+          Object.assign(app, { mode: 'libre', budgetMult: 1, scenario: m.scenarioId, difficulty: m.difficulty, objective: m.objective, state: null,
+            lastDesign: m.design, lastScenario: m.scenarioId, lastSeed: m.seed, reto: code.trim() });
+          beep(990, 80);
+          say('🏁 Reto cargado: misma nave, mismo destino y mismo clima espacial. Pueden cambiar la nave si quieren. ¡A ver quién saca más puntaje!', { mood: 'feliz' });
+          go('design', { design: m.design });
+        } }, '🏁 Jugar un reto'),
         ' ', h('button', { id: 'como', onclick: () => { tour = -1; nextTour(); } }, '❓ ¿Cómo se juega?')),
       h('div', { class: 'small dim', style: { textAlign: 'center' } },
         'Agencia ficticia. Inspirado en procedimientos y datos abiertos de NASA. Hecho para NASA Space Apps 2026 · desafío Space Mission Design Game.'),

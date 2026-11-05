@@ -75,7 +75,10 @@ test('informe con comida agotada nombra la comida', () => {
 test('puntaje y medalla', () => {
   const s = mk(); s.outcome = { success: true, reason: 'ok' }; s.science = 3000; s.reputation = 50;
   const rep = buildReport(s);
-  assert.equal(rep.score, 4 * 1000 + 30000 + 250);
+  assert.equal(rep.score, rep.breakdown.total);
+  assert.deepEqual(rep.breakdown.parts.map((p) => p.id), ['rendimiento', 'ciencia', 'eficiencia', 'decisiones', 'equipo']);
+  assert.ok(rep.breakdown.parts.every((p) => p.value >= 0 && p.value <= 100));
+  assert.ok(rep.score > 0 && rep.score <= 1000);
   assert.equal(rep.scienceGoal, 2920);
   assert.equal(rep.medal, 'oro');
   s.science = 1500;
@@ -85,4 +88,32 @@ test('puntaje y medalla', () => {
   s.science = 3000;
   s.crew[0].alive = false; s.crew[1].alive = false; s.crew[2].alive = false;
   assert.equal(buildReport(s).medal, 'bronce');
+});
+
+test('el objetivo cambia qué pesa más en el puntaje', () => {
+  const s = mk(); s.outcome = { success: true, reason: 'ok' }; s.day = s.totalDays; s.science = 300;
+  s.objective = 'ciencia';
+  const sci = buildReport(s);
+  s.objective = 'tripulacion';
+  const crew = buildReport(s);
+  // Poca ciencia y todos vivos: "Todos a salvo" puntúa más que "Máxima ciencia".
+  assert.ok(crew.score > sci.score, `${crew.score} > ${sci.score}`);
+  assert.equal(crew.breakdown.objective, 'tripulacion');
+});
+
+test('puntaje: quedarse sin comida baja el uso de recursos', () => {
+  const s = mk(); s.outcome = { success: true, reason: 'ok' };
+  const ok = buildReport(s).breakdown.parts.find((p) => p.id === 'eficiencia').value;
+  s.log = [...(s.log ?? []), { day: 10, text: 'Se acabó la comida', kind: 'aviso' }];
+  const bad = buildReport(s).breakdown.parts.find((p) => p.id === 'eficiencia').value;
+  assert.equal(ok - bad, 20);
+});
+
+test('valor científico: la meta da 70 y superarla en 50 % da 100', () => {
+  const s = mk(); s.outcome = { success: true, reason: 'ok' };
+  const sci = (v) => { s.science = v; return buildReport(s).breakdown.parts.find((p) => p.id === 'ciencia').value; };
+  const goal = buildReport(s).scienceGoal;
+  assert.equal(sci(goal), 70);
+  assert.equal(sci(goal * 1.5), 100);
+  assert.equal(sci(goal / 2), 35);
 });

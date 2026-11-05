@@ -42,6 +42,9 @@ export const app = {
   routine: null,
   lastDesign: null,
   lastSeed: null,
+  objective: null, // objetivo de misión: se elige antes de diseñar
+  reto: null, // código de misión si se está jugando un reto
+  lastReport: null, // para comparar con el intento anterior
 };
 
 const screens = { title, design, launch, ops, reentry, report, arbol };

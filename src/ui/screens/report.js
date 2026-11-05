@@ -1,7 +1,7 @@
 // Informe final: resultado, medalla, gráfico de recursos, causas, lecciones, rediseño y ranking local.
 import { loadCampaign, saveCampaign, recordResult } from '../../core/campaign.js';
 import { SCENARIOS } from '../../data/catalog.js';
-import { h, mount } from '../dom.js';
+import { h, mount, bar } from '../dom.js';
 import { buildReport } from '../../core/report.js';
 import { clearSave } from '../../core/save.js';
 import { LESSONS } from '../../data/lessons.js';
@@ -9,8 +9,11 @@ import { MODULES, LAUNCHERS } from '../../data/catalog.js';
 import { beep } from '../audio.js';
 import { say } from '../guide.js';
 import { crewAvatar, moodOf, MOOD_TEXT } from '../avatar.js';
+import { OBJECTIVES, SCORE_PARTS } from '../../data/objectives.js';
+import { encodeMission } from '../../core/share.js';
 
-const RANK_KEY = 'vdl.ranking';
+// v2: puntaje de 0 a 1000 por categorías (el ranking viejo usaba otra escala).
+const RANK_KEY = 'vdl.ranking.v2';
 const MEDALS = { oro: 'MEDALLA DE ORO', plata: 'MEDALLA DE PLATA', bronce: 'MEDALLA DE BRONCE' };
 // Colores de consola: verdes y ámbar; cada línea con su trazo para distinguirlas.
 const SERIES = [['o2', 'O₂', '#b8ffd0', ''], ['water', 'Agua', '#4dff88', '4 2'], ['food', 'Comida', '#ffc23d', ''], ['battery', 'Batería', '#2fb35c', '1 2']];
@@ -52,7 +55,7 @@ export function render(root, app, go) {
   const id = `${s.seed}-${s.day}-${rep.score}`;
   let ranking = readRanking();
   if (!ranking.some((r) => r.id === id)) {
-    ranking.push({ id, score: rep.score, medal: rep.medal, success: rep.success, days: rep.daysSurvived, difficulty: s.difficulty,
+    ranking.push({ id, score: rep.score, medal: rep.medal, success: rep.success, days: rep.daysSurvived, difficulty: `${s.difficulty} ${OBJECTIVES[rep.breakdown.objective].icon}${app.reto ? ' 🏁' : ''}`,
       players: app.players.map((p) => p.name).join(', '), design: summary(s.design), date: new Date().toISOString().slice(0, 10) });
     ranking = ranking.sort((a, b) => b.score - a.score).slice(0, 10);
     try { localStorage.setItem(RANK_KEY, JSON.stringify(ranking)); } catch { /* sin espacio */ }
@@ -64,10 +67,15 @@ export function render(root, app, go) {
     campInfo = r;
   }
   beep(rep.success ? 1200 : 300, 300, 'triangle');
+  // Comparar con el intento anterior (rediseñar y repetir).
+  const before = app.lastReport && app.lastReport.id !== id ? app.lastReport : null;
+  app.lastReport = { id, score: rep.score, parts: Object.fromEntries(rep.breakdown.parts.map((p) => [p.id, p.value])) };
+  const delta = (now, old) => (old === undefined ? null : now === old ? h('span', { class: 'dim' }, ' =') : h('span', { class: now > old ? 'delta-up' : 'delta-down' }, ` ${now > old ? '▲' : '▼'}${Math.abs(now - old)}`));
+  const obj = OBJECTIVES[rep.breakdown.objective];
 
+  const code = encodeMission({ design: s.design, scenarioId: s.scenarioId, difficulty: s.difficulty, objective: rep.breakdown.objective, seed: s.seed });
   const copy = async (btn) => {
-    const text = JSON.stringify(s.design, null, 2);
-    try { await navigator.clipboard.writeText(text); btn.textContent = 'Copiado ✔'; } catch { prompt('Copia el diseño:', text); }
+    try { await navigator.clipboard.writeText(code); btn.textContent = '✔ Código copiado: pásalo a otro equipo'; } catch { prompt('Copia este código y pásalo a otro equipo:', code); }
   };
 
   mount(root, 
@@ -81,6 +89,14 @@ export function render(root, app, go) {
         h('button', { onclick: () => go('arbol') }, '🌳 Ver mejoras')) : null,
       h('div', { class: 'capsule', style: { margin: '.6rem 0' } }, ...s.crew.map((c) => h('div', { style: { textAlign: 'center' } },
         crewAvatar(c, { size: 76 }), h('div', { class: 'small' }, h('b', {}, c.name.split(' ')[0])), h('div', { class: 'small dim' }, MOOD_TEXT[moodOf(c)]))))),
+    h('div', { class: 'panel c-cyan', id: 'puntaje' },
+      h('h2', {}, `🏅 Puntaje: ${rep.score} / 1000`, before ? delta(rep.score, before.score) : null),
+      h('div', { class: 'small dim' }, `Objetivo: ${obj.icon} ${obj.name}. Las categorías con ×2 o más valen más para este objetivo.`,
+        before ? ' Las flechas comparan con tu intento anterior.' : ''),
+      ...rep.breakdown.parts.map((p) => h('div', { class: 'score-part', title: SCORE_PARTS[p.id].desc },
+        h('span', {}, SCORE_PARTS[p.id].icon),
+        h('div', {}, h('div', { class: 'small' }, SCORE_PARTS[p.id].name, ' ', h('span', { class: 'w' }, `×${p.weight}`), before ? delta(p.value, before.parts[p.id]) : null), bar(p.value / 100, { warn: 0.5, danger: 0.3 })),
+        h('b', {}, String(p.value))))),
     h('div', { class: 'grid3' },
       h('div', { class: 'panel c-blue' },
         h('h2', {}, '📊 Resumen'),
@@ -104,7 +120,7 @@ export function render(root, app, go) {
           h('b', {}, l.title), h('div', { class: 'small' }, l.space), h('div', { class: 'small dim' }, '🌍 ', l.earth))))),
     h('div', { class: 'row', style: { justifyContent: 'center', margin: '1rem 0' } },
       h('button', { class: 'big', id: 'redisenar', onclick: () => { app.state = null; go('design', { design: s.design }); } }, 'REDISEÑAR Y REINTENTAR'),
-      h('button', { onclick: (e) => copy(e.target) }, 'Copiar diseño (JSON)'),
+      h('button', { id: 'compartir', title: 'Otro equipo lo pega en 🏁 Jugar un reto: misma nave, mismo destino y mismo clima espacial.', onclick: (e) => copy(e.target) }, '📤 Código para retar a otro equipo'),
       h('button', { onclick: () => { app.state = null; app.lastDesign = null; app.lastSeed = null; go('title'); } }, 'Menú')),
     h('div', { class: 'panel c-pink', id: 'ranking' },
       h('h2', {}, '🏆 Mejores misiones en esta compu'),

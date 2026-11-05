@@ -7,6 +7,7 @@ import { loadCampaign, UPGRADES } from '../../core/campaign.js';
 import { ROLES } from '../../data/crew.js';
 import { LESSONS } from '../../data/lessons.js';
 import { computeDesign, canLaunch } from '../../core/design.js';
+import { OBJECTIVES, SCORE_PARTS, criticalResources } from '../../data/objectives.js';
 import { createMission } from '../../core/mission.js';
 import { fetchFlares, flaresToStorms } from '../../core/realdata.js';
 import { whoDecides } from '../main.js';
@@ -123,6 +124,7 @@ export function render(root, app, go, params = {}) {
   let launching = false;
   let explain = null; // texto de Nova al elegir algo
   let tab = app.designTab ?? 'nave';
+  if (app.mode === 'demo') app.objective ??= 'ciencia';
   d.upgrades = app.mode === 'campana' ? loadCampaign().upgrades : [];
   d.hires ??= {};
   d.interviews ??= {};
@@ -190,13 +192,16 @@ export function render(root, app, go, params = {}) {
 
   async function launch() {
     const r = computeDesign(d, scn, app.difficulty, budgetMult);
-    if (!canLaunch(r) || launching) return;
+    if (!canLaunch(r) || !app.objective || launching) return;
     launching = true; draw();
     say('Revisando el clima espacial con datos reales de NASA… ☀️', { mood: 'pensando' });
     const seed = app.lastSeed ?? Math.floor(Math.random() * 2 ** 31);
     const f = await flares;
     const state = createMission({ design: structuredClone(d), scenarioId: scn, difficulty: app.difficulty, seed, demo: app.mode === 'demo' });
     state.mode = app.mode;
+    state.objective = app.objective;
+    state.budgetMult = budgetMult;
+    state.players = app.players.length;
     state.realStorms = pickStorms(f.flares, app.difficulty);
     state.flareSource = f.source;
     app.lastDesign = structuredClone(d);
@@ -209,7 +214,8 @@ export function render(root, app, go, params = {}) {
   const draw = () => {
     autoHire();
     const r = computeDesign(d, scn, app.difficulty, budgetMult);
-    const ok = canLaunch(r);
+    const ok = canLaunch(r) && !!app.objective;
+    const crit = criticalResources(app.objective, scn);
     const cell = (x, y) => {
       const m = d.modules.find((q) => q.x === x && q.y === y);
       const def = m && MODULES[m.type];
@@ -218,8 +224,8 @@ export function render(root, app, go, params = {}) {
         onclick: () => place(x, y), oncontextmenu: (e) => { e.preventDefault(); if (m) remove(x, y); },
       }, m ? [h('div', { class: 'ico code' }, MOD_CODE[m.type]), h('b', {}, def.name), h('div', { class: 'dim small' }, def.kw > 0 ? `⚡ da ${def.kw}` : def.kw < 0 ? `⚡ usa ${-def.kw}` : '')] : h('span', { class: 'muted', style: { fontSize: '1.4rem' } }, '+'));
     };
-    const row = (label, frac, text, lesson, opts) => h('div', { class: 'res' },
-      h('span', {}, label), bar(frac, opts),
+    const row = (label, frac, text, lesson, opts, key) => h('div', { class: `res ${crit.has(key) ? 'critico' : ''}`, title: crit.has(key) ? 'Recurso crítico para tu objetivo y destino' : null },
+      h('span', {}, crit.has(key) ? `★ ${label}` : label), bar(frac, opts),
       h('span', { class: 'small' }, text, ' ', lesson ? h('button', { class: 'small', style: { padding: '0 .4rem' }, title: 'Qué es y para qué sirve en la Tierra', onclick: () => lessonCard(lesson) }, '?') : null));
 
     const instrSlots = d.modules.filter((m) => m.type === 'laboratorio').length * 3;
@@ -230,6 +236,16 @@ export function render(root, app, go, params = {}) {
         h('div', { class: 'row' },
           h('button', { onclick: () => { Object.assign(d, SUGGESTED(scn)); explain = null; draw(); say('Te puse un diseño que funciona. ¡Puedes cambiarlo como quieras!', { mood: 'feliz' }); } }, '✨ Usar una nave de ejemplo'),
           h('button', { onclick: () => go('title') }, '🏠 Menú'))),
+      h('div', { class: `panel c-green ${app.objective ? '' : 'senalado'}`, id: 'objetivo' },
+        h('h2', {}, '0. Objetivo de la misión ', who('comandante')),
+        h('div', { class: 'help' }, 'Primero decidan qué quieren lograr: cambia qué cuenta más en el puntaje y qué recursos son críticos (★).'),
+        h('div', { class: 'row' }, ...Object.values(OBJECTIVES).map((o) => h('button', {
+          class: app.objective === o.id ? 'sel' : '', 'data-objetivo': o.id, title: o.desc,
+          onclick: () => { app.objective = o.id; explain = `${o.icon} ${o.name}: ${o.tip}`; say(explain, { mood: 'pensando', target: '#tablero' }); beep(820, 40); draw(); },
+        }, `${o.icon} ${o.name}`))),
+        app.objective ? h('div', { class: 'small', style: { marginTop: '.4rem' } },
+          h('div', {}, OBJECTIVES[app.objective].desc),
+          h('div', { class: 'dim' }, 'Cuenta más: ', Object.entries(OBJECTIVES[app.objective].weights).filter(([, w]) => w >= 2).map(([k]) => `${SCORE_PARTS[k].icon} ${SCORE_PARTS[k].name}`).join(', '))) : null),
       h('div', { class: 'design-layout' },
         h('div', {},
           tabs([
@@ -306,13 +322,13 @@ export function render(root, app, go, params = {}) {
         h('div', {},
           h('div', { class: 'panel c-amber', id: 'tablero' },
             h('h2', {}, '¿Puede volar?'),
-            row('🏋️ Peso', r.capacity ? r.mass / r.capacity : 1, `${fmt(r.mass, 1)} de ${fmt(r.capacity, 1)} t`, null, { invert: true, warn: 0.15, danger: 0.0001 }),
-            row('💰 Dinero', r.cost / r.budget, `${fmt(r.cost)} de ${fmt(r.budget)}`, null, { invert: true, warn: 0.1, danger: 0.0001 }),
-            row('⚡ Electricidad', Math.max(0, Math.min(1, 0.5 + r.energyPerDay / 400)), r.energyPerDay >= 0 ? `sobran ${fmt(r.energyPerDay)}` : `faltan ${fmt(-r.energyPerDay)}`, 'paneles_solares', { warn: 0.55, danger: 0.5 }),
-            row('📶 Datos', r.downlinkPerDay ? r.dataPerDay / r.downlinkPerDay : (r.dataPerDay ? 2 : 0), `junta ${fmt(r.dataPerDay)}, manda ${fmt(r.downlinkPerDay)}`, 'satelites_clima', { invert: true, warn: 0.2, danger: 0.0001 }),
-            row('🧪 Ciencia', Math.min(1, r.sciencePerDay / 20), `${fmt(r.sciencePerDay)} por día`, null, { warn: 0, danger: 0 }),
-            ORBITS[d.orbit]?.nightDays ? row('🌑 Noche', r.nightNeed ? Math.min(1, r.storage / r.nightNeed) : 1, `guarda ${fmt(r.storage)} de ${fmt(r.nightNeed)} kWh`, 'baterias', { warn: 0.999, danger: 0.6 }) : null,
-            row('🍎 Comida', d.cargoDays / Math.max(1, r.cargoMax), `${d.cargoDays} de ${r.cargoMax} días`, 'racionamiento', { invert: true, warn: 0, danger: 0 }),
+            row('🏋️ Peso', r.capacity ? r.mass / r.capacity : 1, `${fmt(r.mass, 1)} de ${fmt(r.capacity, 1)} t`, null, { invert: true, warn: 0.15, danger: 0.0001 }, 'peso'),
+            row('💰 Dinero', r.cost / r.budget, `${fmt(r.cost)} de ${fmt(r.budget)}`, null, { invert: true, warn: 0.1, danger: 0.0001 }, 'dinero'),
+            row('⚡ Electricidad', Math.max(0, Math.min(1, 0.5 + r.energyPerDay / 400)), r.energyPerDay >= 0 ? `sobran ${fmt(r.energyPerDay)}` : `faltan ${fmt(-r.energyPerDay)}`, 'paneles_solares', { warn: 0.55, danger: 0.5 }, 'energia'),
+            row('📶 Datos', r.downlinkPerDay ? r.dataPerDay / r.downlinkPerDay : (r.dataPerDay ? 2 : 0), `junta ${fmt(r.dataPerDay)}, manda ${fmt(r.downlinkPerDay)}`, 'satelites_clima', { invert: true, warn: 0.2, danger: 0.0001 }, 'datos'),
+            row('🧪 Ciencia', Math.min(1, r.sciencePerDay / 20), `${fmt(r.sciencePerDay)} por día`, null, { warn: 0, danger: 0 }, 'ciencia'),
+            ORBITS[d.orbit]?.nightDays ? row('🌑 Noche', r.nightNeed ? Math.min(1, r.storage / r.nightNeed) : 1, `guarda ${fmt(r.storage)} de ${fmt(r.nightNeed)} kWh`, 'baterias', { warn: 0.999, danger: 0.6 }, 'noche') : null,
+            row('🍎 Comida', d.cargoDays / Math.max(1, r.cargoMax), `${d.cargoDays} de ${r.cargoMax} días`, 'racionamiento', { invert: true, warn: 0, danger: 0 }, 'comida'),
             h('ul', { class: 'plain', id: 'errores' },
               ...r.errors.map((e) => h('li', { class: 'red' }, '❌ ', e)),
               ...r.warnings.map((w) => h('li', { class: 'amber' }, '⚠️ ', w))),
@@ -321,7 +337,7 @@ export function render(root, app, go, params = {}) {
               ' ', who('comandante'))))),
     );
     if (!explain) {
-      const [text, mood, target] = coach(d, r);
+      const [text, mood, target] = app.objective ? coach(d, r) : ['Primero, el objetivo: ¿qué quiere lograr el equipo? Elijan uno arriba, en el paso 0. Cambia qué cuenta más en el puntaje.', 'pensando', '#objetivo'];
       const where = TAB_OF(target);
       const elsewhere = where && where !== tab;
       say(elsewhere ? `${text} (Toca la pestaña señalada.)` : text, { mood, target: elsewhere ? `[data-tab="${where}"]` : target, quiet: true });

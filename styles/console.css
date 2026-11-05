@@ -26,7 +26,7 @@ body {
   background: rgba(10, 16, 36, .92); backdrop-filter: blur(6px); border-bottom: 1px solid var(--line); }
 #barra .logo { font-weight: 800; letter-spacing: .12em; color: var(--amber); }
 #barra-info { flex: 1; color: var(--dim); font-size: .85rem; }
-#app { padding: 1rem 1rem 9rem; max-width: 1400px; margin: 0 auto; }
+#app { padding: 1rem 1rem 15rem; /* espacio para que la burbuja de Nova no tape los últimos botones */ max-width: 1400px; margin: 0 auto; }
 h1, h2, h3 { margin: .3em 0; }
 h1 { font-size: 2.3rem; font-weight: 800; background: linear-gradient(90deg, var(--amber), #ff7ab6, var(--blue)); -webkit-background-clip: text; background-clip: text; color: transparent; }
 h2 { font-size: 1.15rem; font-weight: 800; color: var(--blue); margin-top: 0; }
@@ -319,3 +319,10 @@ label.pick { background: rgba(255,255,255,.08); padding: .1rem .5rem; border-rad
 .avatar.pixel .sparkle { animation: pulso .9s steps(2) infinite; }
 .avatar.pixel .zzz { animation-timing-function: steps(4); }
 @keyframes pulso { 50% { opacity: .15; } }
+
+/* recursos críticos para el objetivo y el destino */
+.res.critico > span:first-child { color: var(--amber); font-weight: bold; }
+/* desglose del puntaje */
+.score-part { display: grid; grid-template-columns: 1.6rem 1fr 3rem; gap: .4rem; align-items: center; margin: .25rem 0; }
+.score-part .w { font-size: .75rem; color: var(--amber); }
+.delta-up { color: var(--green); } .delta-down { color: var(--red, #ff5c5c); }
