@@ -3,6 +3,7 @@ import { DIFFICULTY, MODULES, SCENARIOS } from '../data/catalog.js';
 import { EVENTS } from '../data/events.js';
 import { skillCheck } from './skill.js';
 import { envMults, siteOf, availableIn } from './surface.js';
+import { inBlackout } from './mars.js';
 
 const SEVERITIES = ['leve', 'media', 'grave'];
 const POSITIVE_CHANCE = 0.06;
@@ -11,7 +12,7 @@ const NEEDS = { food: 1.8, water: 2.75 * 0.02 + 0.95, o2: 0.84 };
 const RESOURCE_KEYS = ['o2', 'water', 'food', 'meds', 'parts', 'fuel', 'battery'];
 const RESUPPLY_ONLY = new Set(['carga_a_tiempo', 'carga_explota']);
 const DEBRIS = new Set(['micrometeoritos', 'basura_tardia']);
-const REDUCERS = { tormenta_solar: 'refugio', micrometeoritos: 'refugio', reboost: 'gastar_combustible', polvo_paneles: 'cubrir' };
+const REDUCERS = { tormenta_solar: 'refugio', micrometeoritos: 'refugio', reboost: 'gastar_combustible', polvo_paneles: 'cubrir', tormenta_polvo: 'asegurar', particulas_profundas: 'refugio' };
 
 const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
 const addLog = (s, text, kind = 'evento') => s.log.push({ day: s.day, text, kind });
@@ -134,6 +135,7 @@ export function applyEffects(state, effects) {
         m.offDays = Math.max(m.offDays ?? 0, days);
       }
     } else if (k === 'delayResupply') s.nextResupply += v;
+    else if (k === 'dustDays') { s.flags ??= {}; s.flags.dustUntil = Math.max(s.flags.dustUntil ?? 0, s.day + v); }
     else if (k === 'endMission' && v === 'evacuar') {
       s.outcome = { success: false, reason: 'Evacuación de emergencia: la tripulación volvió antes' };
       for (const c of s.crew) if (c.alive) c.evacuated = true;
@@ -174,7 +176,7 @@ export function resolveEvent(state, eventId, severity, optionId, rng, prepared) 
   let s = structuredClone(state);
   log.unshift(`${ev.name} (${sev}): ${ev.text[sev]}`);
   const visibles = ev.options.filter((o) => !o.hidden);
-  if (visibles.length > 1 && !opt.hidden) {
+  if (visibles.length > 1 && !opt.hidden && !inBlackout(state)) {
     const followed = optionId === recommendedOption(eventId, state);
     s.reputation = clamp(s.reputation + (followed ? 1 : -1), 0, 100);
     log.push(followed ? 'Seguiste el procedimiento de Control de Misión (+1 fama).' : 'Te apartaste del procedimiento de Control de Misión (−1 fama).');

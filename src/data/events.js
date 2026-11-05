@@ -360,3 +360,66 @@ Object.assign(EVENTS, {
 for (const id of ['basura_tardia', 'captura_brazo', 'aurora', 'nueva_tripulacion', 'reboost', 'choque_carga', 'propulsor_atascado', 'fuga_amoniaco']) {
   EVENTS[id].scenarios = ['estacion'];
 }
+
+// Los eventos de superficie no pasan en el viaje a Marte.
+for (const e of Object.values(EVENTS)) if (e.scenarios && e.scenarios.every((x) => SURF.includes(x))) e.legs = ['superficie'];
+
+// ---------- Marte ----------
+const VIAJE = ['ida', 'vuelta'];
+Object.assign(EVENTS, {
+  tormenta_polvo: {
+    id: 'tormenta_polvo', name: 'Tormenta de polvo', kind: '-', disaster: false, warnDays: 3, weight: 8, scenarios: ['marte'], legs: ['superficie'],
+    text: T('Una tormenta local oscurece el cielo unos días.', 'Una tormenta regional tapa el sol durante semanas.', '¡Tormenta global! El polvo cubre todo Marte por meses.'),
+    procedure: 'Con poco sol, los paneles casi no cargan. Se apaga lo que no es vital y se vive del reactor y las baterías.',
+    prepare: [{ id: 'asegurar', label: 'Cargar baterías y asegurar todo', cost: {} }],
+    options: [
+      { id: 'ahorrar', label: 'Modo ahorro: apagar el laboratorio', effects: T({ dustDays: 10, moduleOff: { laboratorio: 10 } }, { dustDays: 30, moduleOff: { laboratorio: 30 } }, { dustDays: 60, moduleOff: { laboratorio: 60 } }) },
+      { id: 'seguir', label: 'Seguir trabajando igual', effects: T({ dustDays: 10, battery: -100 }, { dustDays: 30, battery: -300, moduleDamage: { paneles: 15 } }, { dustDays: 60, battery: -600, moduleDamage: { paneles: 35 } }) },
+    ],
+  },
+  remolino_polvo: {
+    id: 'remolino_polvo', name: 'Remolino de polvo', kind: '+', disaster: false, warnDays: 0, weight: 6, scenarios: ['marte'], legs: ['superficie'], needsModule: 'paneles',
+    text: T('Un remolino pasa cerca.', 'Un remolino limpia el polvo de los paneles.', '¡Un remolino deja los paneles como nuevos!'),
+    prepare: [],
+    options: [{ id: 'aprovechar', label: '¡Qué suerte!', effects: T({ moduleDamage: { paneles: -10 } }, { moduleDamage: { paneles: -25 } }, { moduleDamage: { paneles: -50 }, crewMorale: 5 }) }],
+  },
+  muestra_contaminada: {
+    id: 'muestra_contaminada', name: 'Protección planetaria', kind: '±', disaster: false, warnDays: 0, weight: 5, scenarios: ['marte'], legs: ['superficie'],
+    text: T('Una muestra podría tener microbios de la Tierra.', 'Una muestra rara podría tener rastros de vida… o estar contaminada.', '¡Posible señal de vida! Pero la muestra no está sellada.'),
+    procedure: 'Protección planetaria: no hay que llevar microbios de la Tierra a Marte ni traer nada de Marte sin sellarlo. Si se contamina, ya no se sabe si la vida era de allá.',
+    prepare: [],
+    options: [
+      { id: 'protocolo', label: 'Seguir el protocolo: sellar y esterilizar (más lento)', effects: T({ science: 3, reputation: 2 }, { science: 6, reputation: 4 }, { science: 12, reputation: 8 }) },
+      { id: 'rapido', label: 'Analizarla ya, sin protocolo', effects: T({ science: 6, reputation: -6 }, { science: 12, reputation: -10 }, { science: 20, reputation: -18 }) },
+    ],
+  },
+  aislamiento: {
+    id: 'aislamiento', name: 'Aislamiento del viaje', kind: '-', disaster: false, warnDays: 0, weight: 7, scenarios: ['marte'], legs: VIAJE,
+    text: T('Los días se parecen: la tripulación se aburre.', 'La Tierra es un puntito: aparece la tristeza.', 'Discusiones y tristeza: el equipo está mal.'),
+    prepare: [],
+    options: [
+      { id: 'actividad', label: 'Noche de películas y juegos en grupo', effects: T({ crewMorale: 6 }, { crewMorale: 10, food: -3 }, { crewMorale: 15, food: -6 }) },
+      { id: 'mensajes', label: 'Mensajes grabados de las familias (con retraso)', effects: T({ crewMorale: 4 }, { crewMorale: 6 }, { crewMorale: 8 }) },
+    ],
+  },
+  particulas_profundas: {
+    id: 'particulas_profundas', name: 'Rayos cósmicos del espacio profundo', kind: '-', disaster: false, warnDays: 1, weight: 7, scenarios: ['marte'], legs: VIAJE,
+    text: T('Los contadores de radiación suben un poco.', 'Lejos de la Tierra, la radiación aumenta.', 'Una ráfaga de partículas muy energéticas atraviesa la nave.'),
+    prepare: [{ id: 'refugio', label: 'Dormir rodeados de agua y comida (escudo)', cost: {} }],
+    options: [
+      { id: 'refugio', label: 'Refugiarse', effects: T({ crewRadiation: 4 }, { crewRadiation: 10 }, { crewRadiation: 25, crewHealth: -5 }) },
+      { id: 'seguir', label: 'Seguir con el trabajo', effects: T({ crewRadiation: 8 }, { crewRadiation: 20, crewHealth: -3 }, { crewRadiation: 50, crewHealth: -12 }) },
+    ],
+  },
+  plaga_invernadero: {
+    id: 'plaga_invernadero', name: 'Plaga en el invernadero', kind: '-', disaster: false, warnDays: 0, weight: 5, scenarios: ['luna', 'marte'], legs: ['superficie'], needsModule: 'invernadero',
+    text: T('Unas hojas tienen manchas.', 'Un hongo ataca la mitad de las plantas.', 'El hongo arrasa el invernadero.'),
+    prepare: [],
+    options: [
+      { id: 'tratar', label: 'Tratar las plantas (ciencia)', check: { stat: 'ciencia', dc: 11 },
+        effects: T({ food: -2 }, { food: -6 }, { food: -12, moduleOff: { invernadero: 5 } }),
+        failEffects: T({ food: -5 }, { food: -15, moduleOff: { invernadero: 10 } }, { food: -30, moduleOff: { invernadero: 30 } }) },
+      { id: 'quitar', label: 'Arrancar las enfermas', effects: T({ food: -4 }, { food: -10, moduleOff: { invernadero: 5 } }, { food: -20, moduleOff: { invernadero: 20 } }) },
+    ],
+  },
+});

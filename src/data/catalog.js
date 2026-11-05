@@ -57,9 +57,9 @@ export const ORBITS = indexar([
   { id: 'luna_ecuador', scenario: 'luna', icon: '🌗', name: 'Ecuador lunar (Mar de la Tranquilidad)', factor: 0.32, solarFraction: 1, cycleDays: 28, nightDays: 14, ice: false, scienceMult: 1.25,
     desc: 'Donde aterrizó el Apolo 11: 14 días de sol y 14 de noche helada. Rocas muy interesantes (+25 % ciencia).' },
   // Sitios en Marte: el sol llega más débil (~43 %) y un sol (día marciano) dura 24 h 40 min.
-  { id: 'marte_jezero', scenario: 'marte', icon: '🏞️', name: 'Cráter Jezero (antiguo lago)', factor: 0.2, solarFraction: 0.45, cycleDays: 1, nightDays: 0, ice: false, scienceMult: 1.3,
-    desc: 'Un lago seco con delta de río: el mejor lugar para buscar vida antigua (+30 % ciencia). Sin hielo.' },
-  { id: 'marte_arcadia', scenario: 'marte', icon: '❄️', name: 'Arcadia Planitia (hielo bajo el suelo)', factor: 0.2, solarFraction: 0.4, cycleDays: 1, nightDays: 0, ice: true, scienceMult: 1,
+  { id: 'marte_jezero', scenario: 'marte', icon: '🏞️', name: 'Cráter Jezero (antiguo lago)', factor: 0.45, solarFraction: 0.45, cycleDays: 1, nightDays: 0, ice: false, scienceMult: 1.3,
+    desc: 'Un lago seco con delta de río: el mejor lugar para buscar vida antigua (+30 % ciencia). Sin hielo. (El cohete se recarga de combustible en órbita antes de partir.)' },
+  { id: 'marte_arcadia', scenario: 'marte', icon: '❄️', name: 'Arcadia Planitia (hielo bajo el suelo)', factor: 0.45, solarFraction: 0.4, cycleDays: 1, nightDays: 0, ice: true, scienceMult: 1,
     desc: 'Llanura con hielo a poca profundidad: agua para beber y para fabricar combustible.' },
 ]);
 

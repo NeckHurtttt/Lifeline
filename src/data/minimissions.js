@@ -91,3 +91,27 @@ Object.assign(MINIMISSIONS, {
 for (const id of ['recuperar_satelite', 'retirar_basura', 'capturar_carga', 'fotografiar_desastre', 'cultivo_microg', 'prueba_nave_comercial']) {
   MINIMISSIONS[id].scenarios = ['estacion'];
 }
+
+// ---------- Marte ----------
+Object.assign(MINIMISSIONS, {
+  vuelo_helicoptero: {
+    id: 'vuelo_helicoptero', name: 'Vuelo del helicóptero explorador', desc: 'Un helicóptero chiquito vuela en el aire finito de Marte y busca el mejor camino.',
+    scenarios: ['marte'], requires: { crew: 1 }, days: 1, deadline: 8, cost: {},
+    check: { stat: 'tecnica', dc: 9 }, reward: { science: 6, reputation: 5 }, failure: { reputation: -2 },
+  },
+  perforacion_profunda: {
+    id: 'perforacion_profunda', name: 'Perforación profunda', desc: 'Perforar 2 metros: debajo del suelo la radiación no destruyó las moléculas antiguas.',
+    scenarios: ['marte'], rover: true, eva: true, requires: { crew: 2 }, days: 4, deadline: 14, cost: { parts: -3 },
+    check: { stat: 'tecnica', dc: 12 }, reward: { science: 16, reputation: 4 }, failure: { parts: -2, crewHealth: -5 },
+  },
+  cache_muestras: {
+    id: 'cache_muestras', name: 'Guardar muestras para la Tierra', desc: 'Sellar tubos con rocas para traerlas a casa (con protección planetaria).',
+    scenarios: ['marte'], eva: true, requires: { crew: 2 }, days: 2, deadline: 12, cost: {},
+    check: { stat: 'ciencia', dc: 10 }, reward: { science: 6, reputation: 8 }, failure: { reputation: -3 },
+  },
+  visitar_rover_antiguo: {
+    id: 'visitar_rover_antiguo', name: 'Visitar un rover antiguo', desc: 'Ir hasta un rover robot que lleva años en Marte y revisar cómo envejeció.',
+    scenarios: ['marte'], rover: true, eva: true, requires: { crew: 2 }, days: 3, deadline: 12, cost: {},
+    check: { stat: 'temple', dc: 10 }, reward: { reputation: 10, science: 6 }, failure: { crewHealth: -5 },
+  },
+});

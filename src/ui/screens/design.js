@@ -44,10 +44,10 @@ const SUGGESTED_BY = {
   marte: () => ({
     modules: [mod('cabina', 0, 0), mod('soporte_vital', 1, 0), mod('modulo_aterrizaje', 2, 0), mod('planta_combustible', 3, 0), mod('paneles', 4, 0), mod('paneles', 5, 0),
       mod('reactor', 0, 1), mod('pila_regenerativa', 1, 1), mod('laboratorio', 2, 1), mod('invernadero', 3, 1), mod('bodega', 4, 1), mod('bodega', 5, 1),
-      mod('refugio', 0, 2), mod('enfermeria', 1, 2)],
+      mod('refugio', 0, 2), mod('enfermeria', 1, 2), mod('bodega', 2, 2), mod('antena', 3, 2)],
     instruments: ['buscador_vida', 'analizador_rocas'],
     launcher: 'titan', orbit: 'marte_jezero',
-    crewRoles: ['comandante', 'ingeniero', 'medico', 'cientifico'], cargoDays: 240,
+    crewRoles: ['comandante', 'piloto', 'ingeniero', 'medico'], cargoDays: 240,
   }),
 };
 export const SUGGESTED = (scn = 'estacion') => (SUGGESTED_BY[scn] ?? SUGGESTED_BY.estacion)();
@@ -58,7 +58,7 @@ const EMPTY = (scn = 'estacion') => ({
   crewRoles: ['comandante', 'piloto', 'ingeniero'], cargoDays: scn === 'marte' ? 240 : scn === 'luna' ? 150 : 90,
 });
 
-const TAB_OF = (target) => (/data-mod|#nave/.test(target) ? 'nave' : target === '#instrumentos' ? 'ciencia' : target === '#cohetes' ? 'cohete' : /#tripulantes|#carga|data-hire/.test(target) ? 'astronautas' : null);
+const TAB_OF = (target) => (/data-mod|#nave/.test(target) ? 'nave' : target === '#instrumentos' ? 'ciencia' : target === '#cohetes' ? 'cohete' : /#tripulantes|#carga|data-hire|data-role/.test(target) ? 'astronautas' : null);
 
 const STORMS_PER_DIFF = { facil: 2, medio: 4, dificil: 7 };
 
@@ -95,6 +95,7 @@ function coach(d, r) {
   if (d.crewRoles.length === 0) return ['¡No hay astronautas! Elige al menos uno abajo a la derecha.', 'alerta', '#tripulantes'];
   const sinContratar = d.crewRoles.find((ro) => !d.hires?.[ro]);
   if (sinContratar) return [`Falta contratar al ${ROLES[sinContratar].name.toLowerCase()}. Toca 🎤 ENTREVISTAR: tienes 3 candidatos y 3 preguntas para cada uno.`, 'alerta', `[data-hire="${sinContratar}"]`];
+  if (scnOf === 'marte' && !d.crewRoles.includes('piloto')) return ['Consejo: en Marte el aterrizaje lo corrige el 🕹️ PILOTO (fuerza). Sin piloto es fácil que el aterrizaje salga duro.', 'pensando', '[data-role="piloto"]'];
   if (d.instruments.length > d.modules.filter((m) => m.type === 'laboratorio').length * 3) return ['Tienes más instrumentos que espacio. Cada 🔬 laboratorio tiene 3 lugares.', 'alerta', '#instrumentos'];
   if (d.cargoDays > r.cargoMax) return [`No cabe tanta comida. Máximo ${r.cargoMax} días. Agrega una 📦 bodega o baja los días.`, 'alerta', '#carga'];
   const night = r.warnings.find((w) => /noche|De día no sobra/.test(w));

@@ -32,7 +32,8 @@ export function envMults(state) {
   const sc = scenarioOf(state);
   let boneMult = sc.boneMult ?? 1;
   let radMult = sc.radiationMult ?? 1;
-  if (state.leg === 'viaje') { boneMult = 1; radMult = Math.max(radMult, 2); } // en el viaje no hay gravedad ni suelo que proteja
-  if (state.flags?.regolithWall && state.leg !== 'viaje') radMult *= 0.6;
+  const viaje = state.leg === 'ida' || state.leg === 'vuelta';
+  if (viaje) { boneMult = 1; radMult = Math.max(radMult, 2); } // en el viaje no hay gravedad ni suelo que proteja
+  if (state.flags?.regolithWall && !viaje) radMult *= 0.6;
   return { boneMult, radMult };
 }

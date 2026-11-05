@@ -3,7 +3,7 @@ import { load } from '../../core/save.js';
 import { makePlayers, PLAYER_ROLES, updateBar } from '../main.js';
 import { DIFFICULTY, SCENARIOS } from '../../data/catalog.js';
 
-export const PLAYABLE = ['estacion', 'luna'];
+export const PLAYABLE = ['estacion', 'luna', 'marte'];
 const SCN_DESC = {
   estacion: 'Un año dando vueltas a la Tierra. Llega carga cada 60 días. La más fácil.',
   luna: 'Un año en la Luna: noches de hasta 14 días sin sol, polvo, sismos y hielo. Carga cada 120 días.',

@@ -2,6 +2,7 @@
 import { h, mount, bar, modal, fmt, tabs } from '../dom.js';
 import { MODULES, INSTRUMENTS, DIFFICULTY, SCENARIOS } from '../../data/catalog.js';
 import { siteOf, isNight, daysToNight, daysToDawn } from '../../core/surface.js';
+import { phaseDue, resolvePhase, previewPhase, PHASES, inBlackout, radioDelayMin, isMars, ASCENT_FUEL, ASCENT_DAY, LANDING_DAY, TRANSIT_DAYS } from '../../core/mars.js';
 import { ROLES, TRAITS } from '../../data/crew.js';
 import { EVENTS } from '../../data/events.js';
 import { MINIMISSIONS } from '../../data/minimissions.js';
@@ -41,9 +42,11 @@ const EVENT_ICON = {
   propulsor_atascado: '🔩', falla_computadora: '💻', perdida_comunicacion: '📵', fuga_reciclador: '💧', sobrecalentamiento: '🌡️',
   falla_bateria: '🪫', panel_danado: '☀️', corto_circuito: '⚡', despresurizacion: '🌀',
   sismo: '🫨', polvo_paneles: '🌫️', rover_atascado: '🚙', falla_traje: '🧑‍🚀', hielo_polar: '🧊', cueva_lava: '🕳️', roca_rara: '🪨', tierra_en_el_cielo: '🌍', impresora_regolito: '🖨️',
+  tormenta_polvo: '🌪️', remolino_polvo: '🌀', muestra_contaminada: '🧫', aislamiento: '😔', particulas_profundas: '☢️', plaga_invernadero: '🍂',
 };
 const MINI_ICON = { lanzar_cubesats: '🛰️', recuperar_satelite: '🧲', retirar_basura: '🧹', capturar_carga: '📦', experimento_externo: '🔭', cambiar_panel: '☀️', fotografiar_desastre: '📸', radio_escuelas: '📻', cultivo_microg: '🪴', prueba_nave_comercial: '🚀',
-  satelite_comunicaciones: '📡', red_sismografos: '📈', explorar_cueva: '🕳️', minar_hielo: '🧊', muro_regolito: '🧱', telescopio_oculto: '📻' };
+  satelite_comunicaciones: '📡', red_sismografos: '📈', explorar_cueva: '🕳️', minar_hielo: '🧊', muro_regolito: '🧱', telescopio_oculto: '📻',
+  vuelo_helicoptero: '🚁', perforacion_profunda: '⛏️', cache_muestras: '🧪', visitar_rover_antiguo: '🤖' };
 const ENGINEERING = new Set(['micrometeoritos', 'basura_tardia', 'fuga_amoniaco', 'incendio', 'robot_detecta_fuga', 'fuga_misteriosa', 'falla_bano',
   'reboost', 'choque_carga', 'propulsor_atascado', 'falla_computadora', 'fuga_reciclador', 'sobrecalentamiento', 'falla_bateria', 'panel_danado', 'corto_circuito', 'captura_brazo']);
 const SCIENCE = new Set(['experimento_exitoso', 'aurora']);
@@ -90,12 +93,14 @@ export function render(root, app, go) {
     else if (k === 'evento') { alarm(interrupt.data.severity === 'grave' ? 'emergencia' : 'aviso'); banner = null; }
     else if (k === 'mini') { banner = { text: `🎯 Nueva minimisión: ${MINI_ICON[interrupt.data.id] ?? ''} ${MINIMISSIONS[interrupt.data.id].name}.`, cls: '' }; beep(900, 120); }
     else if (k === 'muerte') { banner = { text: interrupt.data.join(' · '), cls: 'red' }; alarm('emergencia'); }
+    else if (k === 'fase') { banner = null; beep(700, 200); }
+    else if (k === 'aviso') { banner = { text: `📡 ${interrupt.data.text}.`, cls: 'red' }; alarm('aviso'); }
     else if (k === 'noche') { banner = { text: `🌑 ${interrupt.data.text}.`, cls: 'red' }; alarm('aviso'); }
     else if (k === 'recurso') { banner = { text: `🚨 ${interrupt.data.text}.`, cls: 'red' }; alarm('aviso'); }
     else if (k === 'horario') { banner = { text: interrupt.data.join(' · '), cls: 'red' }; }
     else if (k === 'fin') {
       if (s.phase === 'report') { alarm('emergencia'); setTimeout(() => go('report'), 1800); banner = { text: s.outcome?.reason ?? 'Fin de la misión', cls: 'red' }; }
-      else banner = { text: '🎉 ¡Cumplieron 365 días! Hora de volver a casa.', cls: '' };
+      else banner = { text: `🎉 ¡Cumplieron los ${s.totalDays} días! Hora de volver a casa.`, cls: '' };
     }
   }
 
@@ -111,7 +116,7 @@ export function render(root, app, go) {
     const p = s.pending;
     const ev = EVENTS[p.eventId];
     const control = DIFFICULTY[s.difficulty].control;
-    const rec = recommendedOption(p.eventId, s);
+    const rec = inBlackout(s) ? null : recommendedOption(p.eventId, s);
     let timer = null;
     const choose = (optId, bad) => {
       clearInterval(timer);
@@ -132,6 +137,7 @@ export function render(root, app, go) {
       h('p', { style: { clear: 'both', fontSize: '1.1rem' } }, ev.text[p.severity]),
       p.prepared?.length ? h('p', { class: 'small green' }, '✔ Se prepararon antes: ayuda.') : null,
       ev.procedure ? h('p', { class: 'small' }, '📋 ', ev.procedure) : null,
+      isMars(s) ? h('p', { class: 'small amber' }, inBlackout(s) ? '📵 Conjunción solar: Control de Misión no puede ayudar. Decide tu tripulación.' : `📡 Control de Misión responde con ${radioDelayMin(s)} min de retraso: la tripulación decide primero.`) : null,
       ev.countdown ? h('div', { class: 'treserve' }, '⏱️ Tiempo de reserva: ', h('b', { id: 'treserve' }, `${left} s`), h('span', { class: 'small dim' }, ' — si llega a 0 sin decidir, la presión baja al mínimo.')) : null,
       who ? h('p', { class: 'small' }, h('span', { class: 'tag' }, `decide ${who}`)) : null,
       h('div', {}, ...ev.options.filter((o) => !o.hidden).map((o) => {
@@ -157,6 +163,55 @@ export function render(root, app, go) {
       }, 1000);
     }
     say(ev.countdown ? '¡Despresurización! Sigan el protocolo: decidan antes de que se acabe el tiempo de reserva. ⏱️' : `¡${ev.name}! Mira cada opción: abajo dice si funciona y qué pasa con cada una.`, { mood: ev.kind === '+' ? 'feliz' : 'alerta', target: '#evento' });
+  }
+
+  function phaseModal() {
+    const s = app.state;
+    const phase = phaseDue(s);
+    const P = PHASES[phase];
+    const pre = previewPhase(s, phase);
+    const list = h('ul', { class: 'plain steps' }, ...P.steps.map((t, i) => h('li', { 'data-fase': i }, t)));
+    const out = h('div', { class: 'small', style: { marginTop: '.5rem' } });
+    let close = null;
+    const start = h('button', { class: 'big', id: 'iniciarFase', onclick: async () => {
+      start.disabled = true;
+      for (let i = 0; i < P.steps.length; i++) {
+        list.children[i].classList.add('now'); beep(600 + i * 80, 80);
+        await new Promise((r) => setTimeout(r, 700));
+        list.children[i].classList.remove('now'); list.children[i].classList.add('done');
+      }
+      const r = resolvePhase(app.state, phase);
+      commit(r.state);
+      out.replaceChildren(...r.log.map((t) => h('div', { class: r.ok ? 'green' : 'red' }, t)));
+      alarm(r.ok ? 'aviso' : 'emergencia');
+      start.replaceWith(h('button', { class: 'big', id: 'seguirFase', onclick: () => { close(); if (app.state.phase === 'report') go('report'); else draw(); } }, 'CONTINUAR ▶'));
+    } }, phase === 'edl' ? '🪂 ¡A ATERRIZAR!' : '🚀 ¡DESPEGAR!');
+    close = modal(h('div', { id: 'fase' },
+      h('div', { class: 'big-ico' }, phase === 'edl' ? '🪂' : '🚀'),
+      h('h2', {}, P.title),
+      h('p', { style: { clear: 'both' } }, P.desc),
+      list,
+      pre ? h('div', { class: 'que-pasa' }, pre.ok ? h('b', { class: 'green' }, '✔ Va a salir bien. ') : h('b', { class: 'red' }, '✖ Cuidado: no alcanza. '),
+        pre.parts.map((x) => `${x.label} ${x.value}`).join(' · '), ` = ${pre.total} de ${pre.need}`) : null,
+      out,
+      h('div', { style: { textAlign: 'center', marginTop: '.6rem' } }, start)));
+    say(phase === 'edl' ? '¡Llegamos a Marte! Son los "7 minutos de terror": la Tierra no puede ayudar por el retraso de la radio. ¡Suerte, piloto!' : pre.ok ? '¡Hay combustible! Hora de volver a casa.' : `No alcanza el combustible (${pre.total} de ${pre.need}). Si despegan igual, se quedan varados.`,
+      { mood: pre.ok ? 'feliz' : 'alerta', target: '#iniciarFase' });
+  }
+
+  const fuelRate = (s) => s.modules.filter((m) => m.type === 'planta_combustible' && m.on).reduce((t, m) => t + (MODULES[m.type].fuelPerDay * m.health) / 100, 0);
+
+  function marsLeg() {
+    const s = app.state;
+    if (!isMars(s)) return null;
+    const radio = inBlackout(s, s.day + 1) ? '📵 Conjunción solar: sin radio con la Tierra' : `📡 La radio tarda ${radioDelayMin(s, s.day + 1)} min en llegar a la Tierra`;
+    if (s.flags?.landed && !s.flags?.ascended) {
+      const proj = s.resources.fuel + fuelRate(s) * Math.max(0, ASCENT_DAY - s.day);
+      return h('div', { class: `small ${proj >= ASCENT_FUEL ? 'green' : 'red'}`, id: 'tramo' },
+        `🔴 Sol ${s.day - LANDING_DAY} de 365 en Marte · ⛽ combustible para volver: ${fmt(s.resources.fuel)} de ${ASCENT_FUEL} (al despegar tendrás ~${fmt(proj)}) · ${radio}`);
+    }
+    if (s.flags?.ascended) return h('div', { class: 'small', id: 'tramo' }, `🌍 Regreso: día ${s.day - ASCENT_DAY} de ${TRANSIT_DAYS} · ${radio}`);
+    return h('div', { class: 'small', id: 'tramo' }, `🚀 Viaje a Marte: día ${s.day} de ${TRANSIT_DAYS} · sin gravedad y con más radiación · ${radio}`);
   }
 
   function resources() {
@@ -383,6 +438,9 @@ export function render(root, app, go) {
     const s = app.state;
     if (s.phase === 'reentry') return ['¡Un año completo! 🎉 Ahora hay que volver a la Tierra. Toca INICIAR REENTRADA.', 'feliz', '#reentrada', null];
     if (sched.length) return [`${sched[0]}. Arrástralo a 😴 Sueño en algún turno.`, 'alerta', '[data-job="sueño"]', 'tripulacion'];
+    if (isMars(s) && s.flags?.landed && !s.flags?.ascended && s.resources.fuel + fuelRate(s) * Math.max(0, ASCENT_DAY - s.day) < ASCENT_FUEL) {
+      return ['⛽ ¡Al ritmo de ahora no vamos a tener combustible para volver! Repara y deja encendida la planta de combustible.', 'alerta', '[data-module^="planta_combustible"]', 'estacion'];
+    }
     const evaBad = [0, 1, 2].map((t) => evaGoNoGo(s, t)).findIndex((g) => g.crew.length && !g.go);
     if (evaBad >= 0) {
       const g = evaGoNoGo(s, evaBad);
@@ -407,6 +465,7 @@ export function render(root, app, go) {
     if (s.resources.dataStored > 300) return ['Se están juntando muchos datos. Pon a alguien en 📞 Comunicación para mandarlos.', 'pensando', '#recursos', 'resumen'];
     const site = siteOf(s);
     if (site?.nightDays && isNight(site, s.day + 1) && s.resources.battery < s.resources.batteryMax * 0.3) return ['Es de noche y queda poca batería. En la pestaña de la base apaga lo que no sea vital (toca el módulo). El soporte vital y la cabina se apagan al final.', 'alerta', '#estacion', 'estacion'];
+    if (s.day === 0 && SC.id === 'marte') return ['¡Empieza el viaje a Marte! Son 210 días sin gravedad: 🏃 ejercicio diario para los huesos y 🛡️ refugio en las tormentas solares. Arrastra a cada uno a su trabajo y toca ▶ AVANZAR.', 'feliz', '#avanzar', null];
     if (s.day === 0 && SC.id !== 'estacion') return [`¡Bienvenidos a ${SC.home}! Aquí hay gravedad baja y más radiación. ${site?.nightDays ? `Ojo: cada tanto llega la noche de ${site.nightDays} días.` : ''} Arrastra a cada astronauta a su trabajo y toca ▶ AVANZAR.`, 'feliz', '#avanzar', null];
     if (s.day === 0) return ['¡Bienvenidos a la estación! En la pestaña 🧑‍🚀 Tripulación eliges qué hace cada astronauta. Cuando estés listo, toca ▶ AVANZAR.', 'feliz', '#avanzar', null];
     return ['Todo bajo control. 👍 Toca ▶ AVANZAR y yo te aviso cuando pase algo.', 'feliz', '#avanzar', null];
@@ -423,13 +482,14 @@ export function render(root, app, go) {
     const s = app.state;
     const sched = validateSchedule(Object.fromEntries(Object.entries(s.schedule).filter(([id]) => s.crew.find((c) => c.id === id)?.alive)))
       .map((e) => { const id = e.split(' ')[0]; const c = s.crew.find((x) => x.id === id); return c ? e.replace(id, c.name) : e; });
-    const blocked = sched.length > 0 || !!s.pending || s.phase !== 'ops';
+    const blocked = sched.length > 0 || !!s.pending || s.phase !== 'ops' || !!phaseDue(s);
     const pct = Math.min(100, (s.day / s.totalDays) * 100);
     mount(root,
       h('div', { class: 'day-head' },
         h('div', {},
           h('h1', { style: { fontSize: '2rem', margin: 0 }, id: 'dia' }, `📅 DÍA ${s.day} de ${s.totalDays}`),
           dayNight(),
+          marsLeg(),
           isWeekend(s.day + 1) ? h('div', { class: 'small amber' }, '🗓️ Mañana es fin de semana: día ligero. Descanso y llamadas a casa dan más ánimo; trabajar lo baja un poco.') : null,
           h('div', { class: 'trip' }, h('div', { class: 'trip-fill', style: { width: `${pct}%` } }), h('span', { class: 'trip-ship', style: { left: `${pct}%` } }, DEST), h('span', { class: 'trip-end' }, '🏠'))),
         h('div', { class: 'row' },
@@ -452,7 +512,8 @@ export function render(root, app, go) {
       tab === 'misiones' ? h('div', { class: 'grid2' }, alerts(), minis()) : null,
       tab === 'diario' ? logPanel() : null,
     );
-    if (s.pending && !document.getElementById('evento')) eventModal();
+    if (phaseDue(s) && s.phase === 'ops') { if (!document.getElementById('fase')) phaseModal(); }
+    else if (s.pending && !document.getElementById('evento')) eventModal();
     else if (!s.pending) {
       const [t, mood, target, where] = coach(sched);
       const elsewhere = where && where !== tab;

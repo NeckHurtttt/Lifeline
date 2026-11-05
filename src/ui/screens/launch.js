@@ -254,8 +254,8 @@ export function render(root, app, go) {
     app.state = s;
     if (s.phase === 'ops') save(s);
     els.action.replaceChildren(h('button', { class: 'big', id: 'continuar', onclick: () => go(s.phase === 'ops' ? 'ops' : 'report') },
-      s.phase === 'ops' ? `${DEST_ICON} ENTRAR A ${sc.home.toUpperCase()}` : '📋 VER CÓMO NOS FUE'));
-    nova(s.phase === 'ops' ? `¡Lo lograron! Ya están en ${sc.home}. Ahora empieza la vida allá. ${DEST_ICON}`
+      s.phase === 'ops' ? (s.scenarioId === 'marte' ? '🚀 EMPEZAR EL VIAJE A MARTE' : `${DEST_ICON} ENTRAR A ${sc.home.toUpperCase()}`) : '📋 VER CÓMO NOS FUE'));
+    nova(s.phase === 'ops' ? (s.scenarioId === 'marte' ? '¡Rumbo a Marte! Son 7 meses de viaje sin gravedad: ejercicio todos los días y cuidado con la radiación. 🔴' : `¡Lo lograron! Ya están en ${sc.home}. Ahora empieza la vida allá. ${DEST_ICON}`)
       : s.crew.some((c) => c.alive) ? 'Tuvimos que abortar, pero la tripulación está a salvo. Veamos qué pasó.' : 'Perdimos la nave… Veamos qué pasó para hacerlo mejor la próxima vez.',
     { mood: s.phase === 'ops' ? 'feliz' : 'alerta', target: '#continuar' });
     if (s.phase === 'ops' && mode === 'auto') setTimeout(() => !cancelled && go('ops'), 1200);

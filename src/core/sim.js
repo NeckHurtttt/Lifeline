@@ -8,6 +8,7 @@ import { applyDailyLife } from './life.js';
 import { expireMeds, exerciseRule } from './protocols.js';
 import { siteOf, scenarioOf, isNight, daysToNight } from './surface.js';
 import { MODULES } from '../data/catalog.js';
+import { legOf, phaseDue, marsSolarFactor, inBlackout, isMars, CONJUNCTION } from './mars.js';
 
 export const NIGHT_WARN_DAYS = 2;
 
@@ -44,6 +45,8 @@ export function checkEnd(state) {
 export function advanceDay(state) {
   if (state.outcome || state.phase !== 'ops') return { state, interrupt: { kind: 'fin', data: state.outcome } };
   if (state.pending) return { state, interrupt: { kind: 'evento', data: state.pending } };
+  const due = phaseDue(state);
+  if (due) return { state, interrupt: { kind: 'fase', data: { phase: due } } };
   const bad = validateSchedule(Object.fromEntries(Object.entries(state.schedule)
     .filter(([id]) => state.crew.find((c) => c.id === id)?.alive)));
   if (bad.length) return { state, interrupt: { kind: 'horario', data: bad } };
@@ -52,6 +55,7 @@ export function advanceDay(state) {
   let s = structuredClone(state);
   s.flags ??= {};
   s.day += 1;
+  s.leg = legOf(s);
   const alertsBefore = s.alerts.length;
   const offersBefore = s.minis.filter((m) => m.status === 'oferta').length;
   const aliveBefore = living(s).length;
@@ -81,12 +85,13 @@ export function advanceDay(state) {
   const site = siteOf(s);
   const sc = scenarioOf(s);
   const night = isNight(site, s.day);
-  const e = applyEnergy(s, { solarFactor: night ? 0 : 1, heatKw: night ? sc.nightHeatKw ?? 0 : 0 });
+  const e = applyEnergy(s, { solarFactor: night ? 0 : marsSolarFactor(s, site), heatKw: night ? sc.nightHeatKw ?? 0 : 0 });
   s = e.state; pushLog(s, e.log, 'energia');
   // Recursos del lugar: agua del hielo y combustible fabricado allí (ISRU).
   for (const m of s.modules) {
     if (!m.on || m.health <= 0) continue;
     const def = MODULES[m.type];
+    if (s.leg === 'ida' || s.leg === 'vuelta') continue; // en el viaje no hay suelo
     if (def.waterPerDay && site?.ice) s.resources.water += def.waterPerDay * (m.health / 100);
     if (def.fuelPerDay) s.resources.fuel += def.fuelPerDay * (m.health / 100);
   }
@@ -121,6 +126,14 @@ export function advanceDay(state) {
   const offers = s.minis.filter((m) => m.status === 'oferta');
   if (offers.length > offersBefore) return { state: s, interrupt: { kind: 'mini', data: offers.at(-1) } };
 
+  const fase = phaseDue(s);
+  if (fase) return { state: s, interrupt: { kind: 'fase', data: { phase: fase } } };
+  if (isMars(s) && s.day === CONJUNCTION.warn) {
+    const text = `En ${CONJUNCTION.start - CONJUNCTION.warn} días empieza la conjunción solar: el Sol queda entre Marte y la Tierra y no habrá radio durante ${CONJUNCTION.end - CONJUNCTION.start + 1} días. Manden los datos ahora`;
+    pushLog(s, [text], 'aviso');
+    return { state: s, interrupt: { kind: 'aviso', data: { text } } };
+  }
+  if (isMars(s) && s.day === CONJUNCTION.end + 1) pushLog(s, ['📡 Terminó la conjunción solar: vuelve la radio con la Tierra.'], 'bueno');
   if (site?.nightDays && daysToNight(site, s.day) === NIGHT_WARN_DAYS) {
     const text = `En ${NIGHT_WARN_DAYS} días empieza la noche: ${site.nightDays} días sin sol y mucho frío. Revisa la batería y apaga lo que no haga falta`;
     pushLog(s, [text], 'aviso');

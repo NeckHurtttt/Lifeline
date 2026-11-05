@@ -2,6 +2,7 @@ import { MODULES, INSTRUMENTS, DIFFICULTY, ORBITS } from '../data/catalog.js';
 import { ROLES } from '../data/crew.js';
 import { crewScore } from './skill.js';
 import { evaGoNoGo, isWeekend } from './protocols.js';
+import { inBlackout } from './mars.js';
 
 export const EVA_SAFE = 8;
 
@@ -145,7 +146,7 @@ export function applyTasks(state, rng) {
   }
 
   const downlink = s.modules.filter((m) => m.on).reduce((t, m) => t + (MODULES[m.type].downlink ?? 0), 0) + 10 * commTurns + (s.flags?.extraDownlink ?? 0);
-  const sent = Math.min(r.dataStored, downlink);
+  const sent = inBlackout(s) ? 0 : Math.min(r.dataStored, downlink);
   r.dataStored -= sent;
   s.science += sent * 0.1;
   if (r.dataStored > MAX_DATA) {
