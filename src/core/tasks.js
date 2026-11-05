@@ -1,3 +1,4 @@
+import { hasUpgrade } from './campaign.js';
 import { MODULES, INSTRUMENTS, DIFFICULTY, ORBITS } from '../data/catalog.js';
 import { ROLES } from '../data/crew.js';
 import { crewScore } from './skill.js';
@@ -60,6 +61,7 @@ export function applyTasks(state, rng) {
   const slept = new Set();
   const sheltered = new Set();
   const busy = new Set((s.minis ?? []).filter((m) => m.status === 'activa').flatMap((m) => m.crewIds ?? []));
+  for (const id of s.expedition?.crewIds ?? []) busy.add(id);
   const active = s.crew.filter((c) => c.alive && !busy.has(c.id));
   const on = (type) => s.modules.some((m) => m.type === type && m.on);
   const mult = DIFFICULTY[s.difficulty].repairMult;
@@ -113,7 +115,7 @@ export function applyTasks(state, rng) {
         if (target && r.meds >= 1) {
           r.meds -= 1;
           const k = on('enfermeria') ? MODULES.enfermeria.medicalMult : 1;
-          target.health = clamp(target.health + 15 * k * eff);
+          target.health = clamp(target.health + 15 * k * eff * (hasUpgrade(s, 'medicina_avanzada') ? 1.5 : 1));
           target.radiation = Math.max(0, target.radiation - 5 * k);
         }
       } else if (t === 'comunicacion') {

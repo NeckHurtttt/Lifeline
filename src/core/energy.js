@@ -1,3 +1,4 @@
+import { hasUpgrade } from './campaign.js';
 import { MODULES, INSTRUMENTS, ORBITS } from '../data/catalog.js';
 
 const LAST = ['cabina', 'soporte_vital'];
@@ -11,7 +12,7 @@ function balance(state, solarFactor, heatKw = 0) {
     const def = MODULES[m.type];
     if (m.type === 'laboratorio') labOn = true;
     let kw = def.kw;
-    if (def.solar) kw *= fraction * solarFactor;
+    if (def.solar) kw *= fraction * solarFactor * (hasUpgrade(state, 'paneles_eficientes') ? 1.2 : 1);
     if (m.health < 30) kw *= 0.5;
     total += kw * 24;
   }

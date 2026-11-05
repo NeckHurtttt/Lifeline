@@ -69,6 +69,7 @@ export function acceptMini(state, miniId, crewIds = []) {
   const auto = usesAutoRover(state, def);
   const needCrew = auto ? 1 : def.requires.crew;
   const busy = new Set(state.minis.filter((m) => m.status === 'activa').flatMap((m) => m.crewIds));
+  for (const id of state.expedition?.crewIds ?? []) busy.add(id);
   const crew = crewIds.map((id) => state.crew.find((c) => c.id === id));
   const ok = crew.every((c) => c && c.alive && !c.evacuated && !busy.has(c.id)) && new Set(crewIds).size === crewIds.length;
   if (!ok || crew.length < needCrew) return { state, error: 'Faltan tripulantes' };

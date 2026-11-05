@@ -1,4 +1,5 @@
 // Eventos, avisos, desastres y cadenas. Funciones puras: devuelven estado nuevo (structuredClone).
+import { hasUpgrade } from './campaign.js';
 import { DIFFICULTY, MODULES, SCENARIOS } from '../data/catalog.js';
 import { EVENTS } from '../data/events.js';
 import { skillCheck } from './skill.js';
@@ -51,7 +52,7 @@ function launchEvent(s, eventId, rng) {
     if (s.alerts.some((a) => a.eventId === eventId)) return;
     const d = DIFFICULTY[s.difficulty];
     const radar = s.modules.some((m) => m.type === 'radar' && m.on);
-    const eta = Math.max(1, Math.round(ev.warnDays * d.warningMult)) + (radar ? MODULES.radar.warningBonusDays : 0);
+    const eta = Math.max(1, Math.round(ev.warnDays * d.warningMult)) + (radar ? MODULES.radar.warningBonusDays : 0) + (hasUpgrade(s, 'radar_profundo') ? 1 : 0);
     s.alerts.push({ eventId, etaDays: eta, severity, prepared: [], false: rng.chance(d.falseAlarm) });
     addLog(s, `Aviso: ${ev.name} en ${eta} día(s).`, 'aviso');
   } else if (!s.pending) {

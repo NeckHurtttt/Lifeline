@@ -1,4 +1,5 @@
 // Cálculo y validación del diseño de la misión (determinista, sin azar).
+import { hasUpgrade } from './campaign.js';
 import { MODULES, INSTRUMENTS, LAUNCHERS, ORBITS, CARGO, DIFFICULTY, SCENARIOS, GRID } from '../data/catalog.js';
 import { ROLES } from '../data/crew.js';
 import { CONTINGENCY_DAYS } from './protocols.js';
@@ -21,11 +22,13 @@ export function computeDesign(design, scenarioId, difficulty, budgetMult = 1) {
 
   const cargoMass = CARGO.massPerCrewDayT * crew * design.cargoDays;
   const cargoCost = CARGO.costPerCrewDay * crew * design.cargoDays;
-  const mass = suma(mods, (m) => m.def.mass) + suma(instr, (i) => i.mass) + cargoMass;
-  const cost = suma(mods, (m) => m.def.cost) + suma(instr, (i) => i.cost) + (launcher ? launcher.cost : 0) + cargoCost;
+  const light = hasUpgrade(design, 'modulos_ligeros') ? 0.9 : 1;
+  const mass = suma(mods, (m) => m.def.mass * light) + suma(instr, (i) => i.mass) + cargoMass;
+  const cost = suma(mods, (m) => m.def.cost) + suma(instr, (i) => i.cost) + (launcher ? launcher.cost * (hasUpgrade(design, 'cohete_reutilizable') ? 0.75 : 1) : 0) + cargoCost;
   const capacity = launcher && orbit ? launcher.capacity * orbit.factor : 0;
   const solar = orbit ? orbit.solarFraction : 1;
-  const kwDe = (e, esModulo) => (esModulo && e.solar ? e.kw * solar : e.kw);
+  const panelBoost = hasUpgrade(design, 'paneles_eficientes') ? 1.2 : 1;
+  const kwDe = (e, esModulo) => (esModulo && e.solar ? e.kw * solar * panelBoost : e.kw);
   const powerNet = suma(mods, (m) => kwDe(m.def, true)) + suma(instr, (i) => i.kw);
   const energyPerDay = powerNet * 24;
   const sc = SCENARIOS[scenarioId] || SCENARIOS.estacion;
@@ -42,7 +45,7 @@ export function computeDesign(design, scenarioId, difficulty, budgetMult = 1) {
   if (noSirven.length) errors.push(`No sirve en este destino: ${noSirven.join(', ')}`);
   if (orbit && orbit.scenario && orbit.scenario !== sc.id) errors.push('Elige un lugar de este destino');
   const storage = suma(mods, (m) => m.def.batteryKwh || 0);
-  const solarKw = suma(mods, (m) => (m.def.solar ? m.def.kw * solar : 0));
+  const solarKw = suma(mods, (m) => (m.def.solar ? m.def.kw * solar * panelBoost : 0));
   const otherKw = powerNet - solarKw;
   let nightNeed = 0;
   if (orbit?.nightDays) {

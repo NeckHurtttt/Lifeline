@@ -1,5 +1,6 @@
 // Resolución técnica sin azar: una solución funciona si el equipo llega a la dificultad.
 // Se puede calcular antes de decidir, para mostrar si va a funcionar y por qué.
+import { hasUpgrade } from './campaign.js';
 
 export const TOOL = { tecnica: 'taller', medicina: 'enfermeria', ciencia: 'laboratorio' };
 export const BASE = 5;
@@ -16,6 +17,7 @@ export function crewScore(state, c, stat, { prepared = false } = {}) {
   if (prepared) parts.push({ label: 'se prepararon antes', value: 1 });
   if (stat === 'tecnica' && c.traits.includes('manos_firmes')) parts.push({ label: 'manos firmes', value: 2 });
   if (stat === 'eva' && c.traits.includes('torpe')) parts.push({ label: 'es torpe', value: -2 });
+  if (stat === 'eva' && hasUpgrade(state, 'trajes_nuevos')) parts.push({ label: 'trajes nuevos', value: 1 });
   if (c.fatigue >= 70) parts.push({ label: 'muy cansado', value: -2 });
   if (c.health < 50) parts.push({ label: 'salud baja', value: -2 });
   if (c.morale < 30) parts.push({ label: 'ánimo bajo', value: -1 });

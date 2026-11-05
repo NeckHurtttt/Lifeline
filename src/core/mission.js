@@ -1,4 +1,5 @@
 // Tripulación y creación de la misión. Determinista dado `seed`.
+import { hasUpgrade } from './campaign.js';
 import { createRng } from './rng.js';
 import { DIFFICULTY, MODULES, SCENARIOS } from '../data/catalog.js';
 import { ROLES, STAT_RANGES, TRAITS, NAMES } from '../data/crew.js';
@@ -85,7 +86,7 @@ export function createMission({ design, scenarioId, difficulty, seed }) {
       // El O2 sale del agua (0,95 L/persona/día) con el soporte vital encendido.
       water: (2.75 * 0.02 + 0.95) * mult + 500,
       food: 1.8 * mult,
-      meds: 20 * n, parts: 30, fuel: 100,
+      meds: 20 * n, parts: 30 + (hasUpgrade(design, 'impresion_3d') ? 15 : 0), fuel: 100,
       battery: batteryMax, batteryMax, dataStored: 0,
     },
     alerts: [], pending: null, history: [], minis: [], science: 0, reputation: 50,

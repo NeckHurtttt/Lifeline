@@ -1,4 +1,5 @@
 // Secuencia de reentrada: desacople, encendido de salida, plasma, escudo y paracaídas.
+import { hasUpgrade } from './campaign.js';
 import { DIFFICULTY } from '../data/catalog.js';
 
 export const REENTRY_STEPS = [
@@ -55,7 +56,7 @@ function pickSeverity(rng, difficulty) {
 export function heatShieldRisk(state) {
   const cabina = state.modules.find((m) => m.type === 'cabina');
   const health = cabina ? cabina.health : 0;
-  return Math.min(0.9, ((100 - health) / 100) * 0.5 * (SHIELD_MULT[state.scenarioId] ?? 1));
+  return Math.min(0.9, ((100 - health) / 100) * 0.5 * (SHIELD_MULT[state.scenarioId] ?? 1) * (hasUpgrade(state, 'escudo_mejorado') ? 0.5 : 1));
 }
 
 /**

@@ -19,6 +19,7 @@ const prevTurn = (turn) => (turn + 2) % 3;
  */
 export function evaGoNoGo(state, turn) {
   const busy = new Set((state.minis ?? []).filter((m) => m.status === 'activa').flatMap((m) => m.crewIds ?? []));
+  for (const id of state.expedition?.crewIds ?? []) busy.add(id);
   const crew = state.crew.filter((c) => c.alive && !c.evacuated && !busy.has(c.id) && state.schedule[c.id]?.[turn] === 'eva');
   if (!crew.length) return { crew, go: false, items: [] };
   const storm = (state.alerts ?? []).some((a) => a.eventId === 'tormenta_solar' && a.etaDays <= 1);

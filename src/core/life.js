@@ -1,3 +1,4 @@
+import { hasUpgrade } from './campaign.js';
 import { DIFFICULTY } from '../data/catalog.js';
 import { envMults } from './surface.js';
 
@@ -27,7 +28,7 @@ export function applyDailyLife(state, ctx) {
   const foodMult = (c) => (c.traits.includes('gloton') ? 1.2 : 1) * (c.traits.includes('frugal') ? 0.8 : 1);
   const foodNeed = living.reduce((t, c) => t + FOOD * ration(c) * foodMult(c), 0);
   const waterNeed = living.reduce(
-    (t, c) => t + (ctx.lifeSupportOn ? WATER * ration(c) * RECYCLE_LOSS + O2_AS_WATER : WATER * ration(c)),
+    (t, c) => t + (ctx.lifeSupportOn ? WATER * ration(c) * RECYCLE_LOSS * (hasUpgrade(s, 'reciclador_99') ? 0.5 : 1) + O2_AS_WATER : WATER * ration(c)),
     0,
   );
   let o2Need = ctx.lifeSupportOn ? 0 : living.length * O2;

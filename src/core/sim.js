@@ -1,4 +1,5 @@
 // Bucle de simulación: avanza días y se detiene cuando hay algo que decidir.
+import { hasUpgrade } from './campaign.js';
 import { restoreRng } from './rng.js';
 import { rollEvents, tickAlerts, resolveResupply } from './events.js';
 import { offerMinis, progressMinis } from './minimissions.js';
@@ -8,6 +9,7 @@ import { applyDailyLife } from './life.js';
 import { expireMeds, exerciseRule } from './protocols.js';
 import { siteOf, scenarioOf, isNight, daysToNight } from './surface.js';
 import { MODULES } from '../data/catalog.js';
+import { progressExpedition } from './explore.js';
 import { legOf, phaseDue, marsSolarFactor, inBlackout, isMars, CONJUNCTION } from './mars.js';
 
 export const NIGHT_WARN_DAYS = 2;
@@ -74,6 +76,7 @@ export function advanceDay(state) {
   s = t.state; pushLog(s, t.log, 'labor');
   const p = progressMinis(s, rng);
   s = p.state; pushLog(s, p.log, 'mini');
+  const expResult = progressExpedition(s);
 
   for (const m of s.modules) {
     if (!m.offDays) continue;
@@ -93,7 +96,7 @@ export function advanceDay(state) {
     const def = MODULES[m.type];
     if (s.leg === 'ida' || s.leg === 'vuelta') continue; // en el viaje no hay suelo
     if (def.waterPerDay && site?.ice) s.resources.water += def.waterPerDay * (m.health / 100);
-    if (def.fuelPerDay) s.resources.fuel += def.fuelPerDay * (m.health / 100);
+    if (def.fuelPerDay) s.resources.fuel += def.fuelPerDay * (m.health / 100) * (hasUpgrade(s, 'isru_mejorado') ? 1.5 : 1);
   }
 
   const l = applyDailyLife(s, { ...t.ctx, lifeSupportOn: lsOn(s) });
@@ -141,6 +144,7 @@ export function advanceDay(state) {
   }
   if (site?.nightDays && isNight(site, s.day) && !isNight(site, s.day - 1)) pushLog(s, ['🌑 Empieza la noche. Sin sol: la base vive de lo que guardó.'], 'aviso');
   if (site?.nightDays && !isNight(site, s.day) && isNight(site, s.day - 1)) pushLog(s, ['🌅 ¡Amanece! Los paneles vuelven a cargar.'], 'bueno');
+  if (expResult) return { state: s, interrupt: { kind: 'expedicion', data: expResult } };
   const left = daysLeft(s);
   s.flags.lowWarned ??= {};
   let low = null;
