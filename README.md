@@ -20,11 +20,20 @@ Agencia ficticia. Inspirado en procedimientos y datos abiertos de NASA.
 
 ## Jugar
 
+**En línea:** https://neckhurtttt.github.io/Proyecto-Nasa/
+
+**Descargado, sin internet ni instalar nada:**
+
+1. Baja `Jugar.html` desde [Releases](https://github.com/NeckHurtttt/Proyecto-Nasa/releases/latest)
+   (o *Code → Download ZIP* y descomprime).
+2. Abre `Jugar.html` con doble clic. Funciona en Chrome, Firefox y Edge.
+
+**Para programar** (usa los archivos sueltos de `src/`):
+
 ```sh
 python3 scripts/servir.py      # http://127.0.0.1:8000
+node scripts/empaquetar.mjs    # regenera Jugar.html (un solo archivo)
 ```
-
-Sin dependencias ni compilación: HTML + CSS + módulos ES.
 
 ## Pruebas
 
