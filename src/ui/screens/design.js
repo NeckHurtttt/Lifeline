@@ -127,7 +127,15 @@ export function render(root, app, go, params = {}) {
   d.hires ??= {};
   d.interviews ??= {};
   d.crewSeed ??= Math.floor(Math.random() * 2 ** 31);
-  if (app.mode === 'demo') for (const ro of d.crewRoles) d.hires[ro] ??= candidatesFor(ro, d.crewSeed)[0];
+  // Entrevista opcional: cada puesto ya trae a alguien asignado (sin conocerlo). Entrevistar permite elegir mejor.
+  const autoHire = () => {
+    for (const ro of d.crewRoles) {
+      if (d.hires[ro]) continue;
+      const cands = candidatesFor(ro, d.crewSeed);
+      d.hires[ro] = { ...cands[(d.crewSeed + ro.length) % cands.length], auto: true };
+    }
+  };
+  autoHire();
 
   /** Entrevista: 3 candidatos por puesto, 3 preguntas a cada uno; luego se contrata a uno. */
   function interview(role) {
@@ -147,7 +155,7 @@ export function render(root, app, go, params = {}) {
           return h('div', { class: `cand ${hired ? 'hired' : ''}`, 'data-cand': c.id },
             h('div', { style: { textAlign: 'center' } }, crewAvatar(fresh(c), { size: 76 }), h('div', { class: 'name' }, c.name)),
             h('button', { class: hired ? 'sel' : '', 'data-contratar': c.id, onclick: () => {
-              d.hires[role] = c; beep(990, 80); close(); draw();
+              d.hires[role] = { ...c }; beep(990, 80); close(); draw();
               say(`¡${c.name.split(' ')[0]} es tu nuevo ${ROLES[role].name.toLowerCase()}! 🎉`, { mood: 'feliz' });
             } }, hired ? '✅ Contratado' : '🤝 Contratar'),
             h('div', { class: 'cand-stats' }, ...Object.keys(STAT_ICON).map((k) => h('span', { class: k in known.stats ? '' : 'dim', title: STAT_NAME[k] },
@@ -199,6 +207,7 @@ export function render(root, app, go, params = {}) {
   }
 
   const draw = () => {
+    autoHire();
     const r = computeDesign(d, scn, app.difficulty, budgetMult);
     const ok = canLaunch(r);
     const cell = (x, y) => {
@@ -281,7 +290,8 @@ export function render(root, app, go, params = {}) {
                 say(`${ROLE_ICON[ro.id]} ${ro.name}: ${ROLE_DESC[ro.id]}. ${adding ? '¡Sube a bordo!' : 'Se queda en la Tierra.'}`, { quiet: true });
               } }, `${ROLE_ICON[ro.id]} ${ro.name}`))),
             h('div', { class: 'small dim' }, `${d.crewRoles.length} astronauta(s). Más gente hace más cosas, pero come más.`),
-            h('h2', { style: { marginTop: '.8rem' } }, '🎤 Contratar astronautas'),
+            h('h2', { style: { marginTop: '.8rem' } }, 'Tripulación asignada'),
+            h('div', { class: 'help' }, 'La agencia ya asignó a una persona por puesto. Si quieres elegir mejor, entrevista a los candidatos: cada uno responde 3 preguntas.'),
             h('div', { class: 'hire-grid' }, ...d.crewRoles.map((ro) => {
               const c = d.hires[ro];
               const known = c ? knownAbout(c, d.interviews[c.id] ?? []) : null;
@@ -290,8 +300,8 @@ export function render(root, app, go, params = {}) {
                 h('div', {},
                   h('div', {}, `${ROLE_ICON[ro]} ${ROLES[ro].name}`),
                   c ? h('div', { class: 'name' }, c.name) : h('div', { class: 'small amber' }, 'Sin contratar'),
-                  c ? h('div', { class: 'small dim' }, Object.entries(known.stats).map(([k, v]) => `${STAT_ICON[k]}${v}`).join(' ') || 'No le preguntaste nada…') : null,
-                  h('button', { class: 'small', 'data-hire': ro, onclick: () => interview(ro) }, c ? '🔁 Cambiar' : '🎤 Entrevistar')));
+                  c ? h('div', { class: 'small dim' }, c.auto ? 'Asignado por la agencia: no sabes cómo es.' : Object.entries(known.stats).map(([k, v]) => `${STAT_ICON[k]}${v}`).join(' ') || 'No le preguntaste nada.') : null,
+                  h('button', { class: 'small', 'data-hire': ro, onclick: () => interview(ro) }, c?.auto ? 'Entrevistar (opcional)' : 'Cambiar')));
             }))) : null),
         h('div', {},
           h('div', { class: 'panel c-amber', id: 'tablero' },
