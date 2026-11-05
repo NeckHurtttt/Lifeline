@@ -300,3 +300,14 @@ label.pick { background: rgba(255,255,255,.08); padding: .1rem .5rem; border-rad
 .checklist { margin-top: .3rem; border-top: 1px dashed var(--line); padding-top: .25rem; }
 .treserve { font-size: 1.2rem; margin: .4rem 0; padding: .3rem .6rem; border: 2px solid var(--amber); border-radius: 8px; }
 .treserve b.red { animation: latido .5s infinite; }
+
+/* ---------- mapa de exploración ---------- */
+.mapa { width: 100%; max-height: 420px; }
+.mapa .ruta { stroke: var(--line); stroke-width: .8; stroke-dasharray: 2 1.5; }
+.mapa .ruta.niebla { opacity: .35; }
+.mapa .nodo circle { fill: rgba(0,0,0,.5); stroke: var(--green); stroke-width: .7; }
+.mapa .nodo { cursor: pointer; }
+.mapa .nodo.niebla { opacity: .45; cursor: default; }
+.mapa .nodo.hecho circle { fill: rgba(77,255,136,.25); }
+.mapa .nodo.sel circle { stroke: var(--amber); stroke-width: 1.4; }
+.mapa .nodo.destino circle { stroke: var(--amber); animation: latido 1s infinite; }

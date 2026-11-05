@@ -2,6 +2,7 @@
 import { h, mount, bar, modal, fmt, tabs } from '../dom.js';
 import { MODULES, INSTRUMENTS, LAUNCHERS, ORBITS, GRID, DIFFICULTY, SCENARIOS } from '../../data/catalog.js';
 import { availableIn } from '../../core/surface.js';
+import { loadCampaign, UPGRADES } from '../../core/campaign.js';
 import { ROLES } from '../../data/crew.js';
 import { LESSONS } from '../../data/lessons.js';
 import { computeDesign, canLaunch } from '../../core/design.js';
@@ -121,6 +122,7 @@ export function render(root, app, go, params = {}) {
   let launching = false;
   let explain = null; // texto de Nova al elegir algo
   let tab = app.designTab ?? 'nave';
+  d.upgrades = app.mode === 'campana' ? loadCampaign().upgrades : [];
   d.hires ??= {};
   d.interviews ??= {};
   d.crewSeed ??= Math.floor(Math.random() * 2 ** 31);
@@ -214,6 +216,7 @@ export function render(root, app, go, params = {}) {
     mount(root,
       h('div', { class: 'row', style: { justifyContent: 'space-between' } },
         h('h1', { style: { fontSize: '1.8rem' } }, `🛠️ Arma tu ${scn === 'estacion' ? 'nave' : 'base'} · ${sc.icon} ${sc.short}`),
+        d.upgrades.length ? h('span', { class: 'small', title: d.upgrades.map((u) => UPGRADES[u].name).join(', ') }, `🌳 Mejoras: ${d.upgrades.map((u) => UPGRADES[u].icon).join(' ')}`) : null,
         h('div', { class: 'row' },
           h('button', { onclick: () => { Object.assign(d, SUGGESTED(scn)); explain = null; draw(); say('Te puse un diseño que funciona. ¡Puedes cambiarlo como quieras!', { mood: 'feliz' }); } }, '✨ Usar una nave de ejemplo'),
           h('button', { onclick: () => go('title') }, '🏠 Menú'))),

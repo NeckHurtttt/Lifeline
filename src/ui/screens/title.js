@@ -2,6 +2,7 @@ import { h, mount } from '../dom.js';
 import { load } from '../../core/save.js';
 import { makePlayers, PLAYER_ROLES, updateBar } from '../main.js';
 import { DIFFICULTY, SCENARIOS } from '../../data/catalog.js';
+import { loadCampaign } from '../../core/campaign.js';
 
 export const PLAYABLE = ['estacion', 'luna', 'marte'];
 const SCN_DESC = {
@@ -14,7 +15,7 @@ import { say } from '../guide.js';
 import { crewAvatar } from '../avatar.js';
 
 const MODES = {
-  campana: { icon: '🗺️', name: 'Campaña', desc: 'Misiones en orden. Por ahora: la estación espacial.' },
+  campana: { icon: '🗺️', name: 'Campaña', desc: 'Estación → Luna → Marte. Cada misión cumplida abre la siguiente y da puntos para mejoras.' },
   libre: { icon: '🎛️', name: 'Libre', desc: 'Tú eliges la dificultad y cuánto dinero tienes.' },
   demo: { icon: '⚡', name: 'Demo', desc: 'Fácil y rápida, con muchas sorpresas. Unos 10 minutos.' },
 };
@@ -52,6 +53,8 @@ export function render(root, app, go) {
   };
 
   const draw = () => {
+    const camp = loadCampaign();
+    if (app.mode === 'campana' && !camp.unlocked.includes(app.scenario ?? 'estacion')) app.scenario = camp.unlocked.at(-1);
     mount(root,
       h('div', { style: { textAlign: 'center', margin: '1rem 0 1.5rem' } },
         h('div', { class: 'capsule', style: { marginBottom: '.4rem' } },
@@ -69,12 +72,15 @@ export function render(root, app, go) {
             h('span', { class: 'small dim' }, m.desc))),
           h('h2', { style: { marginTop: '1rem' } }, '¿A dónde vamos?'),
           h('div', { class: 'row' }, ...Object.values(SCENARIOS).map((sc) => {
-            const ok = PLAYABLE.includes(sc.id);
+            const ok = PLAYABLE.includes(sc.id) && (app.mode !== 'campana' || camp.unlocked.includes(sc.id));
             return h('button', { class: (app.scenario ?? 'estacion') === sc.id ? 'sel' : '', disabled: !ok, 'data-scn': sc.id,
               onclick: () => { app.scenario = sc.id; beep(820, 40); draw(); say(`${sc.icon} ${sc.short}: ${SCN_DESC[sc.id]}`, { quiet: true, target: '#nueva' }); } },
-            `${sc.icon} ${sc.short}${ok ? '' : ' · pronto'}`);
+            `${sc.icon} ${sc.short}${ok ? '' : app.mode === 'campana' ? ' 🔒' : ' · pronto'}`);
           })),
           h('div', { class: 'small dim' }, SCN_DESC[app.scenario ?? 'estacion']),
+          app.mode === 'campana' ? h('div', { class: 'row', style: { marginTop: '.4rem' } },
+            h('span', { class: 'pill amber' }, `⭐ ${camp.points} puntos · ${camp.upgrades.length} mejora(s)`),
+            h('button', { id: 'mejoras', onclick: () => go('arbol') }, '🌳 Árbol de mejoras')) : null,
           h('h2', { style: { marginTop: '1rem' } }, '2. ¿Qué tan difícil?'),
           h('div', { class: 'row' }, ...Object.values(DIFFICULTY).map((d) =>
             h('button', { class: app.difficulty === d.id ? 'sel' : '', disabled: app.mode === 'demo' && d.id !== 'facil', 'data-dif': d.id,

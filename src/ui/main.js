@@ -5,6 +5,7 @@ import * as launch from './screens/launch.js';
 import * as ops from './screens/ops.js';
 import * as reentry from './screens/reentry.js';
 import * as report from './screens/report.js';
+import * as arbol from './screens/arbol.js';
 import { setMuted, isMuted, beep } from './audio.js';
 import { hideGuide } from './guide.js';
 
@@ -43,7 +44,7 @@ export const app = {
   lastSeed: null,
 };
 
-const screens = { title, design, launch, ops, reentry, report };
+const screens = { title, design, launch, ops, reentry, report, arbol };
 const root = document.getElementById('app');
 let cleanup = null;
 

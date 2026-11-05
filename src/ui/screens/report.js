@@ -1,4 +1,6 @@
 // Informe final: resultado, medalla, gráfico de recursos, causas, lecciones, rediseño y ranking local.
+import { loadCampaign, saveCampaign, recordResult } from '../../core/campaign.js';
+import { SCENARIOS } from '../../data/catalog.js';
 import { h, mount } from '../dom.js';
 import { buildReport } from '../../core/report.js';
 import { clearSave } from '../../core/save.js';
@@ -54,6 +56,12 @@ export function render(root, app, go) {
     ranking = ranking.sort((a, b) => b.score - a.score).slice(0, 10);
     try { localStorage.setItem(RANK_KEY, JSON.stringify(ranking)); } catch { /* sin espacio */ }
   }
+  let campInfo = null;
+  if (s.mode === 'campana') {
+    const r = recordResult(loadCampaign(), id, s.scenarioId, rep);
+    saveCampaign(r.camp);
+    campInfo = r;
+  }
   beep(rep.success ? 1200 : 300, 300, 'triangle');
 
   const copy = async (btn) => {
@@ -66,6 +74,10 @@ export function render(root, app, go) {
       h('h1', { class: rep.success ? '' : 'red', id: 'resultado' }, rep.success ? 'MISIÓN CUMPLIDA' : 'MISIÓN FALLIDA'),
       h('div', { class: 'dim' }, rep.reason),
       rep.medal ? h('div', { class: 'medal' }, MEDALS[rep.medal]) : null,
+      campInfo ? h('div', { class: 'panel c-amber', id: 'campana', style: { display: 'inline-block', marginTop: '.5rem' } },
+        h('div', {}, `⭐ +${campInfo.points} puntos de campaña (tienes ${campInfo.camp.points})`),
+        campInfo.unlockedNow ? h('div', { class: 'green' }, `🔓 ¡Nuevo destino desbloqueado: ${SCENARIOS[campInfo.unlockedNow].icon} ${SCENARIOS[campInfo.unlockedNow].short}!`) : null,
+        h('button', { onclick: () => go('arbol') }, '🌳 Ver mejoras')) : null,
       h('div', { class: 'capsule', style: { margin: '.6rem 0' } }, ...s.crew.map((c) => h('div', { style: { textAlign: 'center' } },
         crewAvatar(c, { size: 76 }), h('div', { class: 'small' }, h('b', {}, c.name.split(' ')[0])), h('div', { class: 'small dim' }, MOOD_TEXT[moodOf(c)]))))),
     h('div', { class: 'grid3' },

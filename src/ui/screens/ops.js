@@ -2,6 +2,7 @@
 import { h, mount, bar, modal, fmt, tabs } from '../dom.js';
 import { MODULES, INSTRUMENTS, DIFFICULTY, SCENARIOS } from '../../data/catalog.js';
 import { siteOf, isNight, daysToNight, daysToDawn } from '../../core/surface.js';
+import { canExplore, ensureMap, startExpedition, previewExpedition, tripDays, hasRoverPres, NODE_TYPES } from '../../core/explore.js';
 import { phaseDue, resolvePhase, previewPhase, PHASES, inBlackout, radioDelayMin, isMars, ASCENT_FUEL, ASCENT_DAY, LANDING_DAY, TRANSIT_DAYS } from '../../core/mars.js';
 import { ROLES, TRAITS } from '../../data/crew.js';
 import { EVENTS } from '../../data/events.js';
@@ -93,6 +94,7 @@ export function render(root, app, go) {
     else if (k === 'evento') { alarm(interrupt.data.severity === 'grave' ? 'emergencia' : 'aviso'); banner = null; }
     else if (k === 'mini') { banner = { text: `🎯 Nueva minimisión: ${MINI_ICON[interrupt.data.id] ?? ''} ${MINIMISSIONS[interrupt.data.id].name}.`, cls: '' }; beep(900, 120); }
     else if (k === 'muerte') { banner = { text: interrupt.data.join(' · '), cls: 'red' }; alarm('emergencia'); }
+    else if (k === 'expedicion') { banner = { text: `🗺️ ${interrupt.data.text}`, cls: interrupt.data.ok ? '' : 'red' }; beep(interrupt.data.ok ? 1100 : 300, 150); }
     else if (k === 'fase') { banner = null; beep(700, 200); }
     else if (k === 'aviso') { banner = { text: `📡 ${interrupt.data.text}.`, cls: 'red' }; alarm('aviso'); }
     else if (k === 'noche') { banner = { text: `🌑 ${interrupt.data.text}.`, cls: 'red' }; alarm('aviso'); }
@@ -212,6 +214,75 @@ export function render(root, app, go) {
     }
     if (s.flags?.ascended) return h('div', { class: 'small', id: 'tramo' }, `🌍 Regreso: día ${s.day - ASCENT_DAY} de ${TRANSIT_DAYS} · ${radio}`);
     return h('div', { class: 'small', id: 'tramo' }, `🚀 Viaje a Marte: día ${s.day} de ${TRANSIT_DAYS} · sin gravedad y con más radiación · ${radio}`);
+  }
+
+  let mapSel = null;
+  function explorePanel() {
+    if (!app.state.map) commit(ensureMap(app.state));
+    const s = app.state;
+    const map = s.map;
+    const byId = Object.fromEntries(map.map((n) => [n.id, n]));
+    const visible = map.filter((n) => n.known || n.links.some((l) => byId[l].known));
+    const auto = !hasRoverPres(s);
+    const lines = [];
+    for (const n of visible) for (const l of n.links) if (n.id < l && visible.includes(byId[l])) lines.push([n, byId[l]]);
+    const NS = 'http://www.w3.org/2000/svg';
+    const svg = document.createElementNS(NS, 'svg');
+    svg.setAttribute('viewBox', '0 0 100 100');
+    svg.setAttribute('class', 'mapa');
+    for (const [a, b] of lines) {
+      const ln = document.createElementNS(NS, 'line');
+      Object.entries({ x1: a.x, y1: a.y, x2: b.x, y2: b.y, class: a.known && b.known ? 'ruta' : 'ruta niebla' }).forEach(([k, v]) => ln.setAttribute(k, v));
+      svg.append(ln);
+    }
+    for (const n of visible) {
+      const g = document.createElementNS(NS, 'g');
+      g.setAttribute('class', `nodo ${n.done ? 'hecho' : ''} ${n.known ? '' : 'niebla'} ${mapSel === n.id ? 'sel' : ''} ${s.expedition?.nodeId === n.id ? 'destino' : ''}`);
+      g.setAttribute('data-node', n.id);
+      const c = document.createElementNS(NS, 'circle');
+      Object.entries({ cx: n.x, cy: n.y, r: n.type === 'base' ? 7 : 6 }).forEach(([k, v]) => c.setAttribute(k, v));
+      const t = document.createElementNS(NS, 'text');
+      Object.entries({ x: n.x, y: n.y + 2.2, 'text-anchor': 'middle', 'font-size': 6 }).forEach(([k, v]) => t.setAttribute(k, v));
+      t.textContent = n.type === 'base' ? (SC.id === 'marte' ? '🔴' : '🏠') : n.known ? NODE_TYPES[n.type].icon : '❔';
+      g.append(c, t);
+      if (n.known && n.type !== 'base') g.addEventListener('click', () => { mapSel = n.id; beep(700, 30); draw(); });
+      svg.append(g);
+    }
+    const sel = mapSel && byId[mapSel];
+    const T = sel && NODE_TYPES[sel.type];
+    const busy = new Set([...s.minis.filter((m) => m.status === 'activa').flatMap((m) => m.crewIds), ...(s.expedition?.crewIds ?? [])]);
+    const picks = new Set();
+    const prev = h('div', { class: 'que-pasa' }, auto ? 'Elige quién maneja el rover autónomo.' : 'Elige 2 astronautas (nunca se sale solo).');
+    const upd = () => {
+      if (!picks.size) return;
+      const r = previewExpedition(app.state, mapSel, [...picks]);
+      prev.replaceChildren(r.ok ? h('b', { class: 'green' }, '✔ Va a funcionar. ') : h('b', { class: 'red' }, '✖ No alcanza todavía. '),
+        r.parts.length ? `${r.parts.map((x) => `${x.label} ${x.value >= 0 ? '+' : ''}${x.value}`).join(' · ')} = ${r.total} de ${r.need}` : r.text);
+    };
+    return h('div', { class: 'grid2' },
+      h('div', { class: 'panel c-cyan', id: 'mapa' },
+        h('h2', {}, '🗺️ Mapa de los alrededores'),
+        h('div', { class: 'help' }, 'Toca un lugar para ver qué hay. Al visitarlo se descubren los caminos que salen de ahí. ❔ = todavía no se sabe.'),
+        svg),
+      h('div', { class: 'panel c-green' },
+        s.expedition ? h('div', { class: 'banner', id: 'expedicion' }, `🚙 El rover está en camino a ${NODE_TYPES[byId[s.expedition.nodeId].type].name}: faltan ${s.expedition.daysLeft} día(s).`) : null,
+        !sel ? h('div', { class: 'help' }, `👈 Elige un lugar del mapa. ${auto ? '🤖 Tienes el rover autónomo: va 1 persona que lo maneja desde la base, sin salir, pero tarda el doble.' : '🚙 Con el rover presurizado van 2 astronautas (EVA en pareja).'}`) : [
+          h('h2', {}, `${T.icon} ${T.name}`),
+          h('p', {}, T.desc),
+          h('div', { class: 'small' }, `🕒 Ida y vuelta: ${tripDays(sel, auto)} días · ${T.check ? `hace falta ${T.check.dc} de ${{ fuerza: '💪 fuerza', tecnica: '🛠️ técnica', ciencia: '🧠 ciencia', temple: '🧘 calma' }[T.check.stat]}` : 'sin riesgo'}`),
+          h('div', { class: 'small' }, h('span', { class: 'dim' }, 'Si sale bien: '), ...chips(T.reward)),
+          T.check ? h('div', { class: 'small' }, h('span', { class: 'dim' }, 'Si sale mal: '), ...chips(T.failure)) : null,
+          sel.done ? h('div', { class: 'green' }, '✅ Ya lo exploraron.') : s.expedition ? null : [
+            h('div', { class: 'row small', style: { margin: '.4rem 0' } }, ...living().filter((c) => !busy.has(c.id)).map((c) => h('label', { class: 'pick' },
+              h('input', { type: 'checkbox', onchange: (e) => { (e.target.checked ? picks.add(c.id) : picks.delete(c.id)); upd(); } }), firstName(c)))),
+            prev,
+            h('button', { class: 'big', id: 'enviar', onclick: () => {
+              const r = startExpedition(app.state, mapSel, [...picks]);
+              if (r.error) { banner = { text: `❌ ${r.error}`, cls: 'red' }; draw(); return; }
+              commit(r.state); banner = { text: `🚙 ¡Salió la expedición a ${T.name}!`, cls: '' }; beep(900, 80); draw();
+            } }, '🚙 ENVIAR EXPEDICIÓN'),
+          ],
+        ]));
   }
 
   function resources() {
@@ -504,6 +575,7 @@ export function render(root, app, go) {
         { id: 'tripulacion', label: '🧑‍🚀 Tripulación', color: 'c-pink', badge: sched.length + living().filter((c) => c.health < 50 || c.fatigue >= 70).length },
         { id: 'estacion', label: SC.id === 'estacion' ? '🛰️ Estación' : `${DEST} Base`, color: 'c-violet', badge: s.modules.filter((m) => m.health < 40 || !m.on).length },
         { id: 'misiones', label: '⚠️ Avisos y misiones', color: 'c-amber', badge: s.alerts.length + s.minis.filter((m) => m.status === 'oferta').length },
+        ...(canExplore(s) || s.map ? [{ id: 'mapa', label: '🗺️ Exploración', color: 'c-green', badge: s.expedition ? 0 : (s.map ?? []).filter((n) => n.known && !n.done).length }] : []),
         { id: 'diario', label: '📖 Diario', color: 'c-cyan' },
       ], tab, pick),
       tab === 'resumen' ? h('div', { class: 'grid2' }, h('div', {}, resources()), h('div', {}, crewMini(), alerts())) : null,
@@ -511,6 +583,7 @@ export function render(root, app, go) {
       tab === 'estacion' ? ship() : null,
       tab === 'misiones' ? h('div', { class: 'grid2' }, alerts(), minis()) : null,
       tab === 'diario' ? logPanel() : null,
+      tab === 'mapa' ? explorePanel() : null,
     );
     if (phaseDue(s) && s.phase === 'ops') { if (!document.getElementById('fase')) phaseModal(); }
     else if (s.pending && !document.getElementById('evento')) eventModal();
