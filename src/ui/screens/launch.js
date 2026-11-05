@@ -1,8 +1,8 @@
 // Pantalla de despegue: reloj T−/T+, pasos, telemetría, clima, Go/No-Go y abortos.
 import { h, mount } from '../dom.js';
-import { LAUNCH_STEPS, checkWeather, goNoGoPoll, runLaunchStep, applyAbort, scrubLaunch } from '../../core/launch.js';
+import { launchSteps, checkWeather, goNoGoPoll, runLaunchStep, applyAbort, scrubLaunch } from '../../core/launch.js';
 import { restoreRng } from '../../core/rng.js';
-import { DIFFICULTY } from '../../data/catalog.js';
+import { DIFFICULTY, SCENARIOS } from '../../data/catalog.js';
 import { save } from '../../core/save.js';
 import { PLAYER_ROLES } from '../main.js';
 import { beep, alarm, radio, hum } from '../audio.js';
@@ -29,6 +29,11 @@ const RADIO = {
   insercion: 'Inserción en órbita confirmada.',
   paneles: 'Despliegue de paneles solares.',
   acople_estacion: 'Captura suave… acople firme con la estación.',
+  tli: 'Encendido de inyección translunar. Rumbo a la Luna.',
+  loi: 'Llegando a la Luna. Encendido de frenado para la órbita lunar.',
+  descenso: 'Inicia el descenso motorizado. Altitud y velocidad, bien.',
+  alunizaje: '¡Contacto! Motor apagado. La base está en la Luna.',
+  tmi: 'Encendido de inyección hacia Marte. Siete meses de viaje por delante.',
 };
 
 const tel = (t) => {
@@ -57,7 +62,10 @@ export function render(root, app, go) {
   const status = {};
   const radioLog = [];
   let cancelled = false;
-  let t = LAUNCH_STEPS[0].t;
+  const STEPS = launchSteps(s.scenarioId);
+  const sc = SCENARIOS[s.scenarioId] ?? SCENARIOS.estacion;
+  const DEST_ICON = { estacion: '🛰️', luna: '🌕', marte: '🔴' }[s.scenarioId] ?? '🛰️';
+  let t = STEPS[0].t;
   let attempts = 0;
 
   const els = {
@@ -69,7 +77,7 @@ export function render(root, app, go) {
     radio: h('div', { class: 'log', id: 'radio', style: { maxHeight: '320px' } }),
     action: h('div', { id: 'accion', style: { marginTop: '.6rem' } }),
   };
-  els.sky = h('div', { class: 'sky' }, h('div', { class: 'planet' }), h('div', { class: 'station' }, '🛰️'), h('div', { class: 'ground' }), h('div', { class: 'tower' }), els.rocket);
+  els.sky = h('div', { class: 'sky' }, h('div', { class: 'planet' }), h('div', { class: 'station' }, DEST_ICON), h('div', { class: 'ground' }), h('div', { class: 'tower' }), els.rocket);
   const MODE_TXT = { auto: 'automático: solo mira', pausas: 'con pausas: ustedes deciden el clima y el GO', manual: 'manual: ustedes deciden todo, ¡hasta los abortos!' };
   mount(root,
     h('h1', { style: { fontSize: '1.8rem' } }, '🚀 Despegue', h('span', { class: 'dim small' }, ` · ${MODE_TXT[mode]}`)),
@@ -81,7 +89,7 @@ export function render(root, app, go) {
   );
 
   const say = (text, cls = '') => { radioLog.unshift(h('div', { class: cls }, `[${clockText(t)}] ${text}`)); els.radio.replaceChildren(...radioLog.slice(0, 60)); radio(); };
-  const drawSteps = (now) => els.steps.replaceChildren(...LAUNCH_STEPS.map((st) =>
+  const drawSteps = (now) => els.steps.replaceChildren(...STEPS.map((st) =>
     h('li', { class: `${status[st.id] ?? ''} ${st.id === now ? 'now' : ''}`, 'data-step': st.id }, `${clockText(st.t)}  ${st.label}`)));
   const drawTel = () => {
     const v = tel(t);
@@ -190,9 +198,9 @@ export function render(root, app, go) {
   async function run() {
     hum(true);
     drawSteps(null);
-    for (let i = 0; i < LAUNCH_STEPS.length; i++) {
+    for (let i = 0; i < STEPS.length; i++) {
       if (cancelled) return;
-      const step = LAUNCH_STEPS[i];
+      const step = STEPS[i];
       t = step.t; drawSteps(step.id); drawTel();
       say(RADIO[step.id]);
       if (!['clima', 'hold_go_nogo'].includes(step.id)) nova(`${step.label}: ${step.desc}`, { quiet: true, mood: step.id === 'despegue' || step.id === 'insercion' ? 'feliz' : 'normal' });
@@ -210,7 +218,7 @@ export function render(root, app, go) {
         if (r.scrub) {
           const sc = scrubLaunch(s, r.failure);
           s = sc.state; say(sc.log[0], 'aviso');
-          i = LAUNCH_STEPS.findIndex((x) => x.id === 'carga_propelente') - 1;
+          i = STEPS.findIndex((x) => x.id === 'carga_propelente') - 1;
           await wait(speed);
           continue;
         }
@@ -219,11 +227,16 @@ export function render(root, app, go) {
           s = { ...s }; status[step.id] = '';
           i -= 1; await wait(speed); continue;
         }
+        if (r.abortMode === 'retorno_libre') {
+          const res = applyAbort(s, 'retorno_libre', restoreRng(s.rng));
+          s = res.state; for (const l of res.log) say(l, 'aviso');
+          return finish();
+        }
         const outcome = await onFailure(step, r);
         if (outcome !== 'continue') return finish();
       } else status[step.id] = 'done';
       // Telemetría animada durante el ascenso.
-      const next = LAUNCH_STEPS[i + 1];
+      const next = STEPS[i + 1];
       if (next && step.t >= 0 && next.t <= 600) {
         const frames = 6;
         for (let f = 1; f <= frames && !cancelled; f++) { t = step.t + ((next.t - step.t) * f) / frames; drawTel(); await wait(speed / frames); }
@@ -231,7 +244,8 @@ export function render(root, app, go) {
     }
     els.sky.classList.add('dock');
     s = { ...s, phase: 'ops' };
-    s.log = [...s.log, { day: 0, text: 'Acople con la estación. Comienza la misión de 365 días.', kind: 'bueno' }];
+    const START = { estacion: 'Acople con la estación. Comienza la misión de 365 días.', luna: '¡Alunizaje! Comienza un año en la base lunar.', marte: 'Rumbo a Marte: empiezan 7 meses de viaje.' };
+    s.log = [...s.log, { day: 0, text: START[s.scenarioId] ?? START.estacion, kind: 'bueno' }];
     finish();
   }
 
@@ -240,8 +254,8 @@ export function render(root, app, go) {
     app.state = s;
     if (s.phase === 'ops') save(s);
     els.action.replaceChildren(h('button', { class: 'big', id: 'continuar', onclick: () => go(s.phase === 'ops' ? 'ops' : 'report') },
-      s.phase === 'ops' ? '🛰️ ENTRAR A LA ESTACIÓN' : '📋 VER CÓMO NOS FUE'));
-    nova(s.phase === 'ops' ? '¡Lo lograron! Ya están en la estación. Ahora empieza la vida en el espacio. 🛰️'
+      s.phase === 'ops' ? `${DEST_ICON} ENTRAR A ${sc.home.toUpperCase()}` : '📋 VER CÓMO NOS FUE'));
+    nova(s.phase === 'ops' ? `¡Lo lograron! Ya están en ${sc.home}. Ahora empieza la vida allá. ${DEST_ICON}`
       : s.crew.some((c) => c.alive) ? 'Tuvimos que abortar, pero la tripulación está a salvo. Veamos qué pasó.' : 'Perdimos la nave… Veamos qué pasó para hacerlo mejor la próxima vez.',
     { mood: s.phase === 'ops' ? 'feliz' : 'alerta', target: '#continuar' });
     if (s.phase === 'ops' && mode === 'auto') setTimeout(() => !cancelled && go('ops'), 1200);

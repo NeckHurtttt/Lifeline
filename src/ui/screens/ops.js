@@ -1,13 +1,14 @@
 // Pantalla de operaciones: recursos, nave, tripulación con avatares, alertas, eventos, minimisiones y bitácora, con Nova guiando.
 import { h, mount, bar, modal, fmt, tabs } from '../dom.js';
-import { MODULES, INSTRUMENTS, DIFFICULTY } from '../../data/catalog.js';
+import { MODULES, INSTRUMENTS, DIFFICULTY, SCENARIOS } from '../../data/catalog.js';
+import { siteOf, isNight, daysToNight, daysToDawn } from '../../core/surface.js';
 import { ROLES, TRAITS } from '../../data/crew.js';
 import { EVENTS } from '../../data/events.js';
 import { MINIMISSIONS } from '../../data/minimissions.js';
 import { TASKS, validateSchedule } from '../../core/tasks.js';
 import { advanceDay, runUntilInterrupt, daysLeft } from '../../core/sim.js';
 import { prepareFor, resolveEvent, recommendedOption, previewOption } from '../../core/events.js';
-import { acceptMini, previewMini } from '../../core/minimissions.js';
+import { acceptMini, previewMini, usesAutoRover } from '../../core/minimissions.js';
 import { setPriority } from '../../core/energy.js';
 import { restoreRng } from '../../core/rng.js';
 import { save } from '../../core/save.js';
@@ -39,8 +40,10 @@ const EVENT_ICON = {
   radio_escuelas: '📻', falla_bano: '🚽', bacterias: '🦠', nueva_tripulacion: '👋', reboost: '🚀', choque_carga: '💢',
   propulsor_atascado: '🔩', falla_computadora: '💻', perdida_comunicacion: '📵', fuga_reciclador: '💧', sobrecalentamiento: '🌡️',
   falla_bateria: '🪫', panel_danado: '☀️', corto_circuito: '⚡', despresurizacion: '🌀',
+  sismo: '🫨', polvo_paneles: '🌫️', rover_atascado: '🚙', falla_traje: '🧑‍🚀', hielo_polar: '🧊', cueva_lava: '🕳️', roca_rara: '🪨', tierra_en_el_cielo: '🌍', impresora_regolito: '🖨️',
 };
-const MINI_ICON = { lanzar_cubesats: '🛰️', recuperar_satelite: '🧲', retirar_basura: '🧹', capturar_carga: '📦', experimento_externo: '🔭', cambiar_panel: '☀️', fotografiar_desastre: '📸', radio_escuelas: '📻', cultivo_microg: '🪴', prueba_nave_comercial: '🚀' };
+const MINI_ICON = { lanzar_cubesats: '🛰️', recuperar_satelite: '🧲', retirar_basura: '🧹', capturar_carga: '📦', experimento_externo: '🔭', cambiar_panel: '☀️', fotografiar_desastre: '📸', radio_escuelas: '📻', cultivo_microg: '🪴', prueba_nave_comercial: '🚀',
+  satelite_comunicaciones: '📡', red_sismografos: '📈', explorar_cueva: '🕳️', minar_hielo: '🧊', muro_regolito: '🧱', telescopio_oculto: '📻' };
 const ENGINEERING = new Set(['micrometeoritos', 'basura_tardia', 'fuga_amoniaco', 'incendio', 'robot_detecta_fuga', 'fuga_misteriosa', 'falla_bano',
   'reboost', 'choque_carga', 'propulsor_atascado', 'falla_computadora', 'fuga_reciclador', 'sobrecalentamiento', 'falla_bateria', 'panel_danado', 'corto_circuito', 'captura_brazo']);
 const SCIENCE = new Set(['experimento_exitoso', 'aurora']);
@@ -75,6 +78,9 @@ export function render(root, app, go) {
   const living = () => app.state.crew.filter((c) => c.alive);
   const commit = (state) => { app.state = state; save(state); };
   const firstName = (c) => c.name.split(' ')[0];
+  const SC = SCENARIOS[app.state.scenarioId] ?? SCENARIOS.estacion;
+  const DEST = { estacion: '🛰️', luna: '🌙', marte: '🔴' }[SC.id] ?? '🛰️';
+  const HOME = SC.home.charAt(0).toUpperCase() + SC.home.slice(1);
 
   function handle(interrupt) {
     const s = app.state;
@@ -84,6 +90,7 @@ export function render(root, app, go) {
     else if (k === 'evento') { alarm(interrupt.data.severity === 'grave' ? 'emergencia' : 'aviso'); banner = null; }
     else if (k === 'mini') { banner = { text: `🎯 Nueva minimisión: ${MINI_ICON[interrupt.data.id] ?? ''} ${MINIMISSIONS[interrupt.data.id].name}.`, cls: '' }; beep(900, 120); }
     else if (k === 'muerte') { banner = { text: interrupt.data.join(' · '), cls: 'red' }; alarm('emergencia'); }
+    else if (k === 'noche') { banner = { text: `🌑 ${interrupt.data.text}.`, cls: 'red' }; alarm('aviso'); }
     else if (k === 'recurso') { banner = { text: `🚨 ${interrupt.data.text}.`, cls: 'red' }; alarm('aviso'); }
     else if (k === 'horario') { banner = { text: interrupt.data.join(' · '), cls: 'red' }; }
     else if (k === 'fin') {
@@ -178,7 +185,7 @@ export function render(root, app, go) {
     const cols = Math.max(...s.modules.map((m) => m.x)) + 1;
     const who = whoDecides(app, 'ingeniero');
     return h('div', { class: 'panel c-violet', id: 'estacion' },
-      h('h2', {}, '🛰️ La estación ', who ? h('span', { class: 'tag' }, `decide ${who}`) : null),
+      h('h2', {}, `${DEST} ${HOME} `, who ? h('span', { class: 'tag' }, `decide ${who}`) : null),
       h('div', { class: 'help' }, 'Toca un módulo para prenderlo o apagarlo. El número es su turno para apagarse si falta electricidad (el más bajo, primero).'),
       h('div', { class: 'ship', style: { gridTemplateColumns: `repeat(${cols}, 1fr)` } },
         ...s.modules.slice().sort((a, b) => a.y - b.y || a.x - b.x).map((m) => h('div', {
@@ -237,6 +244,15 @@ export function render(root, app, go) {
     return h('div', { class: 'checklist', id: 'eva-check' },
       h('div', { class: g.go ? 'green' : 'red' }, g.go ? '✅ GO para la EVA' : '⛔ NO GO: no salen'),
       ...g.items.map((i) => h('div', { class: `small ${i.ok ? 'green' : 'red'}` }, `${i.ok ? '✔' : '✖'} ${i.label}`)));
+  }
+
+  function dayNight() {
+    const site = siteOf(app.state);
+    if (!site?.nightDays) return null;
+    const next = app.state.day + 1;
+    return isNight(site, next)
+      ? h('div', { class: 'small amber', id: 'diaNoche' }, `🌑 Es de noche: sin sol. Amanece en ${daysToDawn(site, next)} día(s). Cuida la batería 🔋.`)
+      : h('div', { class: 'small green', id: 'diaNoche' }, `☀️ Es de día. La noche (${site.nightDays} días) empieza en ${daysToNight(site, next)} día(s).`);
   }
 
   function jobBoard() {
@@ -342,7 +358,8 @@ export function render(root, app, go) {
           h('div', { class: 'row' }, h('span', { style: { fontSize: '1.8rem' } }, MINI_ICON[m.id] ?? '🎯'),
             h('div', {}, h('b', {}, def.name), h('div', { class: 'small dim' }, `hasta el día ${m.deadline} · dura ${def.days} día(s)${def.eva ? ' · sale afuera 👨‍🚀' : ''}`))),
           h('div', { class: 'small' }, def.desc),
-          h('div', { class: 'small dim' }, `Necesita: ${def.requires.crew} persona(s)${def.requires.role ? ` (una ${ROLES[def.requires.role]?.name ?? def.requires.role})` : ''}${def.requires.modules?.length ? ` · ${def.requires.modules.map((t) => `${MODULES[t].icon} ${MODULES[t].name}`).join(', ')}` : ''}${def.instruments?.length ? ` · ${def.instruments.map((i) => INSTRUMENTS[i]?.name ?? i).join(', ')}` : ''} · usa ${STAT[def.check.stat] ?? ''} ${STAT_NAME[def.check.stat] ?? def.check.stat}`),
+          def.rover ? h('div', { class: 'small' }, usesAutoRover(s, def) ? '🤖 Va el rover autónomo: 1 persona lo maneja desde la base, sin salir, pero tarda el doble.' : '🚙 Van 2 en el rover presurizado (EVA en pareja).') : null,
+          h('div', { class: 'small dim' }, `Necesita: ${def.rover && usesAutoRover(s, def) ? 1 : def.requires.crew} persona(s)${def.requires.role ? ` (una ${ROLES[def.requires.role]?.name ?? def.requires.role})` : ''}${def.requires.modules?.length ? ` · ${def.requires.modules.map((t) => `${MODULES[t].icon} ${MODULES[t].name}`).join(', ')}` : ''}${def.instruments?.length ? ` · ${def.instruments.map((i) => INSTRUMENTS[i]?.name ?? i).join(', ')}` : ''} · usa ${STAT[def.check.stat] ?? ''} ${STAT_NAME[def.check.stat] ?? def.check.stat}`),
           h('div', { class: 'row small' }, ...living().filter((c) => !busy.has(c.id)).map((c) => h('label', { class: 'pick' },
             h('input', { type: 'checkbox', onchange: (e) => { (e.target.checked ? picks.add(c.id) : picks.delete(c.id)); updatePreview(); } }), firstName(c)))),
           preview,
@@ -388,6 +405,9 @@ export function render(root, app, go) {
     const offer = s.minis.find((m) => m.status === 'oferta');
     if (offer) return [`Hay una minimisión: ${MINIMISSIONS[offer.id].name}. Elige quién va y mira si le alcanza.`, 'pensando', '#minis', 'misiones'];
     if (s.resources.dataStored > 300) return ['Se están juntando muchos datos. Pon a alguien en 📞 Comunicación para mandarlos.', 'pensando', '#recursos', 'resumen'];
+    const site = siteOf(s);
+    if (site?.nightDays && isNight(site, s.day + 1) && s.resources.battery < s.resources.batteryMax * 0.3) return ['Es de noche y queda poca batería. En la pestaña de la base apaga lo que no sea vital (toca el módulo). El soporte vital y la cabina se apagan al final.', 'alerta', '#estacion', 'estacion'];
+    if (s.day === 0 && SC.id !== 'estacion') return [`¡Bienvenidos a ${SC.home}! Aquí hay gravedad baja y más radiación. ${site?.nightDays ? `Ojo: cada tanto llega la noche de ${site.nightDays} días.` : ''} Arrastra a cada astronauta a su trabajo y toca ▶ AVANZAR.`, 'feliz', '#avanzar', null];
     if (s.day === 0) return ['¡Bienvenidos a la estación! En la pestaña 🧑‍🚀 Tripulación eliges qué hace cada astronauta. Cuando estés listo, toca ▶ AVANZAR.', 'feliz', '#avanzar', null];
     return ['Todo bajo control. 👍 Toca ▶ AVANZAR y yo te aviso cuando pase algo.', 'feliz', '#avanzar', null];
   }
@@ -409,8 +429,9 @@ export function render(root, app, go) {
       h('div', { class: 'day-head' },
         h('div', {},
           h('h1', { style: { fontSize: '2rem', margin: 0 }, id: 'dia' }, `📅 DÍA ${s.day} de ${s.totalDays}`),
+          dayNight(),
           isWeekend(s.day + 1) ? h('div', { class: 'small amber' }, '🗓️ Mañana es fin de semana: día ligero. Descanso y llamadas a casa dan más ánimo; trabajar lo baja un poco.') : null,
-          h('div', { class: 'trip' }, h('div', { class: 'trip-fill', style: { width: `${pct}%` } }), h('span', { class: 'trip-ship', style: { left: `${pct}%` } }, '🛰️'), h('span', { class: 'trip-end' }, '🏠'))),
+          h('div', { class: 'trip' }, h('div', { class: 'trip-fill', style: { width: `${pct}%` } }), h('span', { class: 'trip-ship', style: { left: `${pct}%` } }, DEST), h('span', { class: 'trip-end' }, '🏠'))),
         h('div', { class: 'row' },
           h('button', { id: 'avanzar1', disabled: blocked, onclick: () => advance(false) }, '⏭️ 1 día'),
           h('button', { id: 'avanzar', class: 'big', disabled: blocked, onclick: () => advance(true) }, '▶ AVANZAR'),
@@ -421,7 +442,7 @@ export function render(root, app, go) {
       tabs([
         { id: 'resumen', label: '🏠 Resumen', color: 'c-blue', badge: ['food', 'water', 'o2'].some((k) => daysLeft(s)[k] < 10) ? '!' : 0 },
         { id: 'tripulacion', label: '🧑‍🚀 Tripulación', color: 'c-pink', badge: sched.length + living().filter((c) => c.health < 50 || c.fatigue >= 70).length },
-        { id: 'estacion', label: '🛰️ Estación', color: 'c-violet', badge: s.modules.filter((m) => m.health < 40 || !m.on).length },
+        { id: 'estacion', label: SC.id === 'estacion' ? '🛰️ Estación' : `${DEST} Base`, color: 'c-violet', badge: s.modules.filter((m) => m.health < 40 || !m.on).length },
         { id: 'misiones', label: '⚠️ Avisos y misiones', color: 'c-amber', badge: s.alerts.length + s.minis.filter((m) => m.status === 'oferta').length },
         { id: 'diario', label: '📖 Diario', color: 'c-cyan' },
       ], tab, pick),

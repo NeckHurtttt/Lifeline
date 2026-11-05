@@ -1,6 +1,6 @@
 // Pantalla de reentrada: pasos, apagón de plasma con estática y elección de ángulo en modo manual.
 import { h, mount } from '../dom.js';
-import { REENTRY_STEPS, runReentryStep, heatShieldRisk } from '../../core/reentry.js';
+import { reentrySteps, runReentryStep, heatShieldRisk } from '../../core/reentry.js';
 import { restoreRng } from '../../core/rng.js';
 import { DIFFICULTY } from '../../data/catalog.js';
 import { save } from '../../core/save.js';
@@ -15,6 +15,7 @@ const ANGLES = {
 };
 
 export function render(root, app, go) {
+  const REENTRY_STEPS = reentrySteps(app.state.scenarioId);
   let s = app.state;
   const mode = DIFFICULTY[s.difficulty].launchMode;
   const speed = mode === 'auto' ? 450 : 800;

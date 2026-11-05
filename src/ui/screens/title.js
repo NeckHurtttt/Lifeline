@@ -1,7 +1,14 @@
 import { h, mount } from '../dom.js';
 import { load } from '../../core/save.js';
 import { makePlayers, PLAYER_ROLES, updateBar } from '../main.js';
-import { DIFFICULTY } from '../../data/catalog.js';
+import { DIFFICULTY, SCENARIOS } from '../../data/catalog.js';
+
+export const PLAYABLE = ['estacion', 'luna'];
+const SCN_DESC = {
+  estacion: 'Un año dando vueltas a la Tierra. Llega carga cada 60 días. La más fácil.',
+  luna: 'Un año en la Luna: noches de hasta 14 días sin sol, polvo, sismos y hielo. Carga cada 120 días.',
+  marte: '7 meses de viaje, 1 año allá y 7 de vuelta. Sin cargas: hay que fabricar combustible para volver.',
+};
 import { beep } from '../audio.js';
 import { say } from '../guide.js';
 import { crewAvatar } from '../avatar.js';
@@ -60,8 +67,14 @@ export function render(root, app, go) {
           ...Object.entries(MODES).map(([id, m]) => h('div', { class: 'row', style: { margin: '.35rem 0' } },
             h('button', { class: app.mode === id ? 'sel' : '', 'data-mode': id, onclick: () => { app.mode = id; if (id === 'demo') app.difficulty = 'facil'; beep(700, 40); draw(); say(`${m.icon} ${m.name}: ${m.desc}`, { quiet: true, target: '#nueva' }); } }, `${m.icon} ${m.name}`),
             h('span', { class: 'small dim' }, m.desc))),
-          h('div', { class: 'small', style: { marginTop: '.5rem' } },
-            h('span', { class: 'tag' }, '🌙 Luna · pronto'), ' ', h('span', { class: 'tag' }, '🔴 Marte · pronto')),
+          h('h2', { style: { marginTop: '1rem' } }, '¿A dónde vamos?'),
+          h('div', { class: 'row' }, ...Object.values(SCENARIOS).map((sc) => {
+            const ok = PLAYABLE.includes(sc.id);
+            return h('button', { class: (app.scenario ?? 'estacion') === sc.id ? 'sel' : '', disabled: !ok, 'data-scn': sc.id,
+              onclick: () => { app.scenario = sc.id; beep(820, 40); draw(); say(`${sc.icon} ${sc.short}: ${SCN_DESC[sc.id]}`, { quiet: true, target: '#nueva' }); } },
+            `${sc.icon} ${sc.short}${ok ? '' : ' · pronto'}`);
+          })),
+          h('div', { class: 'small dim' }, SCN_DESC[app.scenario ?? 'estacion']),
           h('h2', { style: { marginTop: '1rem' } }, '2. ¿Qué tan difícil?'),
           h('div', { class: 'row' }, ...Object.values(DIFFICULTY).map((d) =>
             h('button', { class: app.difficulty === d.id ? 'sel' : '', disabled: app.mode === 'demo' && d.id !== 'facil', 'data-dif': d.id,
