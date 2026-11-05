@@ -456,7 +456,7 @@ export function render(root, app, go) {
           h('div', { class: 'job-desc small dim' }, off ? `🔒 Necesita ${MODULES[need].name}` : TASK_DESC[job]),
           job === 'eva' ? evaChecklist() : null,
           h('div', { class: 'job-crew' }, ...here(job).map((c) => h('div', { class: 'token', 'data-token': c.id, onpointerdown: (e) => startDrag(e, c.id) },
-            crewAvatar(c, { size: 46 }), h('div', { class: 'small' }, firstName(c))))));
+            crewAvatar(c, { size: 46, activity: job }), h('div', { class: 'small' }, firstName(c))))));
       })));
   }
 

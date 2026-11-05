@@ -311,3 +311,11 @@ label.pick { background: rgba(255,255,255,.08); padding: .1rem .5rem; border-rad
 .mapa .nodo.hecho circle { fill: rgba(77,255,136,.25); }
 .mapa .nodo.sel circle { stroke: var(--amber); stroke-width: 1.4; }
 .mapa .nodo.destino circle { stroke: var(--amber); animation: latido 1s infinite; }
+
+/* retratos pixel art: animaciones con el origen en su cuadrícula */
+.avatar.pixel { image-rendering: pixelated; }
+.avatar.pixel .blink { transform-origin: center; transform-box: fill-box; }
+.avatar.pixel .rad { animation: pulso 1.2s ease-in-out infinite; }
+.avatar.pixel .sparkle { animation: pulso .9s steps(2) infinite; }
+.avatar.pixel .zzz { animation-timing-function: steps(4); }
+@keyframes pulso { 50% { opacity: .15; } }

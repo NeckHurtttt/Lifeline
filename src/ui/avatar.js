@@ -1,5 +1,4 @@
 // Avatares SVG animados: uno por tripulante (según su estado) y la guía de Control de Misión.
-const SKINS = ['#f6d2b8', '#eab48f', '#c98d63', '#a8693f', '#7a4a2a', '#5a3620'];
 const HAIRS = ['#1d1a17', '#4a2e1c', '#8a5a2b', '#d9b26a', '#b8452c', '#e8e2d6', '#3b3f8f'];
 const ROLE_COLOR = { comandante: '#ffb000', piloto: '#4fc3ff', ingeniero: '#ff7a3d', medico: '#ff5c8a', cientifico: '#9b7bff', biologo: '#4ee08a' };
 
@@ -31,69 +30,128 @@ export const MOOD_TEXT = {
   feliz: 'Contento', normal: 'Bien',
 };
 
-function face(mood) {
-  // ojos y boca según el ánimo
-  const eyes = {
-    durmiendo: '<path d="M37 47 q4 3 8 0 M55 47 q4 3 8 0" stroke="#222" stroke-width="2.2" fill="none" stroke-linecap="round"/>',
-    muerto: '<path d="M37 43 l7 7 M44 43 l-7 7 M56 43 l7 7 M63 43 l-7 7" stroke="#222" stroke-width="2.4" stroke-linecap="round"/>',
-    agotado: '<path d="M36 46 h9 M55 46 h9" stroke="#222" stroke-width="2.4" stroke-linecap="round"/><circle cx="40.5" cy="49" r="2" fill="#222"/><circle cx="59.5" cy="49" r="2" fill="#222"/>',
-    feliz: '<path d="M36 48 q4.5 -6 9 0 M55 48 q4.5 -6 9 0" stroke="#222" stroke-width="2.4" fill="none" stroke-linecap="round"/>',
-  }[mood] ?? '<circle class="blink" cx="40.5" cy="46" r="3.2" fill="#222"/><circle class="blink" cx="59.5" cy="46" r="3.2" fill="#222"/>';
-  const mouth = {
-    feliz: '<path d="M41 57 q9 9 18 0" stroke="#222" stroke-width="2.4" fill="#fff" stroke-linecap="round"/>',
-    triste: '<path d="M42 61 q8 -7 16 0" stroke="#222" stroke-width="2.4" fill="none" stroke-linecap="round"/>',
-    enfermo: '<path d="M42 60 q4 -3 8 0 q4 3 8 0" stroke="#222" stroke-width="2.2" fill="none" stroke-linecap="round"/>',
-    agotado: '<ellipse cx="50" cy="59" rx="4" ry="3" fill="#222"/>',
-    hambre: '<ellipse cx="50" cy="59" rx="5" ry="4" fill="#222"/>',
-    durmiendo: '<path d="M46 59 h8" stroke="#222" stroke-width="2" stroke-linecap="round"/>',
-    muerto: '<path d="M43 60 h14" stroke="#222" stroke-width="2.4" stroke-linecap="round"/>',
-    radiacion: '<path d="M43 59 h14" stroke="#222" stroke-width="2.4" stroke-linecap="round"/>',
-  }[mood] ?? '<path d="M43 57 q7 5 14 0" stroke="#222" stroke-width="2.4" fill="none" stroke-linecap="round"/>';
-  return eyes + mouth;
+// ---------- Retratos en pixel art (cuadrícula de 20 × 22) ----------
+const INK = '#14161c';
+// Tonos de piel con contraste suficiente para los ojos bajo el filtro verde.
+const PIXEL_SKINS = ['#f6d2b8', '#eab48f', '#c98d63', '#b0764a', '#94603a', '#7d5232'];
+const HAIR_STYLES = ['corto', 'moño', 'afro', 'coleta', 'rulos', 'rapado', 'largo', 'calvo'];
+// Emblema del rol en el parche del pecho (3 × 3 píxeles).
+const EMBLEM = {
+  comandante: [[1, 0], [0, 1], [1, 1], [2, 1], [0, 2], [2, 2]],
+  piloto: [[1, 0], [0, 1], [2, 1], [0, 2], [2, 2]],
+  ingeniero: [[0, 0], [2, 0], [1, 1], [1, 2]],
+  medico: [[1, 0], [0, 1], [1, 1], [2, 1], [1, 2]],
+  cientifico: [[1, 0], [1, 1], [0, 2], [1, 2], [2, 2]],
+  biologo: [[2, 0], [1, 1], [2, 1], [0, 2]],
+};
+
+function pixelEyes(mood, r) {
+  switch (mood) {
+    case 'durmiendo': r(7, 10, 2, 1, INK); r(11, 10, 2, 1, INK); break;
+    case 'muerto': for (const x of [7, 11]) { r(x, 9, 1, 1, INK); r(x + 2, 9, 1, 1, INK); r(x + 1, 10, 1, 1, INK); r(x, 11, 1, 1, INK); r(x + 2, 11, 1, 1, INK); } break;
+    case 'feliz': for (const x of [7, 11]) { r(x, 10, 1, 1, INK); r(x + 1, 9, 1, 1, INK); r(x + 2, 10, 1, 1, INK); } break;
+    case 'agotado': r(7, 9, 2, 1, INK); r(11, 9, 2, 1, INK); r(8, 10, 1, 1, INK); r(11, 10, 1, 1, INK); break;
+    default: return `<g class="blink">${['<rect x="8" y="9" width="1" height="2"', '<rect x="11" y="9" width="1" height="2"'].map((t) => `${t} fill="${INK}"/>`).join('')}</g>`;
+  }
+  return '';
 }
 
-function extras(mood) {
+function pixelMouth(mood, r) {
   switch (mood) {
-    case 'durmiendo': return '<g class="zzz" font-family="sans-serif" font-weight="bold" fill="#bfe8ff"><text x="70" y="22" font-size="11">z</text><text x="77" y="13" font-size="14">Z</text></g>';
-    case 'agotado': return '<path class="sweat" d="M68 36 q4 7 0 10 q-4 -3 0 -10z" fill="#7fd0ff"/>';
-    case 'hambre': return '<g class="thought"><circle cx="76" cy="22" r="9" fill="#fff" opacity=".9"/><circle cx="76" cy="23.5" r="4" fill="#d94b3b"/><path d="M76 19.5 q1 -2 3 -2" stroke="#3b7a2a" stroke-width="1.4" fill="none"/></g>';
-    case 'triste': return '<path class="tear" d="M38 52 q2 5 0 7 q-2 -2 0 -7z" fill="#7fd0ff"/>';
-    case 'enfermo': return '<circle cx="34" cy="54" r="3.5" fill="#9fd36b" opacity=".7"/><circle cx="66" cy="54" r="3.5" fill="#9fd36b" opacity=".7"/>';
-    case 'radiacion': return '<g class="rad"><circle cx="50" cy="48" r="34" fill="none" stroke="#c6ff3d" stroke-width="2" stroke-dasharray="4 5"/></g>';
-    case 'feliz': return '<g class="sparkle" fill="#ffe66b"><path d="M78 20 l2 5 5 2 -5 2 -2 5 -2 -5 -5 -2 5 -2z"/></g>';
+    case 'feliz': r(8, 12, 1, 1, INK); r(11, 12, 1, 1, INK); r(9, 13, 2, 1, INK); break;
+    case 'triste': r(9, 12, 2, 1, INK); r(8, 13, 1, 1, INK); r(11, 13, 1, 1, INK); break;
+    case 'enfermo': r(8, 13, 1, 1, INK); r(9, 12, 1, 1, INK); r(10, 13, 1, 1, INK); r(11, 12, 1, 1, INK); break;
+    case 'agotado': case 'hambre': r(9, 12, 2, 2, INK); break;
+    case 'durmiendo': r(9, 13, 2, 1, INK); break;
+    case 'muerto': case 'radiacion': r(8, 12, 4, 1, INK); break;
+    default: r(9, 12, 2, 1, INK);
+  }
+}
+
+function pixelExtras(mood) {
+  const px = (pts, fill, cls = '') => `<g class="${cls}" fill="${fill}">${pts.map(([x, y, w = 1, h = 1]) => `<rect x="${x}" y="${y}" width="${w}" height="${h}"/>`).join('')}</g>`;
+  switch (mood) {
+    case 'durmiendo': return px([[16, 2, 3], [17, 3], [16, 4, 3], [19, -2, 2], [20, -1], [19, 0, 2]], '#bfe8ff', 'zzz');
+    case 'agotado': return px([[15, 5, 1, 2], [14, 6]], '#7fd0ff', 'sweat');
+    case 'hambre': return px([[16, -2, 4, 4], [15, -1, 6, 2], [14, 3], [13, 4]], '#ffffff', 'thought') + px([[17, -1, 2, 2]], '#d94b3b') + px([[18, -2]], '#3b7a2a');
+    case 'triste': return px([[8, 11, 1, 2]], '#7fd0ff', 'tear');
+    case 'enfermo': return px([[7, 11], [12, 11]], '#9fd36b');
+    case 'radiacion': return px([[2, 1, 2], [7, 1, 2], [12, 1, 2], [17, 1, 1], [1, 4, 1, 2], [18, 4, 1, 2], [1, 9, 1, 2], [18, 9, 1, 2], [2, 15, 2], [16, 15, 2]], '#c6ff3d', 'rad');
+    case 'feliz': return px([[17, 1, 1, 3], [16, 2, 3, 1]], '#ffe66b', 'sparkle');
     default: return '';
   }
 }
 
-/** SVG de un tripulante. Cada uno se ve distinto (depende de su nombre). */
+/** Retrato pixel art de un tripulante. Cada uno se ve distinto (depende de su nombre). */
 export function crewAvatar(c, { size = 84, activity = null } = {}) {
   const k = hash(c.name ?? c.id);
-  const skin = SKINS[k % SKINS.length];
+  const skin = PIXEL_SKINS[(k >>> 6) % PIXEL_SKINS.length];
   const hair = HAIRS[(k >>> 3) % HAIRS.length];
-  const longHair = ((k >>> 7) & 1) === 1;
+  const style = HAIR_STYLES[k % HAIR_STYLES.length];
+  const beard = ((k >>> 9) & 3) === 0;
+  const glasses = ((k >>> 11) & 3) === 0;
+  const freckles = ((k >>> 13) % 5) === 0;
+  const headset = ((k >>> 15) % 6) === 0;
+  const traits = new Set(c.traits ?? []);
   const suit = ROLE_COLOR[c.role] ?? '#9aa';
   const mood = moodOf(c, activity);
-  const sickTint = mood === 'enfermo' ? '<circle cx="50" cy="48" r="18" fill="#9fd36b" opacity=".18"/>' : '';
-  const hairPath = longHair
-    ? `<path d="M31 47 q-2 -20 19 -21 q21 1 19 21 l0 12 q-4 -3 -4 -14 q-15 -6 -30 0 q0 11 -4 14z" fill="${hair}"/>`
-    : `<path d="M32 44 q0 -18 18 -18 q18 0 18 18 q-6 -8 -18 -8 q-12 0 -18 8z" fill="${hair}"/>`;
+  const eva = activity === 'eva';
+  const back = []; const o = [];
+  const R = (arr) => (x, y, w, h, fill) => arr.push(`<rect x="${x}" y="${y}" width="${w}" height="${h}" fill="${fill}"/>`);
+  const b = R(back); const r = R(o);
+
+  // Pelo de atrás
+  if (style === 'afro') { b(4, 1, 12, 3, hair); b(3, 3, 14, 9, hair); b(4, 12, 12, 1, hair); }
+  if (style === 'largo') { b(4, 5, 2, 10, hair); b(14, 5, 2, 10, hair); }
+  if (style === 'coleta') { b(15, 5, 2, 2, hair); b(16, 7, 2, 5, hair); b(17, 12, 1, 1, hair); }
+  if (style === 'moño') { b(8, 0, 4, 3, hair); b(7, 1, 6, 1, hair); }
+
+  // Traje, cuello y parche con el emblema del rol
+  r(4, 16, 12, 6, '#e9eef5'); r(3, 17, 14, 5, '#e9eef5'); r(3, 18, 14, 1, suit);
+  r(8, 15, 4, 1, skin); r(7, 16, 6, 1, '#9aa6b5');
+  r(11, 19, 3, 3, '#24324a');
+  for (const [x, y] of EMBLEM[c.role] ?? []) r(11 + x, 19 + y, 1, 1, suit);
+  if (traits.has('gloton')) { r(4, 19, 2, 2, '#c98d4a'); r(4, 19, 1, 1, '#5a3620'); }
+
+  // Cara
+  r(6, 5, 8, 9, skin); r(5, 8, 1, 3, skin); r(14, 8, 1, 3, skin); r(7, 14, 6, 1, skin);
+  if (freckles) { r(7, 11, 1, 1, '#a8693f'); r(12, 11, 1, 1, '#a8693f'); }
+
+  // Pelo de adelante
+  const front = {
+    corto: () => { r(6, 3, 8, 2, hair); r(5, 4, 1, 4, hair); r(14, 4, 1, 4, hair); r(6, 5, 2, 1, hair); },
+    moño: () => { r(6, 3, 8, 2, hair); r(5, 4, 1, 4, hair); r(14, 4, 1, 4, hair); r(10, 5, 4, 1, hair); },
+    afro: () => { r(6, 4, 8, 1, hair); },
+    coleta: () => { r(6, 3, 8, 2, hair); r(5, 4, 1, 3, hair); r(14, 4, 1, 3, hair); r(6, 5, 4, 1, hair); },
+    rulos: () => { r(5, 3, 10, 2, hair); r(4, 4, 1, 5, hair); r(15, 4, 1, 5, hair); r(5, 2, 2, 1, hair); r(8, 2, 2, 1, hair); r(11, 2, 2, 1, hair); r(6, 5, 1, 1, hair); r(9, 5, 1, 1, hair); r(12, 5, 1, 1, hair); },
+    rapado: () => { o.push(`<rect x="6" y="4" width="8" height="1" fill="${hair}" opacity=".55"/>`); },
+    largo: () => { r(6, 3, 8, 2, hair); r(5, 4, 1, 6, hair); r(14, 4, 1, 6, hair); r(6, 5, 3, 1, hair); r(11, 5, 3, 1, hair); },
+    calvo: () => { r(5, 7, 1, 2, hair); r(14, 7, 1, 2, hair); },
+  };
+  front[style]();
+  if (traits.has('atleta')) r(6, 6, 8, 1, '#d94b3b');
+  if (beard) { r(6, 12, 8, 2, hair); r(7, 14, 6, 1, hair); r(5, 10, 1, 2, hair); r(14, 10, 1, 2, hair); r(8, 11, 4, 1, hair); }
+
+  // Gafas, ojeras, ojos, boca
+  if (glasses) { r(7, 8, 3, 3, '#cfd8e3'); r(10, 8, 3, 3, '#cfd8e3'); r(6, 9, 1, 1, '#cfd8e3'); r(13, 9, 1, 1, '#cfd8e3'); }
+  if (traits.has('insomne') && !['durmiendo', 'muerto'].includes(mood)) { r(8, 11, 1, 1, '#6b4a7a'); r(11, 11, 1, 1, '#6b4a7a'); }
+  const eyes = pixelEyes(mood, r);
+  pixelMouth(mood, r);
+  if (mood === 'enfermo') o.push(`<rect x="6" y="5" width="8" height="9" fill="#9fd36b" opacity=".18"/>`);
+
+  // Auriculares de comunicaciones
+  if (headset && !eva) { r(5, 2, 10, 1, '#cfd8e3'); r(4, 3, 1, 4, '#cfd8e3'); r(15, 3, 1, 4, '#cfd8e3'); r(3, 7, 2, 4, '#5b6b80'); r(15, 7, 2, 4, '#5b6b80'); r(5, 11, 1, 1, '#5b6b80'); r(6, 12, 2, 1, '#5b6b80'); }
+
+  // Casco solo en la EVA
+  const helmet = eva ? `<g>
+    <rect x="3" y="1" width="14" height="15" fill="#7fd0ff" opacity=".14"/>
+    ${[[6, 0, 8, 1], [4, 1, 2, 1], [14, 1, 2, 1], [3, 2, 1, 2], [16, 2, 1, 2], [2, 4, 1, 9], [17, 4, 1, 9], [3, 13, 1, 2], [16, 13, 1, 2], [4, 15, 12, 1]]
+      .map(([x, y, w, h]) => `<rect x="${x}" y="${y}" width="${w}" height="${h}" fill="#e9eef5"/>`).join('')}
+    <rect x="5" y="3" width="1" height="2" fill="#fff" opacity=".8"/><rect x="6" y="2" width="2" height="1" fill="#fff" opacity=".8"/></g>` : '';
+
   const svg = `
-<svg viewBox="0 0 100 110" width="${size}" height="${size * 1.1}" class="avatar mood-${mood}" role="img" aria-label="${c.name}: ${MOOD_TEXT[mood]}">
-  <g class="body">
-    <rect x="26" y="70" width="48" height="34" rx="14" fill="#e9eef5" stroke="#9aa6b5" stroke-width="2"/>
-    <rect x="26" y="78" width="48" height="7" fill="${suit}"/>
-    <rect x="43" y="88" width="14" height="9" rx="2" fill="#5b6b80"/>
-    <circle cx="47" cy="92.5" r="1.6" fill="#7dff9e"/><circle cx="53" cy="92.5" r="1.6" fill="${mood === 'enfermo' || mood === 'radiacion' ? '#ff4d4d' : '#ffd23d'}"/>
-    <circle cx="50" cy="48" r="30" fill="#e9eef5" stroke="#9aa6b5" stroke-width="2.5"/>
-    <circle cx="50" cy="48" r="24" fill="#16243a"/>
-    <circle cx="50" cy="50" r="18" fill="${skin}"/>
-    ${hairPath}
-    ${sickTint}
-    ${face(mood)}
-    <path d="M36 32 q8 -6 16 -4" stroke="#fff" stroke-width="3" opacity=".5" fill="none" stroke-linecap="round"/>
-    <rect x="44" y="16" width="12" height="5" rx="2" fill="${suit}"/>
-    ${extras(mood)}
-  </g>
+<svg viewBox="-1 -3 22 25" width="${size}" height="${size * 1.1}" class="avatar pixel mood-${mood}" shape-rendering="crispEdges" role="img" aria-label="${c.name}: ${MOOD_TEXT[mood]}">
+  <g class="body">${back.join('')}${o.join('')}${eyes}${helmet}${pixelExtras(mood)}</g>
 </svg>`;
   const wrap = document.createElement('div');
   wrap.className = `avatar-wrap mood-${mood}`;
