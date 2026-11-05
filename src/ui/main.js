@@ -7,7 +7,8 @@ import * as reentry from './screens/reentry.js';
 import * as report from './screens/report.js';
 import * as arbol from './screens/arbol.js';
 import { setMuted, isMuted, beep } from './audio.js';
-import { hideGuide } from './guide.js';
+import { hideGuide, relang } from './guide.js';
+import { tr, getLang, setLang, retranslate } from '../i18n/i18n.js';
 
 export const PLAYER_ROLES = {
   comandante: 'Comandante',
@@ -67,13 +68,25 @@ export function go(name, params = {}) {
 export function updateBar() {
   const info = document.getElementById('barra-info');
   const p = app.players.map((x) => `${x.name}: ${x.roles.map((r) => PLAYER_ROLES[r]).join('+')}`).join(' · ');
-  info.textContent = `${app.mode.toUpperCase()} · ${app.difficulty} · ${p}`;
+  info.textContent = tr(`${app.mode.toUpperCase()} · ${app.difficulty} · ${p}`);
 }
 
 const mute = document.getElementById('silencio');
+const muteLabel = () => { mute.textContent = tr(isMuted() ? 'SONIDO: NO' : 'SONIDO: SÍ'); mute.title = tr('Silenciar sonido'); };
+const langBtn = document.getElementById('idioma');
+const langLabel = () => { langBtn.textContent = getLang() === 'en' ? 'EN → ES' : 'ES → EN'; document.title = tr('Ventana de Lanzamiento'); document.querySelector('.logo').textContent = tr('◢ VENTANA DE LANZAMIENTO'); };
+setLang(getLang());
+langBtn.addEventListener('click', () => {
+  setLang(getLang() === 'en' ? 'es' : 'en');
+  retranslate();
+  relang();
+  updateBar(); muteLabel(); langLabel();
+  beep(760, 40);
+});
+langLabel(); muteLabel();
 mute.addEventListener('click', () => {
   setMuted(!isMuted());
-  mute.textContent = isMuted() ? 'SONIDO: NO' : 'SONIDO: SÍ';
+  muteLabel();
   if (!isMuted()) beep(880, 60);
 });
 

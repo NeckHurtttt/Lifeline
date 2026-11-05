@@ -1,4 +1,5 @@
 // Guía animada de Control de Misión: habla, cambia de cara y señala con una flecha qué tocar.
+import { tr } from '../i18n/i18n.js';
 import { guideSvg } from './avatar.js';
 import { plain } from './dom.js';
 
@@ -66,7 +67,9 @@ function point(target) {
  * @param {{mood?:'normal'|'feliz'|'alerta'|'pensando', target?:string|Element|null, buttons?:{label:string,onclick:Function}[], quiet?:boolean}} opts
  */
 export function say(text, { mood = 'normal', target = null, buttons = [], quiet = false } = {}) {
-  text = natural(text);
+  current.es = text;
+  current.opts = { mood, target, buttons, quiet };
+  text = natural(tr(text));
   ensure();
   const same = current.text === text;
   current.text = text;
@@ -75,7 +78,7 @@ export function say(text, { mood = 'normal', target = null, buttons = [], quiet 
   const btns = box.querySelector('.g-btns');
   btns.replaceChildren(...buttons.map((b) => {
     const el = document.createElement('button');
-    el.textContent = b.label;
+    el.textContent = plain(tr(b.label));
     el.addEventListener('click', b.onclick);
     return el;
   }));
@@ -101,4 +104,12 @@ export function hideGuide() {
   document.querySelectorAll('.senalado').forEach((e) => e.classList.remove('senalado'));
   arrow.style.display = 'none';
   clearInterval(follow);
+}
+
+/** Repite lo último que dijo Nova en el idioma actual (al cambiar ES/EN). */
+export function relang() {
+  if (!current.es) return;
+  const { es, opts } = current;
+  current.text = '';
+  say(es, { ...opts, quiet: true });
 }

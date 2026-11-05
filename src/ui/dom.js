@@ -1,4 +1,5 @@
 // Ayudas mínimas de DOM.
+import { tr } from '../i18n/i18n.js';
 
 // Estilo de consola: sin emojis. Algunos símbolos pasan a marcas de terminal; el resto se quita.
 const MARKS = [[/✅|✔️?|☑️?/gu, '✓'], [/❌|✖️?|⛔|🚫/gu, '×'], [/▶️?|⏩|⏭️?/gu, '>'], [/⚠️?|❗|‼️?/gu, '!'], [/⭐|🌟/gu, '*'], [/❔|❓/gu, '?'], [/🔒/gu, '[bloq.]'], [/🔓/gu, ''], [/➜|👉/gu, '→']];
@@ -18,11 +19,15 @@ export function h(tag, attrs = {}, ...kids) {
     else if (k === 'style' && typeof v === 'object') Object.assign(el.style, v);
     else if (k === 'value') el.value = v;
     else if (v === true) el.setAttribute(k, '');
-    else el.setAttribute(k, k === 'title' ? plain(v) : v);
+    else if (k === 'title') { el.__esTitle = String(v); el.__fmt = plain; el.setAttribute(k, plain(tr(String(v)))); }
+    else el.setAttribute(k, v);
   }
   for (const kid of kids.flat(Infinity)) {
     if (kid === null || kid === undefined || kid === false) continue;
-    el.append(kid instanceof Node ? kid : document.createTextNode(plain(kid)));
+    if (kid instanceof Node) { el.append(kid); continue; }
+    const node = document.createTextNode(plain(tr(String(kid))));
+    node.__es = String(kid); node.__fmt = plain;
+    el.append(node);
   }
   return el;
 }
