@@ -58,7 +58,7 @@ function play(scn, dif, seed, careful) {
   return { ok: s.phase === 'reentry', day: s.day, survivors: rep.survivors, science: rep.science, reason: s.outcome?.reason ?? '' };
 }
 
-for (const scn of Object.keys(DESIGNS)) {
+for (const scn of Object.keys(DESIGNS).filter((x) => !process.argv[3] || x === process.argv[3])) {
   for (const dif of ['facil', 'medio', 'dificil']) {
     for (const careful of [true, false]) {
       const res = Array.from({ length: N }, (_, i) => play(scn, dif, 1000 + i, careful));
