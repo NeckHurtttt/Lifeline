@@ -182,3 +182,4 @@ button.big::before { content: "[ "; } button.big::after { content: " ]"; }
 .mapa .nodo text { fill: var(--fg); font-family: var(--font); font-size: 6px; }
 .medal { font-size: 1.6rem; letter-spacing: .15em; border: 1px solid var(--fg); display: inline-block; padding: .1rem .8rem; margin: .4rem 0; }
 .job-head .ico:empty { display: none; }
+#tablero .tab::before { content: none; }

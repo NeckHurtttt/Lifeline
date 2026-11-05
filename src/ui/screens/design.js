@@ -211,7 +211,7 @@ export function render(root, app, go, params = {}) {
     };
     const row = (label, frac, text, lesson, opts) => h('div', { class: 'res' },
       h('span', {}, label), bar(frac, opts),
-      h('span', { class: 'small' }, text, ' ', lesson ? h('button', { class: 'small', style: { padding: '0 .4rem' }, title: 'Explicar', onclick: () => lessonCard(lesson) }, '🌍') : null));
+      h('span', { class: 'small' }, text, ' ', lesson ? h('button', { class: 'small', style: { padding: '0 .4rem' }, title: 'Qué es y para qué sirve en la Tierra', onclick: () => lessonCard(lesson) }, '?') : null));
 
     const instrSlots = d.modules.filter((m) => m.type === 'laboratorio').length * 3;
     mount(root,
@@ -224,10 +224,10 @@ export function render(root, app, go, params = {}) {
       h('div', { class: 'design-layout' },
         h('div', {},
           tabs([
-            { id: 'nave', label: '🧩 1. Nave', color: 'c-blue', badge: r.errors.some((e) => /módulo|energía|casilla|cuadrícula/i.test(e)) ? '!' : 0 },
-            { id: 'ciencia', label: '🔬 2. Ciencia', color: 'c-green', badge: r.errors.some((e) => /instrumentos/i.test(e)) ? '!' : 0 },
-            { id: 'cohete', label: '🚀 3. Cohete y órbita', color: 'c-pink', badge: r.errors.some((e) => /pesa/i.test(e)) ? '!' : 0 },
-            { id: 'astronautas', label: '🧑‍🚀 4. Astronautas y comida', color: 'c-cyan', badge: r.errors.some((e) => /tripulantes|Carga/i.test(e)) ? '!' : 0 },
+            { id: 'nave', label: 'Nave', color: 'c-blue', badge: r.errors.some((e) => /módulo|energía|casilla|cuadrícula/i.test(e)) ? '!' : 0 },
+            { id: 'ciencia', label: 'Ciencia', color: 'c-green', badge: r.errors.some((e) => /instrumentos/i.test(e)) ? '!' : 0 },
+            { id: 'cohete', label: 'Cohete y destino', color: 'c-pink', badge: r.errors.some((e) => /pesa/i.test(e)) ? '!' : 0 },
+            { id: 'astronautas', label: 'Astronautas y comida', color: 'c-cyan', badge: r.errors.some((e) => /tripulantes|Carga/i.test(e)) ? '!' : 0 },
           ], tab, (t) => { tab = t; app.designTab = t; explain = null; beep(760, 30); draw(); }),
           tab === 'nave' ? h('div', { class: 'grid2 nave-tab' },
           h('div', { class: 'panel c-violet' },
