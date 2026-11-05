@@ -102,33 +102,67 @@ export function crewAvatar(c, { size = 84, activity = null } = {}) {
   return wrap;
 }
 
-/** SVG de la guía (Control de Misión). mood: 'normal'|'feliz'|'alerta'|'pensando' */
+/** SVG de la guía Nova: dibujo animado retro de los años 50 (contornos gruesos, colores planos), personaje propio.
+ *  mood: 'normal'|'feliz'|'alerta'|'pensando' */
 export function guideSvg(mood = 'normal') {
-  const mouth = mood === 'alerta' ? '<ellipse class="mouth" cx="50" cy="60" rx="5" ry="5" fill="#2a1010"/>'
-    : mood === 'feliz' ? '<path class="mouth" d="M40 56 q10 12 20 0z" fill="#2a1010"/>'
-      : '<path class="mouth" d="M42 57 q8 6 16 0" stroke="#2a1010" stroke-width="2.6" fill="none" stroke-linecap="round"/>';
-  const brows = mood === 'alerta' ? '<path d="M35 38 l10 4 M65 38 l-10 4" stroke="#3a2416" stroke-width="2.6" stroke-linecap="round"/>'
-    : mood === 'pensando' ? '<path d="M35 40 q5 -4 10 0 M55 37 q5 -2 10 1" stroke="#3a2416" stroke-width="2.4" fill="none" stroke-linecap="round"/>' : '';
+  const K = '#151515';
+  const ln = `stroke="${K}" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"`;
+  const eyes = {
+    feliz: `<path d="M38 50 q4 -5 8 0" fill="none" ${ln}/><path d="M54 50 q4 -4 8 0" fill="none" ${ln}/><path d="M53 45 l9 -2" ${ln}/>`,
+    alerta: `<ellipse cx="42" cy="49" rx="3.6" ry="4.6" fill="#fff" ${ln}/><ellipse cx="58" cy="49" rx="3.6" ry="4.6" fill="#fff" ${ln}/>
+      <circle cx="42" cy="50" r="1.6" fill="${K}"/><circle cx="58" cy="50" r="1.6" fill="${K}"/>`,
+    pensando: `<ellipse cx="42" cy="49" rx="2.6" ry="3.4" fill="${K}"/><ellipse cx="58" cy="49" rx="2.6" ry="3.4" fill="${K}"/>
+      <circle cx="43" cy="47" r=".9" fill="#fff"/><circle cx="59" cy="47" r=".9" fill="#fff"/>`,
+  }[mood] ?? `<g class="g-eyes"><ellipse cx="42" cy="49" rx="2.6" ry="3.6" fill="${K}"/><ellipse cx="58" cy="49" rx="2.6" ry="3.6" fill="${K}"/>
+      <circle cx="42.8" cy="47.6" r=".9" fill="#fff"/><circle cx="58.8" cy="47.6" r=".9" fill="#fff"/></g>`;
+  const brows = mood === 'alerta' ? `<path d="M37 41 q5 -4 10 -1 M53 40 q5 -3 10 1" fill="none" ${ln}/>`
+    : mood === 'pensando' ? `<path d="M37 43 q5 -2 10 0 M53 40 q5 -3 10 0" fill="none" ${ln}/>`
+      : `<path d="M37 43 q5 -3 10 -1 M53 42 q5 -2 10 1" fill="none" ${ln}/>`;
+  const mouth = mood === 'alerta' ? `<ellipse class="mouth" cx="50" cy="61" rx="4" ry="5" fill="#7a1f1f" ${ln}/>`
+    : mood === 'feliz' ? `<path class="mouth" d="M38 56 q12 14 24 0 z" fill="#fff" ${ln}/><path d="M39.5 58 h21" ${ln} stroke-width="1.4"/>`
+      : mood === 'pensando' ? `<path class="mouth" d="M44 61 q5 -2 10 1" fill="none" ${ln}/>`
+        : `<path class="mouth" d="M39 57 q11 10 22 0" fill="none" ${ln}/><path d="M37.5 56 l2 2 M62.5 56 l-2 2" ${ln} stroke-width="1.6"/>`;
+  const sweat = mood === 'alerta' ? `<path d="M68 38 q4 6 0 9 q-4 -3 0 -9z" fill="#9fe3ff" ${ln} stroke-width="1.4"/>` : '';
+  const thought = mood === 'pensando' ? `<circle cx="82" cy="22" r="2" fill="#fff" ${ln} stroke-width="1.2"/><circle cx="88" cy="14" r="3.2" fill="#fff" ${ln} stroke-width="1.2"/>` : '';
+  // Brazo: pulgar arriba (normal/feliz), dedo arriba (alerta), mano al mentón (pensando).
+  const arm = mood === 'pensando'
+    ? `<path d="M74 104 q12 -4 4 -20 l-12 -8" fill="none" stroke="${K}" stroke-width="11" stroke-linecap="round"/>
+       <path d="M74 104 q12 -4 4 -20 l-12 -8" fill="none" stroke="#f3e7c9" stroke-width="7" stroke-linecap="round"/>
+       <circle cx="63" cy="73" r="6" fill="#f4c99b" ${ln}/>`
+    : `<path d="M74 102 q14 -4 16 -22" fill="none" stroke="${K}" stroke-width="11" stroke-linecap="round"/>
+       <path d="M74 102 q14 -4 16 -22" fill="none" stroke="#f3e7c9" stroke-width="7" stroke-linecap="round"/>
+       <rect x="82" y="71" width="15" height="13" rx="4.5" fill="#f4c99b" ${ln}/>
+       <path d="M85 75.5 h8 M85 79.5 h8" ${ln} stroke-width="1.2"/>
+       <rect x="${mood === 'alerta' ? 84 : 91.5}" y="59" width="5.4" height="14" rx="2.7" fill="#f4c99b" ${ln}/>`;
   return `
-<svg viewBox="0 0 100 120" class="guide-svg mood-${mood}" role="img" aria-label="Guía de Control de Misión">
+<svg viewBox="0 0 100 120" class="guide-svg mood-${mood}" role="img" aria-label="Nova, guía de Control de Misión">
   <g class="g-body">
-    <path d="M22 118 q0 -30 28 -32 q28 2 28 32z" fill="#2c6fd6"/>
-    <path d="M42 86 l8 10 8 -10" fill="#fff"/>
-    <rect x="46" y="96" width="8" height="12" rx="2" fill="#ffb000"/>
+    <path d="M20 119 q0 -26 30 -29 q30 3 30 29z" fill="#f3e7c9" ${ln}/>
+    <path d="M36 92 q14 8 28 0" fill="none" ${ln}/>
+    <path d="M50 96 v23" ${ln} stroke-width="1.6"/>
+    <circle cx="38" cy="106" r="6" fill="#d94b3b" ${ln} stroke-width="1.8"/>
+    <path d="M38 101.5 l1.3 3 3.2 .3 -2.4 2.1 .7 3.1 -2.8 -1.6 -2.8 1.6 .7 -3.1 -2.4 -2.1 3.2 -.3z" fill="#f3e7c9"/>
+    <ellipse cx="38" cy="106" rx="9" ry="3" fill="none" stroke="#f3e7c9" stroke-width="1" transform="rotate(-25 38 106)"/>
+    <rect x="58" y="102" width="12" height="6" rx="1.5" fill="#d94b3b" ${ln} stroke-width="1.6"/>
+    <rect x="33" y="84" width="34" height="8" rx="4" fill="#bdb6a2" ${ln}/>
     <g class="g-head">
-      <path d="M26 46 q-2 -30 24 -32 q26 2 24 32 q2 18 -6 26 l-36 0 q-8 -8 -6 -26z" fill="#2a1a12"/>
-      <circle cx="50" cy="50" r="21" fill="#e6b08a"/>
-      <path d="M29 44 q4 -20 21 -20 q17 0 21 20 q-10 -10 -21 -10 q-11 0 -21 10z" fill="#2a1a12"/>
+      <path d="M50 8 v8" ${ln}/><circle cx="50" cy="6" r="3.2" fill="#d94b3b" ${ln} stroke-width="1.8"/>
+      <circle cx="50" cy="50" r="33" fill="rgba(190,235,255,.18)" ${ln}/>
+      <path d="M30 30 q8 -10 20 -11" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round" opacity=".8"/>
+      <path d="M28 52 q-2 -26 22 -28 q24 2 22 28 q0 10 -4 14 q-1 -12 -6 -16 q-12 -8 -24 0 q-5 4 -6 16 q-4 -4 -4 -14z" fill="#3b2a1a" ${ln}/>
+      <path d="M33 54 q-1 -16 17 -18 q18 2 17 18 q0 15 -17 17 q-17 -2 -17 -17z" fill="#f4c99b" ${ln}/>
+      <path d="M33 47 q4 -14 17 -14 q10 0 15 6 q-6 -1 -10 3 q-2 -6 -8 -3 q-6 3 -14 8z" fill="#3b2a1a" ${ln}/>
+      <path d="M49 33 q-5 -6 1 -9 q5 -1 4 4" fill="none" ${ln}/>
       ${brows}
-      <g class="g-eyes"><circle cx="42" cy="48" r="3.4" fill="#1b1b1b"/><circle cx="58" cy="48" r="3.4" fill="#1b1b1b"/>
-      <circle cx="43" cy="47" r="1" fill="#fff"/><circle cx="59" cy="47" r="1" fill="#fff"/></g>
-      <circle cx="36" cy="55" r="3" fill="#ff8a8a" opacity=".45"/><circle cx="64" cy="55" r="3" fill="#ff8a8a" opacity=".45"/>
+      ${eyes}
+      <circle cx="36.5" cy="56" r="3" fill="#ff8f7a" opacity=".55"/><circle cx="63.5" cy="56" r="3" fill="#ff8f7a" opacity=".55"/>
+      <g fill="#a0623a"><circle cx="38" cy="54" r=".7"/><circle cx="40" cy="56" r=".7"/><circle cx="62" cy="54" r=".7"/><circle cx="60" cy="56" r=".7"/></g>
+      <path d="M49 52 q2 3 0 4" fill="none" ${ln} stroke-width="1.6"/>
       ${mouth}
-      <path d="M26 50 q0 -30 24 -30 q24 0 24 30" stroke="#333" stroke-width="3.5" fill="none"/>
-      <rect x="20" y="44" width="9" height="14" rx="4" fill="#333"/><rect x="71" y="44" width="9" height="14" rx="4" fill="#333"/>
-      <path d="M25 56 q2 12 16 10" stroke="#333" stroke-width="2.4" fill="none"/><circle cx="42" cy="66" r="2.6" fill="#ff4d4d"/>
+      ${sweat}
     </g>
-    <g class="g-arm"><path d="M76 100 q14 -6 16 -22" stroke="#2c6fd6" stroke-width="9" fill="none" stroke-linecap="round"/><circle cx="92" cy="76" r="5.5" fill="#e6b08a"/></g>
+    ${thought}
+    <g class="g-arm">${arm}</g>
   </g>
 </svg>`;
 }
