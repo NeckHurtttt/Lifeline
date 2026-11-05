@@ -119,3 +119,5 @@ button.big { background: var(--panel) !important; border: 2px solid var(--fg) !i
   box-shadow: 0 0 16px rgba(77, 255, 136, .45) !important; letter-spacing: .15em; }
 button.big:hover:not(:disabled) { background: var(--fg) !important; color: #021006 !important; }
 ::selection { background: var(--fg); color: #021006; text-shadow: none; }
+.job, .turno-chip, .token { border-radius: 2px; }
+.job.over { background: rgba(77, 255, 136, .12); }

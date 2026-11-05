@@ -19,6 +19,12 @@ import { crewAvatar, moodOf, MOOD_TEXT } from '../avatar.js';
 const TASK_IDS = Object.keys(TASKS).filter((t) => t !== 'trabajo');
 const TASK_ICON = { mantenimiento: '🧹', reparacion: '🔧', experimentos: '🔬', cultivo: '🌱', produccion: '💧', medico: '🩺', ejercicio: '🏃', descanso: '🛋️', sueño: '😴', comunicacion: '📞', eva: '👨‍🚀', refugio: '🛡️' };
 const TURNS = ['🌅 Mañana', '☀️ Tarde', '🌙 Noche'];
+const TASK_DESC = {
+  mantenimiento: 'Cuida los módulos para que no se rompan.', reparacion: 'Arregla módulos dañados.', experimentos: 'Hace ciencia en el laboratorio.',
+  cultivo: 'Cuida el invernadero: da comida.', produccion: 'Fabrica agua.', medico: 'Cura a los enfermos.', ejercicio: 'Mantiene fuertes los huesos.',
+  descanso: 'Quita el cansancio y sube el ánimo.', sueño: 'Dormir: ¡obligatorio una vez al día!', comunicacion: 'Manda los datos a la Tierra y habla con la familia.',
+  eva: 'Sale afuera a arreglar paneles y antena.', refugio: 'Se esconde de la radiación.',
+};
 const RATIONS = { completa: '🍽️ Completa', media: '🥣 Media', nada: '🚫 Nada' };
 const RAD_LIMIT = 600;
 const RES = [
@@ -62,6 +68,7 @@ function chips(effects) {
 export function render(root, app, go) {
   let banner = null;
   let tab = app.opsTab ?? 'resumen';
+  let shift = app.opsShift ?? 0;
   const pick = (t) => { tab = t; app.opsTab = t; beep(760, 30); draw(); window.scrollTo({ top: 0, behavior: 'smooth' }); };
   const living = () => app.state.crew.filter((c) => c.alive);
   const commit = (state) => { app.state = state; save(state); };
@@ -173,9 +180,59 @@ export function render(root, app, go) {
       s.design.instruments.length ? h('div', { class: 'small', style: { marginTop: '.4rem' } }, '🔬 ', s.design.instruments.map((i) => `${INSTRUMENTS[i].icon} ${INSTRUMENTS[i].name}`).join(' · ')) : null);
   }
 
+  const shown = (t) => (t === 'trabajo' ? 'experimentos' : t);
+  const hasModule = (type) => app.state.modules.some((m) => m.type === type);
+  const setTurn = (id, turn, val) => { const st = structuredClone(app.state); st.schedule[id][turn] = val; commit(st); beep(880, 40); draw(); };
+
+  /** Arrastre con puntero (mouse y pantalla táctil): se suelta la carita sobre un trabajo. */
+  function startDrag(e, crewId) {
+    if (e.button > 0) return;
+    e.preventDefault();
+    const src = e.currentTarget;
+    const ghost = src.cloneNode(true);
+    ghost.classList.add('drag-ghost');
+    document.body.append(ghost);
+    src.classList.add('dragging');
+    let over = null;
+    const move = (ev) => {
+      ghost.style.left = `${ev.clientX}px`; ghost.style.top = `${ev.clientY}px`;
+      if (ev.clientY < 90) window.scrollBy(0, -14); else if (ev.clientY > innerHeight - 70) window.scrollBy(0, 14);
+      const z = document.elementFromPoint(ev.clientX, ev.clientY)?.closest('[data-job]');
+      if (z !== over) { over?.classList.remove('over'); over = z; over?.classList.add('over'); }
+    };
+    const up = () => {
+      window.removeEventListener('pointermove', move); window.removeEventListener('pointerup', up); window.removeEventListener('pointercancel', up);
+      ghost.remove(); src.classList.remove('dragging'); over?.classList.remove('over');
+      if (!over) return;
+      const job = over.dataset.job;
+      const need = TASKS[job].needsModule;
+      if (need && !hasModule(need)) { say(`Para ${TASKS[job].name} hace falta el módulo ${MODULES[need].name}. Esa casilla está apagada.`, { mood: 'alerta' }); return; }
+      if (shown(app.state.schedule[crewId][shift]) !== job) setTurn(crewId, shift, job);
+    };
+    move(e);
+    window.addEventListener('pointermove', move); window.addEventListener('pointerup', up); window.addEventListener('pointercancel', up);
+  }
+
+  function jobBoard() {
+    const s = app.state;
+    const here = (job) => living().filter((c) => shown(s.schedule[c.id]?.[shift]) === job);
+    return h('div', { id: 'tablero' },
+      h('div', { class: 'row', style: { justifyContent: 'space-between', margin: '.3rem 0 .5rem' } },
+        h('div', { class: 'row' }, ...TURNS.map((t, i) => h('button', { class: `tab ${i === shift ? 'on' : ''}`, 'data-shift': i, onclick: () => { shift = i; app.opsShift = i; beep(700, 30); draw(); } }, t))),
+        h('div', { class: 'help' }, '✋ Arrastra la carita de cada astronauta al trabajo que hará en este turno. ¡Todos deben dormir 😴 al menos un turno!')),
+      h('div', { class: 'job-grid' }, ...TASK_IDS.map((job) => {
+        const need = TASKS[job].needsModule;
+        const off = need && !hasModule(need);
+        return h('div', { class: `job ${off ? 'off' : ''} ${job === 'sueño' ? 'sleep' : ''}`, 'data-job': job, title: off ? `Falta el módulo ${MODULES[need].name}` : TASK_DESC[job] },
+          h('div', { class: 'job-head' }, h('span', { class: 'ico' }, TASK_ICON[job]), h('span', {}, TASKS[job].name)),
+          h('div', { class: 'job-desc small dim' }, off ? `🔒 Necesita ${MODULES[need].name}` : TASK_DESC[job]),
+          h('div', { class: 'job-crew' }, ...here(job).map((c) => h('div', { class: 'token', 'data-token': c.id, onpointerdown: (e) => startDrag(e, c.id) },
+            crewAvatar(c, { size: 46 }), h('div', { class: 'small' }, firstName(c))))));
+      })));
+  }
+
   function crewCards() {
     const s = app.state;
-    const setTurn = (id, turn, val) => { const st = structuredClone(app.state); st.schedule[id][turn] = val; commit(st); draw(); };
     const setRation = (id, val) => { const st = structuredClone(app.state); st.rations[id] = val; commit(st); draw(); };
     const statRow = (label, v, opts, text) => [h('span', {}, label), bar(v, opts), h('span', { class: 'small' }, text)];
     return h('div', { class: 'panel c-pink', id: 'tripulacion' },
@@ -184,7 +241,7 @@ export function render(root, app, go) {
         h('div', { class: 'row' },
           h('button', { onclick: () => { app.routine = structuredClone(app.state.schedule); banner = { text: '💾 Rutina guardada.', cls: '' }; draw(); } }, '💾 Guardar rutina'),
           h('button', { disabled: !app.routine, onclick: () => { const st = structuredClone(app.state); for (const id of Object.keys(st.schedule)) if (app.routine[id]) st.schedule[id] = [...app.routine[id]]; commit(st); draw(); } }, '🔁 Repetir rutina'))),
-      h('div', { class: 'help' }, 'Cada día tiene 3 turnos. Elige qué hace cada uno. ¡Todos deben dormir 😴 al menos un turno!'),
+      jobBoard(),
       h('div', { class: 'crew-grid' }, ...s.crew.map((c) => {
         const sleeping = s.schedule[c.id]?.includes('sueño') ? null : 'sinsueño';
         const mood = moodOf(c);
@@ -204,9 +261,11 @@ export function render(root, app, go) {
               ...statRow('😊 Ánimo', c.morale / 100, {}, fmt(c.morale)),
               ...statRow('🦴 Huesos', c.bone / 100, { warn: 0.8, danger: 0.7 }, fmt(c.bone)),
               ...statRow('☢️ Radiación', c.radiation / (RAD_LIMIT * 1.2), { invert: true, warn: 0.4, danger: 1 - 1 / 1.2, mark: 1 / 1.2 }, fmt(c.radiation))),
-            h('div', { class: 'turnos' }, ...[0, 1, 2].map((turn) => h('label', {}, TURNS[turn],
-              h('select', { 'data-turn': `${c.id}:${turn}`, onchange: (e) => setTurn(c.id, turn, e.target.value) },
-                ...TASK_IDS.map((t) => h('option', { value: t, selected: (s.schedule[c.id]?.[turn] === 'trabajo' ? 'experimentos' : s.schedule[c.id]?.[turn]) === t }, `${TASK_ICON[t]} ${TASKS[t].name}`)))))),
+            h('div', { class: 'turnos-ver' }, ...[0, 1, 2].map((turn) => {
+              const t = shown(s.schedule[c.id]?.[turn]);
+              return h('div', { class: `turno-chip ${turn === shift ? 'on' : ''}`, onclick: () => { shift = turn; app.opsShift = turn; draw(); } },
+                h('span', { class: 'small dim' }, TURNS[turn]), h('span', {}, `${TASK_ICON[t]} ${TASKS[t].name}`));
+            })),
             h('label', { class: 'small row', style: { marginTop: '.3rem' } }, 'Ración de comida',
               h('select', { 'data-ration': c.id, onchange: (e) => setRation(c.id, e.target.value) },
                 ...Object.entries(RATIONS).map(([r, t]) => h('option', { value: r, selected: s.rations[c.id] === r }, t)))),
@@ -279,7 +338,7 @@ export function render(root, app, go) {
   function coach(sched) {
     const s = app.state;
     if (s.phase === 'reentry') return ['¡Un año completo! 🎉 Ahora hay que volver a la Tierra. Toca INICIAR REENTRADA.', 'feliz', '#reentrada', null];
-    if (sched.length) return [`${sched[0]}. Elige 😴 Sueño en uno de sus turnos.`, 'alerta', `[data-crew="${s.crew.find((c) => sched[0].startsWith(c.name))?.id}"] .turnos`, 'tripulacion'];
+    if (sched.length) return [`${sched[0]}. Arrástralo a 😴 Sueño en algún turno.`, 'alerta', '[data-job="sueño"]', 'tripulacion'];
     const unprepped = s.alerts.findIndex((a) => EVENTS[a.eventId].prepare.length && !a.prepared.length);
     if (unprepped >= 0) return [`Viene ${EVENTS[s.alerts[unprepped].eventId].name}. ¡Prepárense ahora y será menos grave!`, 'alerta', '#alertas', 'misiones'];
     const left = daysLeft(s);
