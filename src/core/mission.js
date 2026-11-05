@@ -88,6 +88,6 @@ export function createMission({ design, scenarioId, difficulty, seed }) {
       battery: batteryMax, batteryMax, dataStored: 0,
     },
     alerts: [], pending: null, history: [], minis: [], science: 0, reputation: 50,
-    nextResupply: 60, log: [], outcome: null,
+    nextResupply: 60, medsExpiry: 180, log: [], outcome: null,
   };
 }

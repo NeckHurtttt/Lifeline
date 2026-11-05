@@ -5,6 +5,7 @@ import { offerMinis, progressMinis } from './minimissions.js';
 import { applyTasks, validateSchedule } from './tasks.js';
 import { applyEnergy } from './energy.js';
 import { applyDailyLife } from './life.js';
+import { expireMeds, exerciseRule } from './protocols.js';
 
 const LOW_DAYS = 7;
 const NEED = { food: 1.8, water: 2.75 * 0.02 + 0.95, waterNoLS: 2.75, o2: 0.84 };
@@ -78,6 +79,10 @@ export function advanceDay(state) {
 
   const l = applyDailyLife(s, { ...t.ctx, lifeSupportOn: lsOn(s) });
   s = l.state; pushLog(s, l.log, 'vida');
+  const proto = [];
+  expireMeds(s, proto);
+  exerciseRule(s, t.ctx.exercised, proto);
+  pushLog(s, proto, 'aviso');
 
   if (s.day >= s.nextResupply && living(s).length) s = resolveResupply(s, rng).state;
 

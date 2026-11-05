@@ -1,6 +1,7 @@
 import { MODULES, INSTRUMENTS, DIFFICULTY } from '../data/catalog.js';
 import { ROLES } from '../data/crew.js';
 import { crewScore } from './skill.js';
+import { evaGoNoGo, isWeekend } from './protocols.js';
 
 export const EVA_SAFE = 8;
 
@@ -20,9 +21,11 @@ export const TASKS = {
   comunicacion: { name: 'Comunicación', stat: 'temple', needsModule: null },
   eva: { name: 'Actividad extravehicular', stat: 'eva', needsModule: null },
   refugio: { name: 'Refugio antirradiación', stat: null, needsModule: 'refugio' },
+  prerespiracion: { name: 'Pre-respiración (O₂ puro)', stat: null, needsModule: null },
 };
 
 const NO_FATIGUE = new Set(['descanso', 'sueño', 'refugio']);
+const WORK = new Set(['mantenimiento', 'reparacion', 'experimentos', 'trabajo', 'cultivo', 'produccion']);
 const EXTERNAL = new Set(['paneles', 'antena']);
 const MAX_DATA = 500;
 const clamp = (v) => Math.max(0, Math.min(100, v));
@@ -61,8 +64,15 @@ export function applyTasks(state, rng) {
   const mult = DIFFICULTY[s.difficulty].repairMult;
   let expEff = 0;
   let commTurns = 0;
+  const goNoGo = [0, 1, 2].map((turn) => evaGoNoGo(state, turn));
+  const weekend = isWeekend(s.day);
 
   for (let turn = 0; turn < 3; turn++) {
+    const g = goNoGo[turn];
+    if (g.crew.length && !g.go) {
+      const why = g.items.filter((i) => !i.ok).map((i) => i.label.replace(/^\S+\s/, '')).join('; ');
+      log.push(`EVA cancelada (NO GO): ${why}.`);
+    }
     for (const c of active) {
       if (!c.alive) continue;
       const t = s.schedule[c.id]?.[turn];
@@ -71,7 +81,10 @@ export function applyTasks(state, rng) {
       if (t === 'ejercicio') { exercised.add(c.id); c.fatigue = clamp(c.fatigue + 5); continue; }
       if (t === 'sueño') { slept.add(c.id); continue; }
       if (t === 'refugio') { if (on('refugio')) sheltered.add(c.id); continue; }
-      if (t === 'descanso') { c.fatigue = clamp(c.fatigue - 20); c.morale = clamp(c.morale + 5); continue; }
+      if (t === 'descanso') { c.fatigue = clamp(c.fatigue - 20); c.morale = clamp(c.morale + (weekend ? 8 : 5)); continue; }
+      if (t === 'prerespiracion') { c.fatigue = clamp(c.fatigue + 5); continue; }
+      if (t === 'eva' && !g.go) { c.fatigue = clamp(c.fatigue + 5); continue; }
+      if (weekend && WORK.has(t)) c.morale = clamp(c.morale - 1);
       const need = TASKS[t].needsModule;
       if (need && !on(need)) { c.fatigue = clamp(c.fatigue + 10); continue; }
       c.fatigue = clamp(c.fatigue + 10);
@@ -104,7 +117,7 @@ export function applyTasks(state, rng) {
         }
       } else if (t === 'comunicacion') {
         commTurns++;
-        c.morale = clamp(c.morale + 8);
+        c.morale = clamp(c.morale + (weekend ? 11 : 8));
         for (const o of s.crew) if (o.alive && o !== c) o.morale = clamp(o.morale + 3);
       } else if (t === 'eva') {
         const m = worst(s.modules.filter((x) => EXTERNAL.has(x.type) && x.health < 100));

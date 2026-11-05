@@ -90,6 +90,23 @@ export const EVENTS = {
     prepare: [],
     options: [{ id: 'aprovechar', label: 'Aprovechar el hallazgo', effects: T({ reputation: 1, parts: 1 }, { reputation: 2, crewMorale: 5 }, { reputation: 4, crewMorale: 10 }) }],
   },
+  despresurizacion: {
+    id: 'despresurizacion', name: 'Despresurización', kind: '-', disaster: true, warnDays: 0, weight: 7, countdown: true,
+    text: T('Suena la alarma de presión: una fuga pequeña en algún módulo.', 'La presión cae rápido: hay una grieta en un módulo.', '¡Fuga grave! La presión se desploma en toda la estación.'),
+    procedure: 'Protocolo real: todos se juntan en un lugar seguro, calculan el tiempo de reserva (cuánto falta para que la presión llegue al mínimo) y cierran escotillas módulo por módulo hasta aislar la fuga.',
+    prepare: [],
+    options: [
+      { id: 'escotillas', label: 'Cerrar escotillas y aislar el módulo (protocolo)', check: { stat: 'temple', dc: 11 },
+        effects: T({ o2: -5, moduleOff: { random: 2 } }, { o2: -12, moduleOff: { random: 4 }, parts: -2 }, { o2: -25, moduleOff: { random: 6 }, parts: -4 }),
+        failEffects: T({ o2: -15, moduleOff: { random: 3 } }, { o2: -35, moduleOff: { random: 5 }, crewHealth: -5 }, { o2: -60, moduleDamage: { random: 40 }, crewHealth: -15 }) },
+      { id: 'parchar', label: 'Buscar la grieta y parcharla sin aislar', check: { stat: 'tecnica', dc: 14 },
+        effects: T({ o2: -8, parts: -2 }, { o2: -20, parts: -4 }, { o2: -40, parts: -6 }),
+        failEffects: T({ o2: -20 }, { o2: -50, crewHealth: -10 }, { o2: -90, crewHealth: -25, moduleDamage: { random: 50 } }) },
+      { id: 'capsula', label: 'Refugiarse en la cápsula y evacuar', effects: T({ endMission: 'evacuar' }, { endMission: 'evacuar' }, { endMission: 'evacuar' }) },
+      { id: 'tarde', hidden: true, label: 'Se acabó el tiempo de reserva',
+        effects: T({ o2: -25, crewHealth: -10, moduleOff: { random: 4 } }, { o2: -60, crewHealth: -25, moduleDamage: { random: 40 } }, { o2: -100, crewHealth: -45, moduleDamage: { random: 70 } }) },
+    ],
+  },
   fuga_misteriosa: {
     id: 'fuga_misteriosa', name: 'Fuga misteriosa', kind: '-', disaster: false, warnDays: 0, weight: 6,
     text: T('La presión baja apenas; nadie sabe por qué.', 'Una fuga lenta pierde aire cada hora.', 'La presión cae rápido: hay que encontrar la grieta.'),

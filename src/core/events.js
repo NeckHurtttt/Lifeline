@@ -145,8 +145,14 @@ export function previewOption(state, eventId, optionId) {
   return skillCheck(state, opt.check, null, { prepared: prep.length > 0 });
 }
 
-export function recommendedOption(eventId) {
-  return EVENTS[eventId].options[0].id;
+/** Lo que recomienda Control de Misión: la primera opción que funciona (las sin comprobación siempre funcionan). */
+export function recommendedOption(eventId, state = null) {
+  const opts = EVENTS[eventId].options.filter((o) => !o.hidden);
+  if (state) {
+    const works = opts.find((o) => !o.check || previewOption(state, eventId, o.id)?.ok);
+    if (works) return works.id;
+  }
+  return opts[0].id;
 }
 
 export function resolveEvent(state, eventId, severity, optionId, rng, prepared) {
@@ -162,6 +168,12 @@ export function resolveEvent(state, eventId, severity, optionId, rng, prepared) 
   }
   let s = structuredClone(state);
   log.unshift(`${ev.name} (${sev}): ${ev.text[sev]}`);
+  const visibles = ev.options.filter((o) => !o.hidden);
+  if (visibles.length > 1 && !opt.hidden) {
+    const followed = optionId === recommendedOption(eventId, state);
+    s.reputation = clamp(s.reputation + (followed ? 1 : -1), 0, 100);
+    log.push(followed ? 'Seguiste el procedimiento de Control de Misión (+1 fama).' : 'Te apartaste del procedimiento de Control de Misión (−1 fama).');
+  }
   let effects = opt.effects[sev];
   if (opt.check) {
     const r = skillCheck(s, opt.check, null, { prepared: prep.length > 0 });
@@ -193,10 +205,11 @@ export function resolveResupply(state, rng) {
   } else {
     const n = s.crew.filter((c) => c.alive).length;
     s = applyEffects(s, {
-      food: 60 * n * NEEDS.food, water: 60 * n * NEEDS.water, o2: 60 * n * NEEDS.o2, parts: 20,
+      food: 60 * n * NEEDS.food, water: 60 * n * NEEDS.water, o2: 60 * n * NEEDS.o2, parts: 20, meds: 5 * n,
     });
+    s.medsExpiry = s.day + 180;
     s.nextResupply += SCENARIOS[s.scenarioId].resupplyEvery;
-    log.push(`${ev.name}: ${ev.text.media} Llegan 60 días de comida, agua y O₂ y 20 piezas.`);
+    log.push(`${ev.name}: ${ev.text.media} Llegan 60 días de comida, agua y O₂, 20 piezas y medicinas frescas.`);
   }
   for (const t of log) addLog(s, t, boom ? 'evento' : 'bueno');
   return { state: s, log, event };

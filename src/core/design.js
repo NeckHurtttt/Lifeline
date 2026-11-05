@@ -1,6 +1,7 @@
 // Cálculo y validación del diseño de la misión (determinista, sin azar).
 import { MODULES, INSTRUMENTS, LAUNCHERS, ORBITS, CARGO, DIFFICULTY, SCENARIOS, GRID } from '../data/catalog.js';
 import { ROLES } from '../data/crew.js';
+import { CONTINGENCY_DAYS } from './protocols.js';
 
 const f1 = (n) => n.toFixed(1);
 const suma = (lista, fn) => lista.reduce((s, e) => s + fn(e), 0);
@@ -61,6 +62,10 @@ export function computeDesign(design, scenarioId, difficulty, budgetMult = 1) {
   if (repetida) errors.push('Dos módulos en la misma casilla');
   if (fuera) errors.push('Módulo fuera de la cuadrícula');
 
+  const firstResupply = (SCENARIOS[scenarioId] || SCENARIOS.estacion).resupplyEvery;
+  if (crew > 0 && design.cargoDays < firstResupply + CONTINGENCY_DAYS) {
+    warnings.push(`Protocolo NASA: lleva reserva de contingencia, al menos ${firstResupply + CONTINGENCY_DAYS} días de comida (la carga llega cada ${firstResupply} días y puede fallar)`);
+  }
   if (dataPerDay > downlinkPerDay) {
     warnings.push(`Los datos generados (${f1(dataPerDay)} GB/día) superan el enlace (${f1(downlinkPerDay)} GB/día): se perderá ciencia`);
   }

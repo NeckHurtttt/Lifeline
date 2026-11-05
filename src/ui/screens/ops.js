@@ -15,15 +15,17 @@ import { whoDecides } from '../main.js';
 import { alarm, beep } from '../audio.js';
 import { say } from '../guide.js';
 import { crewAvatar, moodOf, MOOD_TEXT } from '../avatar.js';
+import { evaGoNoGo, isWeekend, TRESERVE_SECONDS } from '../../core/protocols.js';
 
 const TASK_IDS = Object.keys(TASKS).filter((t) => t !== 'trabajo');
-const TASK_ICON = { mantenimiento: '🧹', reparacion: '🔧', experimentos: '🔬', cultivo: '🌱', produccion: '💧', medico: '🩺', ejercicio: '🏃', descanso: '🛋️', sueño: '😴', comunicacion: '📞', eva: '👨‍🚀', refugio: '🛡️' };
+const TASK_ICON = { mantenimiento: '🧹', reparacion: '🔧', experimentos: '🔬', cultivo: '🌱', produccion: '💧', medico: '🩺', ejercicio: '🏃', descanso: '🛋️', sueño: '😴', comunicacion: '📞', eva: '👨‍🚀', refugio: '🛡️', prerespiracion: '🫁' };
 const TURNS = ['🌅 Mañana', '☀️ Tarde', '🌙 Noche'];
 const TASK_DESC = {
   mantenimiento: 'Cuida los módulos para que no se rompan.', reparacion: 'Arregla módulos dañados.', experimentos: 'Hace ciencia en el laboratorio.',
   cultivo: 'Cuida el invernadero: da comida.', produccion: 'Fabrica agua.', medico: 'Cura a los enfermos.', ejercicio: 'Mantiene fuertes los huesos.',
   descanso: 'Quita el cansancio y sube el ánimo.', sueño: 'Dormir: ¡obligatorio una vez al día!', comunicacion: 'Manda los datos a la Tierra y habla con la familia.',
-  eva: 'Sale afuera a arreglar paneles y antena.', refugio: 'Se esconde de la radiación.',
+  eva: 'Sale afuera a arreglar paneles y antena. Siempre en pareja y con pre-respiración antes.', refugio: 'Se esconde de la radiación.',
+  prerespiracion: 'Respira oxígeno puro antes de una EVA para no enfermarse al salir (descompresión).',
 };
 const RATIONS = { completa: '🍽️ Completa', media: '🥣 Media', nada: '🚫 Nada' };
 const RAD_LIMIT = 600;
@@ -36,7 +38,7 @@ const EVENT_ICON = {
   fuga_amoniaco: '🧪', incendio: '🔥', robot_detecta_fuga: '🤖', fuga_misteriosa: '🌬️', experimento_exitoso: '🎉', aurora: '🌌',
   radio_escuelas: '📻', falla_bano: '🚽', bacterias: '🦠', nueva_tripulacion: '👋', reboost: '🚀', choque_carga: '💢',
   propulsor_atascado: '🔩', falla_computadora: '💻', perdida_comunicacion: '📵', fuga_reciclador: '💧', sobrecalentamiento: '🌡️',
-  falla_bateria: '🪫', panel_danado: '☀️', corto_circuito: '⚡',
+  falla_bateria: '🪫', panel_danado: '☀️', corto_circuito: '⚡', despresurizacion: '🌀',
 };
 const MINI_ICON = { lanzar_cubesats: '🛰️', recuperar_satelite: '🧲', retirar_basura: '🧹', capturar_carga: '📦', experimento_externo: '🔭', cambiar_panel: '☀️', fotografiar_desastre: '📸', radio_escuelas: '📻', cultivo_microg: '🪴', prueba_nave_comercial: '🚀' };
 const ENGINEERING = new Set(['micrometeoritos', 'basura_tardia', 'fuga_amoniaco', 'incendio', 'robot_detecta_fuga', 'fuga_misteriosa', 'falla_bano',
@@ -102,7 +104,19 @@ export function render(root, app, go) {
     const p = s.pending;
     const ev = EVENTS[p.eventId];
     const control = DIFFICULTY[s.difficulty].control;
-    const rec = recommendedOption(p.eventId);
+    const rec = recommendedOption(p.eventId, s);
+    let timer = null;
+    const choose = (optId, bad) => {
+      clearInterval(timer);
+      const rng = restoreRng(app.state.rng);
+      const r = resolveEvent(app.state, p.eventId, p.severity, optId, rng);
+      close();
+      commit({ ...r.state, rng: rng.state() });
+      banner = { text: r.log.join(' '), cls: bad ? 'red' : '' };
+      beep(bad ? 300 : 1000, 120);
+      draw();
+    };
+    let left = TRESERVE_SECONDS[s.difficulty];
     const who = whoDecides(app, roleFor(p.eventId));
     const close = modal(h('div', { id: 'evento' },
       h('div', { class: 'big-ico' }, EVENT_ICON[ev.id] ?? (ev.kind === '+' ? '🎉' : '⚠️')),
@@ -110,20 +124,14 @@ export function render(root, app, go) {
       h('div', { class: 'small' }, { leve: '🟢 Poco grave', media: '🟠 Grave', grave: '🔴 ¡Muy grave!' }[p.severity]),
       h('p', { style: { clear: 'both', fontSize: '1.1rem' } }, ev.text[p.severity]),
       p.prepared?.length ? h('p', { class: 'small green' }, '✔ Se prepararon antes: ayuda.') : null,
+      ev.procedure ? h('p', { class: 'small' }, '📋 ', ev.procedure) : null,
+      ev.countdown ? h('div', { class: 'treserve' }, '⏱️ Tiempo de reserva: ', h('b', { id: 'treserve' }, `${left} s`), h('span', { class: 'small dim' }, ' — si llega a 0 sin decidir, la presión baja al mínimo.')) : null,
       who ? h('p', { class: 'small' }, h('span', { class: 'tag' }, `decide ${who}`)) : null,
-      h('div', {}, ...ev.options.map((o) => {
+      h('div', {}, ...ev.options.filter((o) => !o.hidden).map((o) => {
         const pre = previewOption(s, p.eventId, o.id);
         const effects = pre && !pre.ok ? o.failEffects[p.severity] : o.effects[p.severity];
         return h('div', { class: `option ${control !== 'retraso' && o.id === rec ? 'sel' : ''}` },
-          h('button', { 'data-option': o.id, onclick: () => {
-            const rng = restoreRng(app.state.rng);
-            const r = resolveEvent(app.state, p.eventId, p.severity, o.id, rng);
-            close();
-            commit({ ...r.state, rng: rng.state() });
-            banner = { text: r.log.join(' '), cls: '' };
-            beep(pre && !pre.ok ? 300 : 1000, 120);
-            draw();
-          } }, o.label),
+          h('button', { 'data-option': o.id, onclick: () => choose(o.id, pre && !pre.ok) }, o.label),
           control !== 'retraso' && o.id === rec ? h('span', { class: 'chip ok' }, '👍 recomendado') : null,
           pre ? h('div', { class: 'que-pasa', style: { width: '100%' } },
             pre.ok ? h('b', { class: 'green' }, `✔ Funciona: lo hace ${firstName(pre.who)}. `) : h('b', { class: 'red' }, `✖ No alcanza: ${firstName(pre.who)} no sabe lo suficiente. `),
@@ -131,7 +139,17 @@ export function render(root, app, go) {
           h('div', { style: { width: '100%' } }, h('span', { class: 'small dim' }, 'Lo que pasa: '), ...chips(effects)));
       })),
     ), { grave: p.severity === 'grave' });
-    say(`¡${ev.name}! Mira cada opción: abajo dice si funciona y qué pasa con cada una.`, { mood: ev.kind === '+' ? 'feliz' : 'alerta', target: '#evento' });
+    if (ev.countdown) {
+      timer = setInterval(() => {
+        left -= 1;
+        const el = document.getElementById('treserve');
+        if (!el) { clearInterval(timer); return; }
+        el.textContent = `${left} s`;
+        if (left <= 10) { el.classList.add('red'); beep(440, 60); }
+        if (left <= 0) choose('tarde', true);
+      }, 1000);
+    }
+    say(ev.countdown ? '¡Despresurización! Sigan el protocolo: decidan antes de que se acabe el tiempo de reserva. ⏱️' : `¡${ev.name}! Mira cada opción: abajo dice si funciona y qué pasa con cada una.`, { mood: ev.kind === '+' ? 'feliz' : 'alerta', target: '#evento' });
   }
 
   function resources() {
@@ -213,6 +231,14 @@ export function render(root, app, go) {
     window.addEventListener('pointermove', move); window.addEventListener('pointerup', up); window.addEventListener('pointercancel', up);
   }
 
+  function evaChecklist() {
+    const g = evaGoNoGo(app.state, shift);
+    if (!g.crew.length) return h('div', { class: 'small dim' }, '📋 Arrastra a 2 astronautas para el sondeo GO / NO GO.');
+    return h('div', { class: 'checklist', id: 'eva-check' },
+      h('div', { class: g.go ? 'green' : 'red' }, g.go ? '✅ GO para la EVA' : '⛔ NO GO: no salen'),
+      ...g.items.map((i) => h('div', { class: `small ${i.ok ? 'green' : 'red'}` }, `${i.ok ? '✔' : '✖'} ${i.label}`)));
+  }
+
   function jobBoard() {
     const s = app.state;
     const here = (job) => living().filter((c) => shown(s.schedule[c.id]?.[shift]) === job);
@@ -226,6 +252,7 @@ export function render(root, app, go) {
         return h('div', { class: `job ${off ? 'off' : ''} ${job === 'sueño' ? 'sleep' : ''}`, 'data-job': job, title: off ? `Falta el módulo ${MODULES[need].name}` : TASK_DESC[job] },
           h('div', { class: 'job-head' }, h('span', { class: 'ico' }, TASK_ICON[job]), h('span', {}, TASKS[job].name)),
           h('div', { class: 'job-desc small dim' }, off ? `🔒 Necesita ${MODULES[need].name}` : TASK_DESC[job]),
+          job === 'eva' ? evaChecklist() : null,
           h('div', { class: 'job-crew' }, ...here(job).map((c) => h('div', { class: 'token', 'data-token': c.id, onpointerdown: (e) => startDrag(e, c.id) },
             crewAvatar(c, { size: 46 }), h('div', { class: 'small' }, firstName(c))))));
       })));
@@ -339,6 +366,12 @@ export function render(root, app, go) {
     const s = app.state;
     if (s.phase === 'reentry') return ['¡Un año completo! 🎉 Ahora hay que volver a la Tierra. Toca INICIAR REENTRADA.', 'feliz', '#reentrada', null];
     if (sched.length) return [`${sched[0]}. Arrástralo a 😴 Sueño en algún turno.`, 'alerta', '[data-job="sueño"]', 'tripulacion'];
+    const evaBad = [0, 1, 2].map((t) => evaGoNoGo(s, t)).findIndex((g) => g.crew.length && !g.go);
+    if (evaBad >= 0) {
+      const g = evaGoNoGo(s, evaBad);
+      const miss = g.items.find((i) => !i.ok);
+      return [`La EVA de la ${TURNS[evaBad].split(' ')[1].toLowerCase()} tiene NO GO: falta ${miss.label.replace(/^\S+\s/, '').toLowerCase()}. Mira la casilla 👨‍🚀 EVA.`, 'alerta', '[data-job="eva"]', 'tripulacion'];
+    }
     const unprepped = s.alerts.findIndex((a) => EVENTS[a.eventId].prepare.length && !a.prepared.length);
     if (unprepped >= 0) return [`Viene ${EVENTS[s.alerts[unprepped].eventId].name}. ¡Prepárense ahora y será menos grave!`, 'alerta', '#alertas', 'misiones'];
     const left = daysLeft(s);
@@ -376,6 +409,7 @@ export function render(root, app, go) {
       h('div', { class: 'day-head' },
         h('div', {},
           h('h1', { style: { fontSize: '2rem', margin: 0 }, id: 'dia' }, `📅 DÍA ${s.day} de ${s.totalDays}`),
+          isWeekend(s.day + 1) ? h('div', { class: 'small amber' }, '🗓️ Mañana es fin de semana: día ligero. Descanso y llamadas a casa dan más ánimo; trabajar lo baja un poco.') : null,
           h('div', { class: 'trip' }, h('div', { class: 'trip-fill', style: { width: `${pct}%` } }), h('span', { class: 'trip-ship', style: { left: `${pct}%` } }, '🛰️'), h('span', { class: 'trip-end' }, '🏠'))),
         h('div', { class: 'row' },
           h('button', { id: 'avanzar1', disabled: blocked, onclick: () => advance(false) }, '⏭️ 1 día'),

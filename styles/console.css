@@ -297,3 +297,6 @@ label.pick { background: rgba(255,255,255,.08); padding: .1rem .5rem; border-rad
 #guia .g-avatar, #guia .guide-svg { width: 150px; height: 180px; }
 #guia .g-bubble { margin-bottom: 96px; }
 @media (max-width: 1100px) { #guia .g-avatar, #guia .guide-svg { width: 104px; height: 125px; } #guia .g-bubble { margin-bottom: 60px; } }
+.checklist { margin-top: .3rem; border-top: 1px dashed var(--line); padding-top: .25rem; }
+.treserve { font-size: 1.2rem; margin: .4rem 0; padding: .3rem .6rem; border: 2px solid var(--amber); border-radius: 8px; }
+.treserve b.red { animation: latido .5s infinite; }

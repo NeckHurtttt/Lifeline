@@ -110,10 +110,13 @@ test('comunicacion suma enlace y moral', () => {
 test('eva repara externos y da radiacion', () => {
   const s = idle(mk(['paneles']));
   const c = s.crew[0]; c.stats.fuerza = 7; c.stats.temple = 7; c.role = 'piloto';
+  const b = s.crew[1]; b.stats.fuerza = 7; b.stats.temple = 7; b.role = 'piloto';
   s.modules.find((m) => m.type === 'paneles').health = 50;
-  s.schedule[c.id] = ['eva', 'sueño', 'sueño'];
+  // Protocolo: en pareja y con pre-respiración en el turno anterior (el de la noche).
+  s.schedule[c.id] = ['eva', 'sueño', 'prerespiracion'];
+  s.schedule[b.id] = ['eva', 'sueño', 'prerespiracion'];
   const { state } = applyTasks(s, { chance: () => false });
-  assert.equal(state.modules.find((m) => m.type === 'paneles').health, 80);
+  assert.equal(state.modules.find((m) => m.type === 'paneles').health, 100);
   assert.equal(state.crew[0].radiation, c.radiation + 1);
 });
 

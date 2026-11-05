@@ -1,6 +1,7 @@
 import { MINIMISSIONS } from '../data/minimissions.js';
 import { applyEffects } from './events.js';
 import { skillCheck } from './skill.js';
+import { miniEvaNoGo } from './protocols.js';
 
 const OFFER_PROB = 0.04;
 const MAX_OPEN = 2;
@@ -60,6 +61,7 @@ export function acceptMini(state, miniId, crewIds = []) {
   const ok = crew.every((c) => c && c.alive && !c.evacuated && !busy.has(c.id)) && new Set(crewIds).size === crewIds.length;
   if (!ok || crew.length < def.requires.crew) return { state, error: 'Faltan tripulantes' };
   if (def.requires.role && !crew.some((c) => c.role === def.requires.role)) return { state, error: 'Faltan tripulantes' };
+  if (def.eva) { const why = miniEvaNoGo(state, crew); if (why) return { state, error: `NO GO para la EVA: ${why}` }; }
   let s = applyEffects(state, def.cost);
   const e = s.minis.find((m) => m.id === miniId && m.status === 'oferta');
   e.status = 'activa';
