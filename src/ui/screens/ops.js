@@ -10,7 +10,7 @@ import { phaseDue, resolvePhase, previewPhase, PHASES, inBlackout, radioDelayMin
 import { ROLES, TRAITS } from '../../data/crew.js';
 import { EVENTS } from '../../data/events.js';
 import { MINIMISSIONS } from '../../data/minimissions.js';
-import { TASKS, validateSchedule } from '../../core/tasks.js';
+import { TASKS, validateSchedule, normalizeSchedule } from '../../core/tasks.js';
 import { advanceDay, runUntilInterrupt, daysLeft } from '../../core/sim.js';
 import { prepareFor, resolveEvent, recommendedOption, previewOption } from '../../core/events.js';
 import { acceptMini, previewMini, usesAutoRover } from '../../core/minimissions.js';
@@ -23,15 +23,18 @@ import { say } from '../guide.js';
 import { crewAvatar, moodOf, MOOD_TEXT } from '../avatar.js';
 import { evaGoNoGo, isWeekend, TRESERVE_SECONDS } from '../../core/protocols.js';
 
-const TASK_IDS = Object.keys(TASKS).filter((t) => t !== 'trabajo');
-const TASK_ICON = { mantenimiento: '🧹', reparacion: '🔧', experimentos: '🔬', cultivo: '🌱', produccion: '💧', medico: '🩺', ejercicio: '🏃', descanso: '🛋️', sueño: '😴', comunicacion: '📞', eva: '👨‍🚀', refugio: '🛡️', prerespiracion: '🫁' };
+// La noche (sueño o campamento) y la pre-respiración son automáticas: no se arrastran.
+const AUTO_TASKS = new Set(['sueño', 'campamento', 'prerespiracion']);
+const TASK_IDS = Object.keys(TASKS).filter((t) => t !== 'trabajo' && !['sueño', 'campamento'].includes(t));
+const TASK_ICON = { mantenimiento: '🧹', reparacion: '🔧', experimentos: '🔬', cultivo: '🌱', produccion: '💧', medico: '🩺', ejercicio: '🏃', descanso: '🛋️', sueño: '😴', comunicacion: '📞', eva: '👨‍🚀', refugio: '🛡️', prerespiracion: '🫁', campamento: '⛺' };
 const TURNS = ['🌅 Mañana', '☀️ Tarde', '🌙 Noche'];
 const TASK_DESC = {
   mantenimiento: 'Cuida los módulos para que no se rompan.', reparacion: 'Arregla módulos dañados.', experimentos: 'Hace ciencia en el laboratorio.',
   cultivo: 'Cuida el invernadero: da comida.', produccion: 'Fabrica agua.', medico: 'Cura a los enfermos.', ejercicio: 'Mantiene fuertes los huesos.',
   descanso: 'Quita el cansancio y sube el ánimo.', sueño: 'Dormir: ¡obligatorio una vez al día!', comunicacion: 'Manda los datos a la Tierra y habla con la familia.',
   eva: 'Sale afuera a arreglar paneles y antena. Siempre en pareja y con pre-respiración antes.', refugio: 'Se esconde de la radiación.',
-  prerespiracion: 'Respira oxígeno puro antes de una EVA para no enfermarse al salir (descompresión).',
+  prerespiracion: 'Automática: respira oxígeno puro antes de una EVA de la tarde para no enfermarse al salir.',
+  campamento: 'Duerme en la esclusa a baja presión: así ya está listo para la EVA de la mañana (como en la NASA).',
 };
 const RATIONS = { completa: '🍽️ Completa', media: '🥣 Media', nada: '🚫 Nada' };
 const RAD_LIMIT = 600;
@@ -80,7 +83,7 @@ function chips(effects) {
 export function render(root, app, go) {
   let banner = null;
   let tab = app.opsTab ?? 'resumen';
-  let shift = app.opsShift ?? 0;
+  let shift = Math.min(app.opsShift ?? 0, 1);
   const pick = (t) => { tab = t; app.opsTab = t; beep(760, 30); draw(); window.scrollTo({ top: 0, behavior: 'smooth' }); };
   const living = () => app.state.crew.filter((c) => c.alive);
   const commit = (state) => { app.state = state; save(state); };
@@ -150,6 +153,7 @@ export function render(root, app, go) {
       commit({ ...r.state, rng: rng.state() });
       banner = { text: r.log.join(' '), cls: bad ? 'red' : '' };
       beep(bad ? 300 : 1000, 120);
+      if (app.state.phase === 'report') handle({ kind: 'fin' });
       draw();
     };
     let left = TRESERVE_SECONDS[s.difficulty];
@@ -393,7 +397,17 @@ export function render(root, app, go) {
 
   const shown = (t) => (t === 'trabajo' ? 'experimentos' : t);
   const hasModule = (type) => app.state.modules.some((m) => m.type === type);
-  const setTurn = (id, turn, val) => { const st = structuredClone(app.state); st.schedule[id][turn] = val; commit(st); beep(880, 40); draw(); };
+  const setTurn = (id, turn, val) => {
+    const st = structuredClone(app.state);
+    const day = st.schedule[id];
+    // Una sola EVA por día: si la mueve de turno, el otro queda libre.
+    if (val === 'eva' && day[1 - turn] === 'eva') day[1 - turn] = 'descanso';
+    // Sacarlo de la pre-respiración automática = cancelar la EVA de la tarde.
+    if (turn === 0 && day[0] === 'prerespiracion' && day[1] === 'eva' && val !== 'eva') day[1] = 'descanso';
+    day[turn] = val;
+    st.schedule[id] = normalizeSchedule(day);
+    commit(st); beep(880, 40); draw();
+  };
 
   /** Arrastre con puntero (mouse y pantalla táctil): se suelta la carita sobre un trabajo. */
   function startDrag(e, crewId) {
@@ -416,6 +430,7 @@ export function render(root, app, go) {
       ghost.remove(); src.classList.remove('dragging'); over?.classList.remove('over');
       if (!over) return;
       const job = over.dataset.job;
+      if (AUTO_TASKS.has(job)) { say('La pre-respiración se pone sola: arrastra a los astronautas a 👨‍🚀 Actividad extravehicular.', { mood: 'pensando', target: '[data-job="eva"]' }); return; }
       const need = TASKS[job].needsModule;
       if (need && !hasModule(need)) { say(`Para ${TASKS[job].name} hace falta el módulo ${MODULES[need].name}. Esa casilla está apagada.`, { mood: 'alerta' }); return; }
       if (shown(app.state.schedule[crewId][shift]) !== job) setTurn(crewId, shift, job);
@@ -443,12 +458,18 @@ export function render(root, app, go) {
 
   function jobBoard() {
     const s = app.state;
+    for (const id of Object.keys(s.schedule)) s.schedule[id] = normalizeSchedule(s.schedule[id]);
     const here = (job) => living().filter((c) => shown(s.schedule[c.id]?.[shift]) === job);
+    const campers = living().filter((c) => s.schedule[c.id]?.[2] === 'campamento').map(firstName);
     return h('div', { id: 'tablero' },
       h('div', { class: 'row', style: { justifyContent: 'space-between', margin: '.3rem 0 .5rem' } },
-        h('div', { class: 'row' }, ...TURNS.map((t, i) => h('button', { class: `tab ${i === shift ? 'on' : ''}`, 'data-shift': i, onclick: () => { shift = i; app.opsShift = i; beep(700, 30); draw(); } }, t))),
-        h('div', { class: 'help' }, '✋ Arrastra la carita de cada astronauta al trabajo que hará en este turno. ¡Todos deben dormir 😴 al menos un turno!')),
-      h('div', { class: 'job-grid' }, ...TASK_IDS.map((job) => {
+        h('div', { class: 'row' }, ...TURNS.slice(0, 2).map((t, i) => h('button', { class: `tab ${i === shift ? 'on' : ''}`, 'data-shift': i, onclick: () => { shift = i; app.opsShift = i; beep(700, 30); draw(); } }, t))),
+        h('div', { class: 'help' }, '✋ Arrastra la carita de cada astronauta al trabajo que hará en este turno.')),
+      h('div', { class: 'small dim', id: 'noche-auto', style: { margin: '0 0 .5rem' } },
+        campers.length
+          ? `🌙 Noche: duermen solos. ⛺ ${campers.join(' y ')} duerme${campers.length > 1 ? 'n' : ''} en la esclusa para la EVA de la mañana (así respiran oxígeno puro, como en la NASA).`
+          : '🌙 Noche: todos duermen solos. Si alguien sale a EVA, la pre-respiración también se pone sola.'),
+      h('div', { class: 'job-grid' }, ...TASK_IDS.filter((job) => job !== 'prerespiracion' || here(job).length).map((job) => {
         const need = TASKS[job].needsModule;
         const off = need && !hasModule(need);
         return h('div', { class: `job ${off ? 'off' : ''} ${job === 'sueño' ? 'sleep' : ''}`, 'data-job': job, title: off ? `Falta el módulo ${MODULES[need].name}` : TASK_DESC[job] },
@@ -472,7 +493,7 @@ export function render(root, app, go) {
           h('button', { disabled: !app.routine, onclick: () => { const st = structuredClone(app.state); for (const id of Object.keys(st.schedule)) if (app.routine[id]) st.schedule[id] = [...app.routine[id]]; commit(st); draw(); } }, '🔁 Repetir rutina'))),
       jobBoard(),
       h('div', { class: 'crew-grid' }, ...s.crew.map((c) => {
-        const sleeping = s.schedule[c.id]?.includes('sueño') ? null : 'sinsueño';
+        const sleeping = s.schedule[c.id]?.some((t) => t === 'sueño' || t === 'campamento') ? null : 'sinsueño';
         const mood = moodOf(c);
         return h('div', { class: `crew-card ${['enfermo', 'radiacion', 'agotado', 'hambre', 'triste', 'muerto'].includes(mood) || sleeping ? 'mal' : ''}`, 'data-crew': c.id },
           h('div', { class: 'top' },
@@ -492,7 +513,7 @@ export function render(root, app, go) {
               ...statRow('☢️ Radiación', c.radiation / (RAD_LIMIT * 1.2), { invert: true, warn: 0.4, danger: 1 - 1 / 1.2, mark: 1 / 1.2 }, fmt(c.radiation))),
             h('div', { class: 'turnos-ver' }, ...[0, 1, 2].map((turn) => {
               const t = shown(s.schedule[c.id]?.[turn]);
-              return h('div', { class: `turno-chip ${turn === shift ? 'on' : ''}`, onclick: () => { shift = turn; app.opsShift = turn; draw(); } },
+              return h('div', { class: `turno-chip ${turn === shift ? 'on' : ''}`, onclick: () => { if (turn > 1) return; shift = turn; app.opsShift = turn; draw(); } },
                 h('span', { class: 'small dim' }, TURNS[turn]), h('span', {}, `${TASK_ICON[t]} ${TASKS[t].name}`));
             })),
             h('label', { class: 'small row', style: { marginTop: '.3rem' } }, 'Ración de comida',

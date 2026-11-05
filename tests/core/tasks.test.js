@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { applyTasks, validateSchedule, TASKS } from '../../src/core/tasks.js';
+import { applyTasks, validateSchedule, normalizeSchedule, TASKS } from '../../src/core/tasks.js';
 import { createMission } from '../../src/core/mission.js';
 import { createRng } from '../../src/core/rng.js';
 
@@ -59,7 +59,7 @@ test('cultivo sin invernadero no produce; con invernadero si', () => {
 
 test('ejercicio, sueño y refugio en ctx', () => {
   const s = idle(mk(['refugio']));
-  s.schedule[s.crew[0].id] = ['ejercicio', 'sueño', 'refugio'];
+  s.schedule[s.crew[0].id] = ['ejercicio', 'refugio', 'sueño'];
   s.schedule[s.crew[1].id] = ['refugio', 'descanso', 'sueño'];
   const { ctx } = applyTasks(s, rng());
   assert.ok(ctx.exercised.has(s.crew[0].id));
@@ -139,4 +139,39 @@ test('solo las minimisiones activas apartan a la tripulación', () => {
   const { ctx } = applyTasks(s, rng());
   assert.ok(ctx.slept.has(a.id));
   assert.ok(!ctx.slept.has(b.id));
+});
+
+test('turnos automáticos: la noche es sueño y la pre-respiración se pone sola', () => {
+  assert.deepEqual(normalizeSchedule(['trabajo', 'ejercicio', 'eva']), ['trabajo', 'ejercicio', 'sueño']);
+  // EVA en la mañana: esa noche duermen en la esclusa (campamento).
+  assert.deepEqual(normalizeSchedule(['eva', 'ejercicio', 'sueño']), ['eva', 'ejercicio', 'campamento']);
+  // EVA en la tarde: la mañana es pre-respiración.
+  assert.deepEqual(normalizeSchedule(['mantenimiento', 'eva', 'sueño']), ['prerespiracion', 'eva', 'sueño']);
+  // Si deja la EVA, la pre-respiración se quita.
+  assert.deepEqual(normalizeSchedule(['prerespiracion', 'descanso', 'sueño']), ['descanso', 'descanso', 'sueño']);
+  assert.deepEqual(validateSchedule({ c1: normalizeSchedule(['eva', 'eva', 'eva']) }), []);
+});
+
+test('EVA de la mañana con campamento: GO, duermen y queda un turno libre', () => {
+  const s = idle(mk(['paneles']));
+  const [a, b] = s.crew;
+  s.modules.find((m) => m.type === 'paneles').health = 50;
+  s.schedule[a.id] = ['eva', 'ejercicio', 'sueño'];
+  s.schedule[b.id] = ['eva', 'ejercicio', 'sueño'];
+  const { state, ctx, log } = applyTasks(s, { chance: () => false });
+  assert.ok(!log.some((l) => l.includes('NO GO')));
+  assert.ok(state.modules.find((m) => m.type === 'paneles').health > 50);
+  assert.ok(ctx.slept.has(a.id) && ctx.slept.has(b.id));
+  assert.ok(ctx.exercised.has(a.id) && ctx.exercised.has(b.id));
+});
+
+test('EVA de la tarde: la mañana se usa para pre-respirar y sale con GO', () => {
+  const s = idle(mk(['paneles']));
+  const [a, b] = s.crew;
+  s.modules.find((m) => m.type === 'paneles').health = 50;
+  s.schedule[a.id] = ['mantenimiento', 'eva', 'sueño'];
+  s.schedule[b.id] = ['descanso', 'eva', 'sueño'];
+  const { state, log } = applyTasks(s, { chance: () => false });
+  assert.ok(!log.some((l) => l.includes('NO GO')));
+  assert.deepEqual(state.schedule[a.id], ['prerespiracion', 'eva', 'sueño']);
 });

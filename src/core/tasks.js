@@ -24,9 +24,27 @@ export const TASKS = {
   eva: { name: 'Actividad extravehicular', stat: 'eva', needsModule: null },
   refugio: { name: 'Refugio antirradiación', stat: null, needsModule: 'refugio' },
   prerespiracion: { name: 'Pre-respiración (O₂ puro)', stat: null, needsModule: null },
+  campamento: { name: 'Sueño en la esclusa', stat: null, needsModule: null },
 };
 
-const NO_FATIGUE = new Set(['descanso', 'sueño', 'refugio']);
+const NO_FATIGUE = new Set(['descanso', 'sueño', 'refugio', 'campamento']);
+const SLEEP = new Set(['sueño', 'campamento']);
+
+/**
+ * El jugador solo elige mañana y tarde; la noche y la pre-respiración se ponen solas.
+ * - EVA en la mañana: esa noche duermen en la esclusa (campamento, como en la NASA) y eso cuenta como pre-respiración.
+ * - EVA en la tarde: la mañana se usa para la pre-respiración.
+ * @param {string[]} turns [mañana, tarde, noche]
+ * @returns {string[]}
+ */
+export function normalizeSchedule(turns = []) {
+  let [m = 'descanso', t = 'descanso'] = turns;
+  if (t === 'eva') m = 'prerespiracion';
+  else if (m === 'prerespiracion') m = 'descanso';
+  if (SLEEP.has(m) && m !== 'sueño') m = 'descanso';
+  if (t === 'prerespiracion' || t === 'campamento') t = 'descanso';
+  return [m, t, m === 'eva' ? 'campamento' : 'sueño'];
+}
 const WORK = new Set(['mantenimiento', 'reparacion', 'experimentos', 'trabajo', 'cultivo', 'produccion']);
 const EXTERNAL = new Set(['paneles', 'antena']);
 const MAX_DATA = 500;
@@ -35,7 +53,7 @@ const clamp = (v) => Math.max(0, Math.min(100, v));
 /** @returns {string[]} errores del horario */
 export function validateSchedule(schedule) {
   return Object.entries(schedule)
-    .filter(([, turns]) => !turns.includes('sueño'))
+    .filter(([, turns]) => !turns.some((t) => SLEEP.has(t)))
     .map(([id]) => `${id} no tiene turno de sueño`);
 }
 
@@ -67,7 +85,8 @@ export function applyTasks(state, rng) {
   const mult = DIFFICULTY[s.difficulty].repairMult;
   let expEff = 0;
   let commTurns = 0;
-  const goNoGo = [0, 1, 2].map((turn) => evaGoNoGo(state, turn));
+  for (const c of s.crew) if (s.schedule[c.id]) s.schedule[c.id] = normalizeSchedule(s.schedule[c.id]);
+  const goNoGo = [0, 1, 2].map((turn) => evaGoNoGo(s, turn));
   const weekend = isWeekend(s.day);
 
   for (let turn = 0; turn < 3; turn++) {
@@ -82,7 +101,7 @@ export function applyTasks(state, rng) {
       if (!TASKS[t]) continue;
       const eff = efficiency(c, t);
       if (t === 'ejercicio') { exercised.add(c.id); c.fatigue = clamp(c.fatigue + 5); continue; }
-      if (t === 'sueño') { slept.add(c.id); continue; }
+      if (SLEEP.has(t)) { slept.add(c.id); continue; }
       if (t === 'refugio') { if (on('refugio')) sheltered.add(c.id); continue; }
       if (t === 'descanso') { c.fatigue = clamp(c.fatigue - 20); c.morale = clamp(c.morale + (weekend ? 8 : 5)); continue; }
       if (t === 'prerespiracion') { c.fatigue = clamp(c.fatigue + 5); continue; }

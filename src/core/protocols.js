@@ -11,6 +11,8 @@ export const TRESERVE_SECONDS = { facil: 90, medio: 60, dificil: 40 }; // tiempo
 export const isWeekend = (day) => day > 0 && (day % 7 === 6 || day % 7 === 0);
 
 const prevTurn = (turn) => (turn + 2) % 3;
+// Dormir en la esclusa a baja presión (campamento) también cuenta como pre-respiración.
+const PREBREATH = new Set(['prerespiracion', 'campamento']);
 
 /**
  * Sondeo Go/No-Go de una EVA en un turno. Reglas: nunca se sale solo, pre-respiración de O₂ en el turno anterior,
@@ -25,7 +27,7 @@ export function evaGoNoGo(state, turn) {
   const storm = (state.alerts ?? []).some((a) => a.eventId === 'tormenta_solar' && a.etaDays <= 1);
   const items = [
     { id: 'pareja', label: '👥 En pareja: nunca se sale solo', ok: crew.length >= 2 },
-    { id: 'prerespiracion', label: '🫁 Pre-respiración de O₂ puro en el turno anterior', ok: crew.every((c) => state.schedule[c.id]?.[prevTurn(turn)] === 'prerespiracion') },
+    { id: 'prerespiracion', label: '🫁 Pre-respiración de O₂ puro antes de salir', ok: crew.every((c) => PREBREATH.has(state.schedule[c.id]?.[prevTurn(turn)])) },
     { id: 'salud', label: '💪 Descansados y sanos', ok: crew.every((c) => c.fatigue < 70 && c.health >= 50) },
     { id: 'clima', label: '🌞 Sin tormenta solar en camino', ok: !storm },
   ];

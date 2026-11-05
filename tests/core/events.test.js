@@ -94,6 +94,7 @@ test('applyEffects: moduleDamage, moduleOff, delayResupply, evacuar', () => {
   assert.equal(r.outcome.success, false);
   assert.match(r.outcome.reason, /Evacuación de emergencia/);
   assert.ok(r.crew.every((c) => c.alive && c.evacuated));
+  assert.equal(r.phase, 'report'); // pasa al informe, no se queda en la estación
 });
 
 test('resolveEvent aplica opción, limpia pending y recomienda options[0]', () => {

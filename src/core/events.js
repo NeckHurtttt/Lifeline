@@ -140,6 +140,7 @@ export function applyEffects(state, effects) {
     else if (k === 'endMission' && v === 'evacuar') {
       s.outcome = { success: false, reason: 'Evacuación de emergencia: la tripulación volvió antes' };
       for (const c of s.crew) if (c.alive) c.evacuated = true;
+      s.phase = 'report';
     }
   }
   return s;
