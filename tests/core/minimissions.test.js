@@ -43,7 +43,7 @@ test('recuperar_satelite no se ofrece antes de retirar_basura', () => {
   let s = s0;
   for (let d = 0; d < 600; d++) { s.day = d; s = offerMinis(s, rng); s.minis.forEach((m) => { if (m.status === 'oferta') m.status = 'fallida'; }); }
   assert.ok(!ids(s).includes('recuperar_satelite'));
-  const t = mk(); t.minis.push(entry('retirar_basura', { status: 'hecha' }));
+  const t = mk([mod('brazo', 4, 0)]); t.minis.push(entry('retirar_basura', { status: 'hecha' }));
   assert.equal(offerMinis(t, pickOnly('recuperar_satelite')).minis.at(-1).id, 'recuperar_satelite');
 });
 

@@ -24,6 +24,8 @@ export function buildReport(state) {
 
   const reason = state.outcome?.reason ?? '';
   if (/escudo/i.test(reason)) add('El escudo térmico falló en la reentrada: la cabina volvió dañada', 'Haz mantenimiento a la cabina antes de volver y lleva un taller', 'escudo_termico');
+  if (/combustible para despegar/i.test(reason)) add('No se fabricó suficiente combustible en Marte para volver', 'Mantén la planta de combustible encendida y reparada todo el año (prioridad alta de energía)', 'isru');
+  if (/retorno libre|camino al destino/i.test(reason)) add('El motor falló camino al destino y hubo que volver', 'Elige un cohete más fiable', 'go_nogo_equipo');
   if (/Aborto/i.test(reason)) add('El cohete falló en el despegue y hubo que abortar', 'Elige un cohete más fiable aunque cueste más', 'go_nogo_equipo');
 
   const dFood = firstDay(log, /Se acabó la comida/);
@@ -38,7 +40,9 @@ export function buildReport(state) {
   if (lost > 0) add(`El enlace no alcanzó: se perdieron ${Math.round(lost)} GB de datos`, 'Añade una antena para bajar más datos por día', 'satelites_clima');
 
   const shed = firstDay(log, /Apagado por falta de energía/);
-  if (shed !== null) add(`La energía no alcanzó desde el día ${shed} y hubo que apagar módulos`, 'Añade paneles o baterías', 'baterias');
+  const nocturno = state.design?.orbit && /luna_/.test(state.design.orbit);
+  if (shed !== null) add(`La energía no alcanzó desde el día ${shed} y hubo que apagar módulos`, nocturno ? 'Para la noche lunar: pilas regenerativas o un reactor' : 'Añade paneles o baterías', nocturno ? 'noche_lunar' : 'baterias');
+  if (state.scenarioId === 'marte' && /contaminada|sin protocolo/.test(log.map((l) => l.text).join(' '))) add('Se analizó una muestra sin protección planetaria', 'Sigue el protocolo: sella y esteriliza las muestras', 'proteccion_planetaria');
 
   if (state.crew.some((c) => c.radiation >= RAD_LIMIT)) add(`Alguien superó el límite de radiación de ${RAD_LIMIT} mSv`, 'Lleva un refugio y úsalo en las tormentas solares', 'radiacion_protector');
   if (state.crew.some((c) => c.alive && c.bone < 70)) add('La tripulación perdió mucha masa ósea', 'Programa un turno de ejercicio cada día', 'ejercicio_hueso');
@@ -47,6 +51,8 @@ export function buildReport(state) {
   if (deaths.length && found.length === 0) add(`${deaths.length} tripulante(s) no volvieron`, 'Revisa raciones, sueño y atención médica', 'racionamiento');
   if (found.length === 0) add(success ? 'La misión salió según lo planeado' : reason || 'La misión terminó antes de tiempo', success ? 'Prueba con más instrumentos para sumar ciencia' : 'Revisa el diseño y vuelve a intentarlo', 'paneles_solares');
 
+  if (state.scenarioId === 'luna' && found.length < 3) add('En la Luna, la noche larga es el mayor reto', 'Revisa siempre cuánta energía guardas para la noche', 'noche_lunar');
+  if (state.scenarioId === 'marte' && found.length < 3) add('En Marte no hay rescate rápido: todo depende de la planificación', 'Lleva repuestos y fabrica tu propio combustible', 'conjuncion');
   const top = found.slice(0, 5);
   return {
     success, reason, score, medal, daysSurvived: state.day, survivors, science,

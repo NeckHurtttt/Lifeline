@@ -37,6 +37,8 @@ export function offerMinis(state, rng) {
     if (!availableIn(d, s.scenarioId) || (d.sites && !d.sites.includes(s.design.orbit))) return false;
     if ((s.leg === 'ida' || s.leg === 'vuelta') && (d.scenarios || d.rover)) return false; // en el viaje solo minimisiones de nave
     if (d.rover && !hasRover(s) && !hasAutoRover(s)) return false;
+    if ((d.instruments ?? []).some((i) => !s.design.instruments.includes(i))) return false;
+    if ((d.requires.modules ?? []).some((t) => !s.modules.some((m) => m.type === t))) return false;
     if (d.chainUnlock && !s.minis.some((m) => m.id === d.chainUnlock && m.status === 'hecha')) return false;
     return true;
   });

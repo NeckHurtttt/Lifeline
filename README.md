@@ -6,6 +6,16 @@ sobrevives un año con la tripulación (labores en 3 turnos, energía, eventos, 
 tormentas solares reales de NASA DONKI), vuelves con la reentrada y recibes un informe con lo que pasó
 y lecciones para la Tierra. Cooperativo local de 1 a 4 jugadores; dificultad fácil, medio y difícil.
 
+Tres destinos:
+- **Estación espacial** (1 año en órbita, carga cada 60 días).
+- **Base lunar** (polo sur o ecuador, noche de hasta 14 días, hielo, rovers, alunizaje y despegue lunar).
+- **Marte** (7 meses de ida, 1 año en la superficie y 7 de vuelta; "7 minutos de terror", carga previa,
+  combustible fabricado allá, tormentas de polvo, conjunción solar, retraso de radio y protección planetaria).
+
+También: tripulación contratada por entrevista, trabajos asignados arrastrando, protocolos NASA
+(EVA en pareja con pre-respiración y Go/No-Go, despresurización con tiempo de reserva, ejercicio obligatorio…),
+campaña Estación → Luna → Marte con árbol de mejoras, exploración por nodos con rovers y guía Nova.
+
 Agencia ficticia. Inspirado en procedimientos y datos abiertos de NASA.
 
 ## Jugar
@@ -20,6 +30,7 @@ Sin dependencias ni compilación: HTML + CSS + módulos ES.
 
 ```sh
 npm test    # node --test, lógica del juego en src/core/
+node scripts/balance.mjs 30   # simula partidas por destino y dificultad
 ```
 
 ## Estructura

@@ -212,12 +212,13 @@ export function resolveResupply(state, rng) {
     log.push(`${ev.name}: ${ev.text.media} Próximo intento en 30 días.`);
   } else {
     const n = s.crew.filter((c) => c.alive).length;
+    const days = Math.max(60, SCENARIOS[s.scenarioId].resupplyEvery || 60);
     s = applyEffects(s, {
-      food: 60 * n * NEEDS.food, water: 60 * n * NEEDS.water, o2: 60 * n * NEEDS.o2, parts: 20, meds: 5 * n,
+      food: days * n * NEEDS.food, water: days * n * NEEDS.water, o2: days * n * NEEDS.o2, parts: 20, meds: 5 * n,
     });
     s.medsExpiry = s.day + 180;
     s.nextResupply += SCENARIOS[s.scenarioId].resupplyEvery;
-    log.push(`${ev.name}: ${ev.text.media} Llegan 60 días de comida, agua y O₂, 20 piezas y medicinas frescas.`);
+    log.push(`${ev.name}: ${ev.text.media} Llegan ${days} días de comida, agua y O₂, 20 piezas y medicinas frescas.`);
   }
   for (const t of log) addLog(s, t, boom ? 'evento' : 'bueno');
   return { state: s, log, event };
