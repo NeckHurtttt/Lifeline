@@ -121,3 +121,4 @@ button.big:hover:not(:disabled) { background: var(--fg) !important; color: #0210
 ::selection { background: var(--fg); color: #021006; text-shadow: none; }
 .job, .turno-chip, .token { border-radius: 2px; }
 .job.over { background: rgba(77, 255, 136, .12); }
+.cand, .hire { border-radius: 3px; background: rgba(0, 0, 0, .3); }

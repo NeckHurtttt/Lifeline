@@ -1,5 +1,6 @@
 // Cálculo y validación del diseño de la misión (determinista, sin azar).
 import { MODULES, INSTRUMENTS, LAUNCHERS, ORBITS, CARGO, DIFFICULTY, SCENARIOS, GRID } from '../data/catalog.js';
+import { ROLES } from '../data/crew.js';
 
 const f1 = (n) => n.toFixed(1);
 const suma = (lista, fn) => lista.reduce((s, e) => s + fn(e), 0);
@@ -41,6 +42,10 @@ export function computeDesign(design, scenarioId, difficulty, budgetMult = 1) {
   if (cost > budget) errors.push(`Te pasas del presupuesto por ${f1(cost - budget)} M`);
   if (energyPerDay < 0) errors.push(`La energía no alcanza: déficit de ${f1(-energyPerDay)} kWh por día`);
   if (instr.length > slots) errors.push('Hay más instrumentos que ranuras de laboratorio');
+  if (design.hires) {
+    const sin = design.crewRoles.filter((r) => !design.hires[r]);
+    if (sin.length) errors.push(`Falta entrevistar y contratar: ${sin.map((r) => ROLES[r]?.name ?? r).join(', ')}`);
+  }
   if (crew > crewMax) errors.push('Más tripulantes que camas (máx. 4 por cabina)');
   if (design.cargoDays > cargoMax) errors.push(`Carga de ${design.cargoDays} días supera la bodega (máx. ${cargoMax})`);
 

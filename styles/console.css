@@ -277,3 +277,19 @@ label.pick { background: rgba(255,255,255,.08); padding: .1rem .5rem; border-rad
 .turnos-ver { display: grid; grid-template-columns: repeat(3, 1fr); gap: .3rem; margin-top: .3rem; }
 .turno-chip { display: flex; flex-direction: column; font-size: .85rem; border: 1px solid var(--line); border-radius: 8px; padding: .2rem .35rem; cursor: pointer; }
 .turno-chip.on { border-color: var(--green); box-shadow: 0 0 8px rgba(77,255,136,.4); }
+
+/* ---------- entrevistas ---------- */
+.modal:has(.interview) { max-width: 1150px; max-height: 92vh; overflow: auto; }
+.cand-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: .7rem; margin: .6rem 0; }
+.cand { border: 2px solid var(--line); border-radius: 12px; padding: .55rem; display: flex; flex-direction: column; gap: .35rem; }
+.cand.hired { border-color: var(--green); box-shadow: 0 0 14px rgba(77,255,136,.4); }
+.cand-stats { display: flex; flex-wrap: wrap; gap: .5rem; justify-content: center; }
+.charla { display: flex; flex-direction: column; gap: .35rem; min-height: 2rem; }
+.preguntas { display: flex; flex-direction: column; gap: .25rem; }
+.preguntas button { text-align: left; text-transform: none; }
+.preguntas button.clave { border-color: var(--amber); box-shadow: 0 0 8px rgba(255,194,61,.4); }
+.preguntas button.clave::before { content: "✨ "; }
+.hire-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: .5rem; }
+.hire { display: flex; gap: .5rem; align-items: center; border: 2px solid var(--line); border-radius: 12px; padding: .4rem .5rem; }
+.hire.falta { border-color: var(--amber); border-style: dashed; }
+@media (max-width: 900px) { .cand-grid { grid-template-columns: 1fr; } }

@@ -55,6 +55,11 @@ export function generateCrew(roles, rng) {
 export function createMission({ design, scenarioId, difficulty, seed }) {
   const rng = createRng(seed);
   const crew = generateCrew(design.crewRoles, rng);
+  // Los contratados en la entrevista reemplazan a los generados (mismo puesto).
+  for (const c of crew) {
+    const hire = design.hires?.[c.role];
+    if (hire) Object.assign(c, { name: hire.name, stats: { ...hire.stats }, traits: [...hire.traits] });
+  }
   const n = crew.length;
   const days = design.cargoDays;
   const mult = n * days * (1 + DIFFICULTY[difficulty].reserveBonus);

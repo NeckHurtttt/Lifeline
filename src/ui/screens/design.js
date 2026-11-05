@@ -10,6 +10,13 @@ import { whoDecides } from '../main.js';
 import { beep } from '../audio.js';
 import { say } from '../guide.js';
 import { crewAvatar } from '../avatar.js';
+import { candidatesFor, ask, knownAbout, QUESTIONS, QUESTIONS_PER_CANDIDATE } from '../../core/interview.js';
+import { TRAITS } from '../../data/crew.js';
+
+const STAT_ICON = { fuerza: '💪', tecnica: '🛠️', ciencia: '🧠', medicina: '❤️‍🩹', temple: '🧘' };
+const STAT_NAME = { fuerza: 'Fuerza', tecnica: 'Técnica', ciencia: 'Ciencia', medicina: 'Medicina', temple: 'Calma' };
+const MAIN_Q = { temple: 'alarma', fuerza: 'entrenar', tecnica: 'arreglar', medicina: 'herido', ciencia: 'descubrir' };
+const fresh = (c) => ({ ...c, alive: true, health: 100, morale: 85, fatigue: 0, radiation: 0, hunger: 0, thirst: 0 });
 
 const mod = (type, x, y) => ({ id: `${type}-${x}-${y}`, type, x, y });
 const ROLE_ICON = { comandante: '⭐', piloto: '🕹️', ingeniero: '🔧', medico: '🩺', cientifico: '🔬', biologo: '🌿' };
@@ -31,7 +38,7 @@ const EMPTY = () => ({
   crewRoles: ['comandante', 'piloto', 'ingeniero'], cargoDays: 90,
 });
 
-const TAB_OF = (target) => (/data-mod|#nave/.test(target) ? 'nave' : target === '#instrumentos' ? 'ciencia' : target === '#cohetes' ? 'cohete' : /#tripulantes|#carga/.test(target) ? 'astronautas' : null);
+const TAB_OF = (target) => (/data-mod|#nave/.test(target) ? 'nave' : target === '#instrumentos' ? 'ciencia' : target === '#cohetes' ? 'cohete' : /#tripulantes|#carga|data-hire/.test(target) ? 'astronautas' : null);
 
 const STORMS_PER_DIFF = { facil: 2, medio: 4, dificil: 7 };
 
@@ -60,6 +67,8 @@ function coach(d, r) {
   if (r.cost > r.budget) return [`Te pasaste del dinero por ${fmt(r.cost - r.budget)} millones. Quita algo o elige un cohete más barato.`, 'alerta', '#tablero'];
   if (r.crewMax < d.crewRoles.length) return ['Hay más astronautas que camas. Cada 🛏️ cabina tiene 4 camas.', 'alerta', '#tripulantes'];
   if (d.crewRoles.length === 0) return ['¡No hay astronautas! Elige al menos uno abajo a la derecha.', 'alerta', '#tripulantes'];
+  const sinContratar = d.crewRoles.find((ro) => !d.hires?.[ro]);
+  if (sinContratar) return [`Falta contratar al ${ROLES[sinContratar].name.toLowerCase()}. Toca 🎤 ENTREVISTAR: tienes 3 candidatos y 3 preguntas para cada uno.`, 'alerta', `[data-hire="${sinContratar}"]`];
   if (d.instruments.length > d.modules.filter((m) => m.type === 'laboratorio').length * 3) return ['Tienes más instrumentos que espacio. Cada 🔬 laboratorio tiene 3 lugares.', 'alerta', '#instrumentos'];
   if (d.cargoDays > r.cargoMax) return [`No cabe tanta comida. Máximo ${r.cargoMax} días. Agrega una 📦 bodega o baja los días.`, 'alerta', '#carga'];
   if (!has('baterias')) return ['Consejo: pon 🔋 BATERÍAS. Cada 90 minutos la Tierra tapa el Sol y sin baterías se apaga todo.', 'pensando', '[data-mod="baterias"]'];
@@ -76,6 +85,49 @@ export function render(root, app, go, params = {}) {
   let launching = false;
   let explain = null; // texto de Nova al elegir algo
   let tab = app.designTab ?? 'nave';
+  d.hires ??= {};
+  d.interviews ??= {};
+  d.crewSeed ??= Math.floor(Math.random() * 2 ** 31);
+  if (app.mode === 'demo') for (const ro of d.crewRoles) d.hires[ro] ??= candidatesFor(ro, d.crewSeed)[0];
+
+  /** Entrevista: 3 candidatos por puesto, 3 preguntas a cada uno; luego se contrata a uno. */
+  function interview(role) {
+    let close = null;
+    const cands = candidatesFor(role, d.crewSeed);
+    const main = ROLES[role].mainStat;
+    const show = () => {
+      close?.();
+      close = modal(h('div', { class: 'interview' },
+        h('h2', {}, `🎤 Entrevista: ${ROLE_ICON[role]} ${ROLES[role].name}`),
+        h('div', { class: 'help' }, `Cada candidato tiene tiempo para ${QUESTIONS_PER_CANDIDATE} preguntas. Para ${ROLES[role].name.toLowerCase()} importa sobre todo ${STAT_ICON[main]} ${STAT_NAME[main]}. ¡Ojo con los rasgos malos!`),
+        h('div', { class: 'cand-grid' }, ...cands.map((c) => {
+          const asked = d.interviews[c.id] ?? [];
+          const left = QUESTIONS_PER_CANDIDATE - asked.length;
+          const known = knownAbout(c, asked);
+          const hired = d.hires[role]?.id === c.id;
+          return h('div', { class: `cand ${hired ? 'hired' : ''}`, 'data-cand': c.id },
+            h('div', { style: { textAlign: 'center' } }, crewAvatar(fresh(c), { size: 76 }), h('div', { class: 'name' }, c.name)),
+            h('button', { class: hired ? 'sel' : '', 'data-contratar': c.id, onclick: () => {
+              d.hires[role] = c; beep(990, 80); close(); draw();
+              say(`¡${c.name.split(' ')[0]} es tu nuevo ${ROLES[role].name.toLowerCase()}! 🎉`, { mood: 'feliz' });
+            } }, hired ? '✅ Contratado' : '🤝 Contratar'),
+            h('div', { class: 'cand-stats' }, ...Object.keys(STAT_ICON).map((k) => h('span', { class: k in known.stats ? '' : 'dim', title: STAT_NAME[k] },
+              `${STAT_ICON[k]} ${k in known.stats ? known.stats[k] : '?'}`))),
+            h('div', {}, ...known.traits.map((t) => h('span', { class: `chip ${TRAITS[t].positive ? 'ok' : 'bad'}`, title: TRAITS[t].desc }, TRAITS[t].name))),
+            h('div', { class: 'charla' }, ...asked.map((qid) => {
+              const q = QUESTIONS.find((x) => x.id === qid);
+              return h('div', {}, h('div', { class: 'small dim' }, `${q.icon} ${q.q}`), h('div', {}, `— ${ask(c, qid).text}`));
+            })),
+            h('div', { class: 'small' }, left > 0 ? `⏱️ Te quedan ${left} pregunta(s)` : '⏱️ Se acabó el tiempo de la entrevista'),
+            left > 0 ? h('div', { class: 'preguntas' }, ...QUESTIONS.filter((q) => !asked.includes(q.id)).map((q) =>
+              h('button', { class: `small ${q.id === MAIN_Q[main] ? 'clave' : ''}`, 'data-q': q.id, onclick: () => { d.interviews[c.id] = [...asked, q.id]; beep(660, 30); show(); } }, `${q.icon} ${q.q}`))) : null);
+
+        })),
+        h('div', { style: { textAlign: 'right' } }, h('button', { onclick: () => close() }, 'Cerrar'))));
+    };
+    show();
+    say(`Pregúntales cosas para conocerlos. La pregunta brillante ✨ dice cuánto ${STAT_NAME[main].toLowerCase()} tienen.`, { mood: 'pensando', quiet: true });
+  }
   const flares = fetchFlares();
   const budgetMult = app.mode === 'libre' ? app.budgetMult : 1;
   const who = (role) => { const n = whoDecides(app, role); return n ? h('span', { class: 'tag' }, `decide ${n}`) : null; };
@@ -186,7 +238,19 @@ export function render(root, app, go, params = {}) {
                 explain = ro.id; draw();
                 say(`${ROLE_ICON[ro.id]} ${ro.name}: ${ROLE_DESC[ro.id]}. ${adding ? '¡Sube a bordo!' : 'Se queda en la Tierra.'}`, { quiet: true });
               } }, `${ROLE_ICON[ro.id]} ${ro.name}`))),
-            h('div', { class: 'small dim' }, `${d.crewRoles.length} astronauta(s). Más gente hace más cosas, pero come más.`)) : null),
+            h('div', { class: 'small dim' }, `${d.crewRoles.length} astronauta(s). Más gente hace más cosas, pero come más.`),
+            h('h2', { style: { marginTop: '.8rem' } }, '🎤 Contratar astronautas'),
+            h('div', { class: 'hire-grid' }, ...d.crewRoles.map((ro) => {
+              const c = d.hires[ro];
+              const known = c ? knownAbout(c, d.interviews[c.id] ?? []) : null;
+              return h('div', { class: `hire ${c ? '' : 'falta'}` },
+                c ? crewAvatar(fresh(c), { size: 56 }) : h('div', { class: 'big-ico' }, '❔'),
+                h('div', {},
+                  h('div', {}, `${ROLE_ICON[ro]} ${ROLES[ro].name}`),
+                  c ? h('div', { class: 'name' }, c.name) : h('div', { class: 'small amber' }, 'Sin contratar'),
+                  c ? h('div', { class: 'small dim' }, Object.entries(known.stats).map(([k, v]) => `${STAT_ICON[k]}${v}`).join(' ') || 'No le preguntaste nada…') : null,
+                  h('button', { class: 'small', 'data-hire': ro, onclick: () => interview(ro) }, c ? '🔁 Cambiar' : '🎤 Entrevistar')));
+            }))) : null),
         h('div', {},
           h('div', { class: 'panel c-amber', id: 'tablero' },
             h('h2', {}, '¿Puede volar?'),
