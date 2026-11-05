@@ -13,10 +13,10 @@ test('entradas con id igual a su clave y números finitos', () => {
       for (const n of nums(v)) assert.ok(Number.isFinite(n), `${k}`);
     }
   }
-  assert.equal(Object.keys(MODULES).length, 14);
-  assert.equal(Object.keys(INSTRUMENTS).length, 6);
-  assert.equal(Object.keys(LAUNCHERS).length, 3);
-  assert.equal(Object.keys(ORBITS).length, 3);
+  assert.equal(Object.keys(MODULES).length, 21);
+  assert.equal(Object.keys(INSTRUMENTS).length, 11);
+  assert.equal(Object.keys(LAUNCHERS).length, 4);
+  assert.equal(Object.keys(ORBITS).length, 7);
 });
 
 test('módulos obligatorios y valores clave', () => {

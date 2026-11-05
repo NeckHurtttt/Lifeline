@@ -2,6 +2,7 @@
 import { DIFFICULTY, MODULES, SCENARIOS } from '../data/catalog.js';
 import { EVENTS } from '../data/events.js';
 import { skillCheck } from './skill.js';
+import { envMults, siteOf, availableIn } from './surface.js';
 
 const SEVERITIES = ['leve', 'media', 'grave'];
 const POSITIVE_CHANCE = 0.06;
@@ -10,7 +11,7 @@ const NEEDS = { food: 1.8, water: 2.75 * 0.02 + 0.95, o2: 0.84 };
 const RESOURCE_KEYS = ['o2', 'water', 'food', 'meds', 'parts', 'fuel', 'battery'];
 const RESUPPLY_ONLY = new Set(['carga_a_tiempo', 'carga_explota']);
 const DEBRIS = new Set(['micrometeoritos', 'basura_tardia']);
-const REDUCERS = { tormenta_solar: 'refugio', micrometeoritos: 'refugio', reboost: 'gastar_combustible' };
+const REDUCERS = { tormenta_solar: 'refugio', micrometeoritos: 'refugio', reboost: 'gastar_combustible', polvo_paneles: 'cubrir' };
 
 const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
 const addLog = (s, text, kind = 'evento') => s.log.push({ day: s.day, text, kind });
@@ -35,6 +36,9 @@ function drawSeverity(state, rng) {
 function pool(state, disaster) {
   return Object.values(EVENTS)
     .filter((e) => e.disaster === disaster && !RESUPPLY_ONLY.has(e.id) && e.weight > 0)
+    .filter((e) => availableIn(e, state.scenarioId) && (!e.sites || e.sites.includes(state.design.orbit))
+      && (!e.needsModule || state.modules.some((m) => m.type === e.needsModule))
+      && (!e.legs || e.legs.includes(state.leg ?? 'superficie')))
     .map((e) => [e.id, DEBRIS.has(e.id) && state.flags?.debrisCleared ? e.weight / 2 : e.weight]);
 }
 
@@ -113,7 +117,8 @@ export function applyEffects(state, effects) {
       const f = k === 'crewHealth' ? 'health' : 'morale';
       for (const c of s.crew) if (c.alive) c[f] = clamp(c[f] + v, 0, 100);
     } else if (k === 'crewRadiation') {
-      for (const c of s.crew) if (c.alive) c.radiation = Math.max(0, c.radiation + v);
+      const mult = v > 0 ? envMults(s).radMult : 1;
+      for (const c of s.crew) if (c.alive) c.radiation = Math.max(0, c.radiation + v * mult);
     } else if (k === 'moduleDamage') {
       for (const [type, n] of Object.entries(v)) {
         const m = targetModule(s, type);

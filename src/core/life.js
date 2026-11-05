@@ -1,4 +1,5 @@
 import { DIFFICULTY } from '../data/catalog.js';
+import { envMults } from './surface.js';
 
 const RATION = { completa: 1, media: 0.5, nada: 0 };
 const FOOD = 1.8;
@@ -20,6 +21,7 @@ export function applyDailyLife(state, ctx) {
   const r = s.resources;
   const deathAllowed = DIFFICULTY[s.difficulty].deathAllowed;
   const living = s.crew.filter((c) => c.alive);
+  const { boneMult, radMult } = envMults(s);
 
   const ration = (c) => RATION[s.rations[c.id]] ?? 1;
   const foodMult = (c) => (c.traits.includes('gloton') ? 1.2 : 1) * (c.traits.includes('frugal') ? 0.8 : 1);
@@ -58,7 +60,7 @@ export function applyDailyLife(state, ctx) {
     if (c.traits.includes('fragil')) dmg *= 1.2;
     c.health = clamp(c.health - dmg);
 
-    if (!ctx.exercised.has(c.id)) c.bone = clamp(c.bone - (c.traits.includes('atleta') ? 0.25 : 0.5));
+    if (!ctx.exercised.has(c.id)) c.bone = clamp(c.bone - (c.traits.includes('atleta') ? 0.25 : 0.5) * boneMult);
 
     const slept = ctx.slept.has(c.id);
     const insomne = c.traits.includes('insomne');
@@ -71,7 +73,7 @@ export function applyDailyLife(state, ctx) {
     if (ration(c) === 1 && !foodShort && !waterShort && slept) morale += 3;
     c.morale = clamp(morale);
 
-    c.radiation += 0.5 * (ctx.sheltered ? 0.2 : 1) * (c.traits.includes('resistente') ? 0.8 : 1);
+    c.radiation += 0.5 * radMult * (ctx.sheltered ? 0.2 : 1) * (c.traits.includes('resistente') ? 0.8 : 1);
 
     if (c.health <= 0) {
       c.alive = false;

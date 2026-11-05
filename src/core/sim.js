@@ -6,6 +6,10 @@ import { applyTasks, validateSchedule } from './tasks.js';
 import { applyEnergy } from './energy.js';
 import { applyDailyLife } from './life.js';
 import { expireMeds, exerciseRule } from './protocols.js';
+import { siteOf, scenarioOf, isNight, daysToNight } from './surface.js';
+import { MODULES } from '../data/catalog.js';
+
+export const NIGHT_WARN_DAYS = 2;
 
 const LOW_DAYS = 7;
 const NEED = { food: 1.8, water: 2.75 * 0.02 + 0.95, waterNoLS: 2.75, o2: 0.84 };
@@ -74,8 +78,18 @@ export function advanceDay(state) {
   }
   if (s.flags.extraSciencePerDay) s.science += s.flags.extraSciencePerDay;
 
-  const e = applyEnergy(s);
+  const site = siteOf(s);
+  const sc = scenarioOf(s);
+  const night = isNight(site, s.day);
+  const e = applyEnergy(s, { solarFactor: night ? 0 : 1, heatKw: night ? sc.nightHeatKw ?? 0 : 0 });
   s = e.state; pushLog(s, e.log, 'energia');
+  // Recursos del lugar: agua del hielo y combustible fabricado allí (ISRU).
+  for (const m of s.modules) {
+    if (!m.on || m.health <= 0) continue;
+    const def = MODULES[m.type];
+    if (def.waterPerDay && site?.ice) s.resources.water += def.waterPerDay * (m.health / 100);
+    if (def.fuelPerDay) s.resources.fuel += def.fuelPerDay * (m.health / 100);
+  }
 
   const l = applyDailyLife(s, { ...t.ctx, lifeSupportOn: lsOn(s) });
   s = l.state; pushLog(s, l.log, 'vida');
@@ -99,7 +113,7 @@ export function advanceDay(state) {
   if (living(s).length < aliveBefore) return { state: s, interrupt: { kind: 'muerte', data: l.log } };
   if (s.day >= s.totalDays) {
     s.phase = 'reentry';
-    pushLog(s, ['Día 365: hora de volver a casa.'], 'fin');
+    pushLog(s, [`Día ${s.totalDays}: hora de volver a casa.`], 'fin');
     return { state: s, interrupt: { kind: 'fin', data: null } };
   }
   if (s.pending) return { state: s, interrupt: { kind: 'evento', data: s.pending } };
@@ -107,6 +121,13 @@ export function advanceDay(state) {
   const offers = s.minis.filter((m) => m.status === 'oferta');
   if (offers.length > offersBefore) return { state: s, interrupt: { kind: 'mini', data: offers.at(-1) } };
 
+  if (site?.nightDays && daysToNight(site, s.day) === NIGHT_WARN_DAYS) {
+    const text = `En ${NIGHT_WARN_DAYS} días empieza la noche: ${site.nightDays} días sin sol y mucho frío. Revisa la batería y apaga lo que no haga falta`;
+    pushLog(s, [text], 'aviso');
+    return { state: s, interrupt: { kind: 'noche', data: { text, days: site.nightDays } } };
+  }
+  if (site?.nightDays && isNight(site, s.day) && !isNight(site, s.day - 1)) pushLog(s, ['🌑 Empieza la noche. Sin sol: la base vive de lo que guardó.'], 'aviso');
+  if (site?.nightDays && !isNight(site, s.day) && isNight(site, s.day - 1)) pushLog(s, ['🌅 ¡Amanece! Los paneles vuelven a cargar.'], 'bueno');
   const left = daysLeft(s);
   s.flags.lowWarned ??= {};
   let low = null;

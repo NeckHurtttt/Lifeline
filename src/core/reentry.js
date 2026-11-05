@@ -14,6 +14,22 @@ export const REENTRY_STEPS = [
   { id: 'recuperacion', desc: 'Un barco recoge a los astronautas.', label: 'Recuperación de la tripulación' },
 ];
 
+const OVERRIDES = {
+  luna: {
+    desacople: { label: 'Despegue desde la Luna', desc: 'El módulo de ascenso enciende su motor y sube a la tripulación a órbita lunar.' },
+    encendido_salida: { label: 'Encendido de regreso a la Tierra (TEI)', desc: 'Un empujón para salir de la Luna rumbo a casa: 3 días de viaje (gasta 10 de combustible).' },
+    interfaz_entrada: { label: 'Interfaz de entrada a 11 km/s', desc: 'Volviendo de la Luna se llega mucho más rápido que desde la estación: el escudo sufre más.' },
+  },
+  marte: {
+    desacople: { label: 'Llegada a la Tierra: se suelta la cápsula', desc: 'Tras 7 meses de viaje, la cápsula se separa de la nave grande.' },
+    encendido_salida: { label: 'Corrección final de trayectoria', desc: 'Un último ajuste para entrar a la atmósfera en el ángulo justo (gasta 10 de combustible).' },
+    interfaz_entrada: { label: 'Interfaz de entrada a 12 km/s', desc: 'La entrada más rápida de todas: el escudo térmico trabaja al máximo.' },
+  },
+};
+/** Pasos de la reentrada según el destino (mismos ids, textos propios). */
+export const reentrySteps = (scenarioId) => REENTRY_STEPS.map((st) => ({ ...st, ...(OVERRIDES[scenarioId]?.[st.id] ?? {}) }));
+const SHIELD_MULT = { estacion: 1, luna: 1.4, marte: 1.6 };
+
 const DEORBIT_FUEL = 10;
 const MAIN_CHUTE_RISK = 0.03;
 const SEVERITIES = ['leve', 'media', 'grave'];
@@ -39,7 +55,7 @@ function pickSeverity(rng, difficulty) {
 export function heatShieldRisk(state) {
   const cabina = state.modules.find((m) => m.type === 'cabina');
   const health = cabina ? cabina.health : 0;
-  return ((100 - health) / 100) * 0.5;
+  return Math.min(0.9, ((100 - health) / 100) * 0.5 * (SHIELD_MULT[state.scenarioId] ?? 1));
 }
 
 /**

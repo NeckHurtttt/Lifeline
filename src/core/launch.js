@@ -26,7 +26,20 @@ export const LAUNCH_STEPS = [
   { id: 'acople_estacion', desc: 'La nave se engancha a la estación.', t: 86400, label: 'Acople con la estación', risk: 0.02, failure: 'Acople fallido: hay que reintentar' },
 ];
 
-const byId = Object.fromEntries(LAUNCH_STEPS.map((s) => [s.id, s]));
+const BASE_STEPS = LAUNCH_STEPS.filter((st) => st.id !== 'acople_estacion');
+const TO_MOON = [
+  { id: 'tli', desc: 'Un encendido largo saca la nave de la órbita de la Tierra rumbo a la Luna (3 días de viaje).', t: 9000, label: 'Encendido hacia la Luna (TLI)', risk: 0.02, failure: 'El motor no enciende bien: no podemos ir a la Luna' },
+  { id: 'loi', desc: 'Al llegar, se frena para quedar dando vueltas a la Luna.', t: 280000, label: 'Frenado en órbita lunar (LOI)', risk: 0.01, failure: 'Frenado corto: se gasta combustible extra' },
+  { id: 'descenso', desc: 'El módulo de aterrizaje baja con sus motores. El piloto busca un lugar plano.', t: 300000, label: 'Descenso motorizado', risk: 0.03, failure: 'Alarma de la computadora: alunizaje lejos del sitio' },
+  { id: 'alunizaje', desc: '¡Contacto con el suelo! Los motores se apagan.', t: 300720, label: 'Alunizaje', risk: 0 },
+];
+const TO_MARS = [
+  { id: 'tmi', desc: 'Un encendido larguísimo saca la nave hacia Marte: empiezan 7 meses de viaje.', t: 9000, label: 'Encendido hacia Marte (TMI)', risk: 0.02, failure: 'El motor no enciende bien: no podemos ir a Marte' },
+];
+const STEPS_BY_SCENARIO = { estacion: LAUNCH_STEPS, luna: [...BASE_STEPS, ...TO_MOON], marte: [...BASE_STEPS, ...TO_MARS] };
+/** Pasos del despegue según el destino. */
+export const launchSteps = (scenarioId) => STEPS_BY_SCENARIO[scenarioId] ?? LAUNCH_STEPS;
+const byId = Object.fromEntries([...LAUNCH_STEPS, ...TO_MOON, ...TO_MARS].map((s) => [s.id, s]));
 
 // Criterios reales de clima de lanzamiento; probabilidad base por intento.
 const WEATHER = [
@@ -77,6 +90,17 @@ export function runLaunchStep(state, stepId, rng) {
     if (panel) panel.health = Math.max(0, panel.health - 50);
     return { ok: true, state: s, log, failure: step.failure };
   }
+  if (stepId === 'tli' || stepId === 'tmi') return { ok: false, state: s, log, failure: step.failure, abortMode: 'retorno_libre' };
+  if (stepId === 'loi') {
+    s.resources.fuel = Math.max(0, s.resources.fuel - 15);
+    return { ok: true, state: s, log, failure: step.failure };
+  }
+  if (stepId === 'descenso') {
+    const m = s.modules[s.seed % s.modules.length];
+    if (m) m.health = Math.max(0, m.health - 30);
+    s.flags = { ...(s.flags ?? {}), landedFar: true };
+    return { ok: true, state: s, log, failure: step.failure };
+  }
   if (stepId === 'acople_estacion') {
     s.resources.fuel = Math.max(0, s.resources.fuel - 10);
     return { ok: false, state: s, log, failure: step.failure, abortMode: null };
@@ -92,6 +116,12 @@ export function applyAbort(state, mode, rng) {
   if (mode === 'aborto_orbita') {
     s.resources.fuel = Math.max(0, s.resources.fuel - 40);
     log.push('Aborto a órbita: llegamos a una órbita más baja y subimos con combustible propio');
+    return { state: s, log };
+  }
+  if (mode === 'retorno_libre') {
+    log.push('Retorno libre: la nave da la vuelta y vuelve a la Tierra sin entrar en órbita, como el Apolo 13');
+    s.phase = 'report';
+    s.outcome = { success: false, reason: 'Misión abortada camino al destino: tripulación a salvo' };
     return { state: s, log };
   }
   if (mode === 'amarizaje') {

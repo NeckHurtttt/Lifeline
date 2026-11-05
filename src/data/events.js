@@ -12,7 +12,7 @@ const PREP_STORM = [
 export const EVENTS = {
   micrometeoritos: {
     id: 'micrometeoritos', name: 'Lluvia de micrometeoritos', kind: '-', disaster: false, warnDays: 1, weight: 10,
-    text: T('Pequeños impactos tamborilean contra el casco.', 'Una nube de partículas perfora paneles y revestimiento.', 'Una lluvia densa de micrometeoritos azota la estación.'),
+    text: T('Pequeños impactos tamborilean contra el casco.', 'Una nube de partículas perfora paneles y revestimiento.', 'Una lluvia densa de micrometeoritos azota toda la nave.'),
     prepare: PREP_STORM,
     options: [
       { id: 'reparar', label: 'Reparar con piezas', effects: T({ parts: -2, moduleDamage: { random: 5 } }, { parts: -5, moduleDamage: { random: 20 } }, { parts: -8, moduleDamage: { random: 40 }, crewMorale: -10 }) },
@@ -30,7 +30,7 @@ export const EVENTS = {
   },
   tormenta_solar: {
     id: 'tormenta_solar', name: 'Tormenta solar', kind: '-', disaster: false, warnDays: 2, weight: 10,
-    text: T('Aumenta la radiación; los contadores suben un poco.', 'Una eyección de masa coronal eleva la radiación a bordo.', 'Tormenta solar severa: dosis peligrosas en toda la estación.'),
+    text: T('Aumenta la radiación; los contadores suben un poco.', 'Una eyección de masa coronal eleva la radiación a bordo.', 'Tormenta solar severa: dosis peligrosas en toda la nave.'),
     prepare: PREP_STORM,
     options: [
       { id: 'aguantar', label: 'Seguir con las labores', effects: T({ crewRadiation: 10 }, { crewRadiation: 30, crewHealth: -5 }, { crewRadiation: 70, crewHealth: -15 }) },
@@ -46,7 +46,7 @@ export const EVENTS = {
   },
   carga_explota: {
     id: 'carga_explota', name: 'La carga explota', kind: '-', disaster: false, warnDays: 0, weight: 0,
-    text: T('El lanzamiento de carga falla; se reintentará.', 'La nave de carga estalla en el ascenso.', 'La carga explota y los restos amenazan la órbita.'),
+    text: T('El lanzamiento de carga falla; se reintentará.', 'La nave de carga estalla en el ascenso.', 'La carga explota: se pierde todo el envío.'),
     prepare: [],
     options: [{ id: 'continuar', label: 'Esperar la próxima carga', effects: T({ crewMorale: -5 }, { crewMorale: -10, reputation: -2 }, { crewMorale: -15, reputation: -4 }) }],
   },
@@ -92,7 +92,7 @@ export const EVENTS = {
   },
   despresurizacion: {
     id: 'despresurizacion', name: 'Despresurización', kind: '-', disaster: true, warnDays: 0, weight: 7, countdown: true,
-    text: T('Suena la alarma de presión: una fuga pequeña en algún módulo.', 'La presión cae rápido: hay una grieta en un módulo.', '¡Fuga grave! La presión se desploma en toda la estación.'),
+    text: T('Suena la alarma de presión: una fuga pequeña en algún módulo.', 'La presión cae rápido: hay una grieta en un módulo.', '¡Fuga grave! La presión se desploma en todos los módulos.'),
     procedure: 'Protocolo real: todos se juntan en un lugar seguro, calculan el tiempo de reserva (cuánto falta para que la presión llegue al mínimo) y cierran escotillas módulo por módulo hasta aislar la fuga.',
     prepare: [],
     options: [
@@ -278,3 +278,85 @@ export const EVENTS = {
     ],
   },
 };
+
+// ---------- Luna y Marte ----------
+const SURF = ['luna', 'marte'];
+Object.assign(EVENTS, {
+  sismo: {
+    id: 'sismo', name: 'Sismo', kind: '-', disaster: false, warnDays: 0, weight: 6, scenarios: SURF,
+    text: T('El suelo tiembla un poco: se caen herramientas.', 'Un sismo sacude la base durante minutos.', 'Un sismo fuerte agrieta las uniones de los módulos.'),
+    prepare: [],
+    options: [
+      { id: 'revisar', label: 'Revisar las uniones (técnica)', check: { stat: 'tecnica', dc: 11 },
+        effects: T({ parts: -1 }, { parts: -3 }, { parts: -6, moduleDamage: { random: 10 } }),
+        failEffects: T({ moduleDamage: { random: 8 } }, { moduleDamage: { random: 25 } }, { moduleDamage: { random: 50 }, o2: -20 }) },
+      { id: 'esperar', label: 'Esperar a que pase', effects: T({ moduleDamage: { random: 5 } }, { moduleDamage: { random: 20 } }, { moduleDamage: { random: 45 }, crewMorale: -10 }) },
+    ],
+  },
+  polvo_paneles: {
+    id: 'polvo_paneles', name: 'Polvo en los paneles', kind: '-', disaster: false, warnDays: 1, weight: 9, scenarios: SURF, needsModule: 'paneles',
+    text: T('Una capa fina de polvo opaca los paneles.', 'El polvo pegajoso (con carga eléctrica) cubre los paneles.', 'Los paneles quedan cubiertos: casi no dan energía.'),
+    prepare: [{ id: 'cubrir', label: 'Cubrir los paneles a tiempo', cost: {} }],
+    options: [
+      { id: 'limpiar', label: 'Salir a limpiarlos (EVA en pareja)', check: { stat: 'eva', dc: 10 },
+        effects: T({ crewRadiation: 2 }, { crewRadiation: 4, parts: -1 }, { crewRadiation: 6, parts: -2 }),
+        failEffects: T({ moduleDamage: { paneles: 10 }, crewRadiation: 3 }, { moduleDamage: { paneles: 25 }, crewHealth: -5 }, { moduleDamage: { paneles: 45 }, crewHealth: -10 }) },
+      { id: 'esperar', label: 'Dejarlos así', effects: T({ moduleDamage: { paneles: 10 } }, { moduleDamage: { paneles: 30 } }, { moduleDamage: { paneles: 55 } }) },
+    ],
+  },
+  rover_atascado: {
+    id: 'rover_atascado', name: 'Rover atascado', kind: '-', disaster: false, warnDays: 0, weight: 6, scenarios: SURF, needsModule: 'rover',
+    text: T('Una rueda se hunde en polvo suelto.', 'El rover queda enterrado hasta los ejes.', 'El rover se queda sin batería y atascado lejos de la base.'),
+    prepare: [],
+    options: [
+      { id: 'rescatar', label: 'Rescatarlo (fuerza, EVA)', check: { stat: 'fuerza', dc: 11 },
+        effects: T({ crewRadiation: 2 }, { crewRadiation: 4, parts: -2 }, { crewRadiation: 8, parts: -4 }),
+        failEffects: T({ moduleDamage: { rover: 20 } }, { moduleDamage: { rover: 50 }, crewHealth: -5 }, { moduleDamage: { rover: 100 }, crewHealth: -10 }) },
+      { id: 'abandonar', label: 'Dejarlo hasta mañana', effects: T({ moduleOff: { rover: 2 } }, { moduleOff: { rover: 5 }, science: -3 }, { moduleDamage: { rover: 60 }, science: -6 }) },
+    ],
+  },
+  falla_traje: {
+    id: 'falla_traje', name: 'Falla en un traje espacial', kind: '-', disaster: false, warnDays: 0, weight: 6, scenarios: SURF,
+    text: T('Un guante pierde un poco de presión.', 'El sistema de enfriamiento de un traje gotea.', 'Un traje se despresuriza en plena salida: hay que volver ya.'),
+    prepare: [],
+    options: [
+      { id: 'reparar', label: 'Reparar el traje (técnica)', check: { stat: 'tecnica', dc: 10 },
+        effects: T({ parts: -1 }, { parts: -2 }, { parts: -4, crewHealth: -5 }),
+        failEffects: T({ parts: -2 }, { parts: -3, crewHealth: -5 }, { crewHealth: -20, crewMorale: -10 }) },
+      { id: 'repuesto', label: 'Usar piezas de repuesto', effects: T({ parts: -3 }, { parts: -5 }, { parts: -8, crewHealth: -10 }) },
+    ],
+  },
+  hielo_polar: {
+    id: 'hielo_polar', name: 'Hielo descubierto', kind: '+', disaster: false, warnDays: 0, weight: 6, scenarios: SURF, sites: ['luna_polo', 'marte_arcadia'],
+    text: T('El radar encuentra un poco de hielo cerca.', 'Una capa de hielo limpio a pocos metros de la base.', '¡Un depósito enorme de hielo!'),
+    prepare: [],
+    options: [{ id: 'aprovechar', label: 'Sacar el agua', effects: T({ water: 60 }, { water: 150, science: 3 }, { water: 300, science: 6, reputation: 4 }) }],
+  },
+  cueva_lava: {
+    id: 'cueva_lava', name: 'Cueva de lava', kind: '+', disaster: false, warnDays: 0, weight: 5, scenarios: SURF,
+    text: T('Se ve la entrada de un túnel antiguo de lava.', 'Un túnel de lava enorme: podría proteger de la radiación.', '¡Una caverna gigante, perfecta para una futura base!'),
+    prepare: [],
+    options: [{ id: 'aprovechar', label: 'Estudiarla', effects: T({ science: 4 }, { science: 8, reputation: 3 }, { science: 15, reputation: 6, crewMorale: 8 }) }],
+  },
+  roca_rara: {
+    id: 'roca_rara', name: 'Roca muy rara', kind: '+', disaster: false, warnDays: 0, weight: 7, scenarios: SURF,
+    text: T('Una roca con cristales extraños.', 'Una roca de las más antiguas del sistema solar.', '¡Un hallazgo histórico en una roca!'),
+    prepare: [],
+    options: [{ id: 'aprovechar', label: 'Analizarla', effects: T({ science: 3 }, { science: 7, reputation: 2 }, { science: 14, reputation: 6 }) }],
+  },
+  tierra_en_el_cielo: {
+    id: 'tierra_en_el_cielo', name: 'La Tierra en el cielo', kind: '+', disaster: false, warnDays: 0, weight: 6, scenarios: ['luna'],
+    text: T('La Tierra se ve azul sobre el horizonte.', 'Un "amanecer de Tierra" emociona a todos.', 'Todos se quedan mirando la Tierra: el ánimo vuela.'),
+    prepare: [],
+    options: [{ id: 'continuar', label: 'Tomar fotos', effects: T({ crewMorale: 5 }, { crewMorale: 10 }, { crewMorale: 15, reputation: 2 }) }],
+  },
+  impresora_regolito: {
+    id: 'impresora_regolito', name: 'Piezas impresas con regolito', kind: '+', disaster: false, warnDays: 0, weight: 5, scenarios: SURF, needsModule: 'taller',
+    text: T('Se imprime una pieza con polvo del suelo.', 'La impresora 3D fabrica repuestos con regolito.', '¡Una tanda entera de repuestos hecha con suelo local!'),
+    prepare: [],
+    options: [{ id: 'aprovechar', label: 'Guardar las piezas', effects: T({ parts: 3 }, { parts: 6 }, { parts: 10, reputation: 2 }) }],
+  },
+});
+for (const id of ['basura_tardia', 'captura_brazo', 'aurora', 'nueva_tripulacion', 'reboost', 'choque_carga', 'propulsor_atascado', 'fuga_amoniaco']) {
+  EVENTS[id].scenarios = ['estacion'];
+}

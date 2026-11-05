@@ -2,9 +2,9 @@ import { MODULES, INSTRUMENTS, ORBITS } from '../data/catalog.js';
 
 const LAST = ['cabina', 'soporte_vital'];
 
-function balance(state, solarFactor) {
+function balance(state, solarFactor, heatKw = 0) {
   const fraction = ORBITS[state.design.orbit].solarFraction;
-  let total = 0;
+  let total = -heatKw * 24;
   let labOn = false;
   for (const m of state.modules) {
     if (!m.on) continue;
@@ -34,17 +34,17 @@ function shedOrder(state) {
 /**
  * Balance diario de energía. Puro: devuelve {state, shed, log}.
  */
-export function applyEnergy(state, { solarFactor = 1 } = {}) {
+export function applyEnergy(state, { solarFactor = 1, heatKw = 0 } = {}) {
   const s = structuredClone(state);
   const shed = [];
   const log = [];
-  let bal = balance(s, solarFactor);
+  let bal = balance(s, solarFactor, heatKw);
   if (s.resources.battery + bal < 0) {
     for (const m of shedOrder(s)) {
       m.on = false;
       shed.push(m.id);
       log.push(`Apagado por falta de energía: ${MODULES[m.type].name}`);
-      bal = balance(s, solarFactor);
+      bal = balance(s, solarFactor, heatKw);
       if (s.resources.battery + bal >= 0) break;
     }
   }

@@ -1,6 +1,6 @@
 // Tripulación y creación de la misión. Determinista dado `seed`.
 import { createRng } from './rng.js';
-import { DIFFICULTY } from '../data/catalog.js';
+import { DIFFICULTY, MODULES, SCENARIOS } from '../data/catalog.js';
 import { ROLES, STAT_RANGES, TRAITS, NAMES } from '../data/crew.js';
 
 /** @typedef {'facil'|'medio'|'dificil'} Difficulty */
@@ -69,7 +69,8 @@ export function createMission({ design, scenarioId, difficulty, seed }) {
     on: m.on ?? true,
     priority: m.priority ?? DEFAULT_PRIORITY[m.type] ?? 5,
   }));
-  const batteryMax = 60 * modules.filter((m) => m.type === 'baterias').length;
+  const batteryMax = modules.reduce((t, m) => t + (MODULES[m.type]?.batteryKwh ?? 0), 0);
+  const sc = SCENARIOS[scenarioId] ?? SCENARIOS.estacion;
   const schedule = {};
   const rations = {};
   for (const c of crew) {
@@ -77,7 +78,7 @@ export function createMission({ design, scenarioId, difficulty, seed }) {
     rations[c.id] = 'completa';
   }
   return {
-    seed, rng: rng.state(), day: 0, totalDays: 365, difficulty, scenarioId,
+    seed, rng: rng.state(), day: 0, totalDays: sc.days + 2 * (sc.travelDays ?? 0), difficulty, scenarioId,
     phase: 'launch', design, modules, crew, schedule, rations,
     resources: {
       o2: 0.84 * mult,
@@ -88,6 +89,6 @@ export function createMission({ design, scenarioId, difficulty, seed }) {
       battery: batteryMax, batteryMax, dataStored: 0,
     },
     alerts: [], pending: null, history: [], minis: [], science: 0, reputation: 50,
-    nextResupply: 60, medsExpiry: 180, log: [], outcome: null,
+    nextResupply: sc.resupplyEvery || Infinity, medsExpiry: 180, log: [], outcome: null,
   };
 }

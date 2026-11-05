@@ -52,3 +52,42 @@ export const MINIMISSIONS = {
     check: { stat: 'fuerza', dc: 10 }, reward: { reputation: 8 }, failure: { reputation: -6 },
   },
 };
+
+// ---------- Luna y Marte ----------
+// rover: hace falta un rover. Con el presurizado van 2 en EVA; con el autónomo va 1 operador desde la base, sin EVA y en el doble de días.
+const SURF = ['luna', 'marte'];
+Object.assign(MINIMISSIONS, {
+  satelite_comunicaciones: {
+    id: 'satelite_comunicaciones', name: 'Desplegar satélite de comunicaciones', desc: 'Un satélite en órbita para hablar con la Tierra desde cualquier lado: +20 GB/día de enlace.',
+    scenarios: SURF, requires: { modules: ['desplegador'], crew: 1 }, days: 2, deadline: 10, cost: {},
+    check: { stat: 'tecnica', dc: 9 }, reward: { reputation: 6, science: 4 }, failure: { reputation: -3 },
+  },
+  red_sismografos: {
+    id: 'red_sismografos', name: 'Red de sismógrafos', desc: 'Llevar sismógrafos lejos de la base en rover: +1 ciencia por día.',
+    scenarios: SURF, rover: true, eva: true, requires: { crew: 2 }, days: 3, deadline: 12, cost: { parts: -2 },
+    check: { stat: 'tecnica', dc: 10 }, reward: { science: 8 }, failure: { crewHealth: -5 },
+  },
+  explorar_cueva: {
+    id: 'explorar_cueva', name: 'Explorar una cueva de lava', desc: 'Bajar a un túnel de lava antiguo con el rover: mucha ciencia, algo de riesgo.',
+    scenarios: SURF, rover: true, eva: true, requires: { crew: 2 }, days: 3, deadline: 10, cost: {},
+    check: { stat: 'temple', dc: 12 }, reward: { science: 15, reputation: 6 }, failure: { crewHealth: -10, crewRadiation: 5 },
+  },
+  minar_hielo: {
+    id: 'minar_hielo', name: 'Minar hielo', desc: 'Ir con el rover a un cráter oscuro y traer hielo: +300 L de agua.',
+    scenarios: SURF, sites: ['luna_polo', 'marte_arcadia'], rover: true, eva: true, requires: { crew: 2 }, days: 4, deadline: 12, cost: {},
+    check: { stat: 'fuerza', dc: 10 }, reward: { water: 300, reputation: 3 }, failure: { crewHealth: -5 },
+  },
+  muro_regolito: {
+    id: 'muro_regolito', name: 'Muro de regolito', desc: 'Cubrir la base con suelo: la radiación baja 40 % el resto de la misión.',
+    scenarios: SURF, eva: true, requires: { crew: 2 }, days: 4, deadline: 15, cost: { parts: -3 },
+    check: { stat: 'fuerza', dc: 10 }, reward: { reputation: 4 }, failure: { crewHealth: -5 },
+  },
+  telescopio_oculto: {
+    id: 'telescopio_oculto', name: 'Antena del radiotelescopio', desc: 'Extender la antena del radiotelescopio lejos de la base.',
+    scenarios: ['luna'], instruments: ['radiotelescopio'], rover: true, eva: true, requires: { crew: 2 }, days: 2, deadline: 10, cost: {},
+    check: { stat: 'ciencia', dc: 10 }, reward: { science: 12, reputation: 4 }, failure: { science: 1 },
+  },
+});
+for (const id of ['recuperar_satelite', 'retirar_basura', 'capturar_carga', 'fotografiar_desastre', 'cultivo_microg', 'prueba_nave_comercial']) {
+  MINIMISSIONS[id].scenarios = ['estacion'];
+}

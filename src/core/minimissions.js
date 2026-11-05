@@ -2,6 +2,12 @@ import { MINIMISSIONS } from '../data/minimissions.js';
 import { applyEffects } from './events.js';
 import { skillCheck } from './skill.js';
 import { miniEvaNoGo } from './protocols.js';
+import { availableIn } from './surface.js';
+
+const hasRover = (s) => s.modules.some((m) => m.type === 'rover' && m.on);
+const hasAutoRover = (s) => s.modules.some((m) => m.type === 'rover_autonomo' && m.on);
+/** ¿La minimisión usa el rover autónomo (sin EVA, el doble de días)? */
+export const usesAutoRover = (s, def) => !!def.rover && !hasRover(s) && hasAutoRover(s);
 
 const OFFER_PROB = 0.04;
 const MAX_OPEN = 2;
@@ -28,6 +34,8 @@ export function offerMinis(state, rng) {
   const taken = new Set(s.minis.filter((m) => ['oferta', 'activa', 'hecha'].includes(m.status)).map((m) => m.id));
   const candidates = Object.values(MINIMISSIONS).filter((d) => {
     if (d.mandatory || taken.has(d.id)) return false;
+    if (!availableIn(d, s.scenarioId) || (d.sites && !d.sites.includes(s.design.orbit))) return false;
+    if (d.rover && !hasRover(s) && !hasAutoRover(s)) return false;
     if (d.chainUnlock && !s.minis.some((m) => m.id === d.chainUnlock && m.status === 'hecha')) return false;
     return true;
   });
@@ -56,17 +64,21 @@ export function acceptMini(state, miniId, crewIds = []) {
   const def = MINIMISSIONS[miniId];
   for (const t of def.requires.modules ?? []) if (!hasModule(state, t)) return { state, error: `Falta el módulo: ${t}` };
   for (const i of def.instruments ?? []) if (!state.design.instruments.includes(i)) return { state, error: `Falta el instrumento: ${i}` };
+  if (def.rover && !hasRover(state) && !hasAutoRover(state)) return { state, error: 'Falta un rover' };
+  const auto = usesAutoRover(state, def);
+  const needCrew = auto ? 1 : def.requires.crew;
   const busy = new Set(state.minis.filter((m) => m.status === 'activa').flatMap((m) => m.crewIds));
   const crew = crewIds.map((id) => state.crew.find((c) => c.id === id));
   const ok = crew.every((c) => c && c.alive && !c.evacuated && !busy.has(c.id)) && new Set(crewIds).size === crewIds.length;
-  if (!ok || crew.length < def.requires.crew) return { state, error: 'Faltan tripulantes' };
+  if (!ok || crew.length < needCrew) return { state, error: 'Faltan tripulantes' };
   if (def.requires.role && !crew.some((c) => c.role === def.requires.role)) return { state, error: 'Faltan tripulantes' };
-  if (def.eva) { const why = miniEvaNoGo(state, crew); if (why) return { state, error: `NO GO para la EVA: ${why}` }; }
+  if (def.eva && !auto) { const why = miniEvaNoGo(state, crew); if (why) return { state, error: `NO GO para la EVA: ${why}` }; }
   let s = applyEffects(state, def.cost);
   const e = s.minis.find((m) => m.id === miniId && m.status === 'oferta');
   e.status = 'activa';
   e.crewIds = [...crewIds];
-  e.daysLeft = def.days;
+  e.daysLeft = def.days * (auto ? 2 : 1);
+  e.auto = auto;
   return { state: s };
 }
 
@@ -86,7 +98,7 @@ export function progressMinis(state, rng) {
   for (const id of s.minis.filter((m) => m.status === 'activa').map((m) => m.id)) {
     const def = MINIMISSIONS[id];
     let e = s.minis.find((m) => m.id === id && m.status === 'activa');
-    if (def.eva) addRadiation(s, e);
+    if (def.eva && !e.auto) addRadiation(s, e);
     e = s.minis.find((m) => m.id === id && m.status === 'activa');
     e.daysLeft -= 1;
     if (e.daysLeft > 0) continue;
@@ -100,6 +112,9 @@ export function progressMinis(state, rng) {
       if (id === 'retirar_basura') s.flags.debrisCleared = true;
       if (id === 'experimento_externo') s.flags.extraSciencePerDay = (s.flags.extraSciencePerDay ?? 0) + 2;
       if (id === 'cambiar_panel') for (const m of s.modules) if (m.type === 'paneles') m.health = 100;
+      if (id === 'muro_regolito') s.flags.regolithWall = true;
+      if (id === 'red_sismografos') s.flags.extraSciencePerDay = (s.flags.extraSciencePerDay ?? 0) + 1;
+      if (id === 'satelite_comunicaciones') s.flags.extraDownlink = (s.flags.extraDownlink ?? 0) + 20;
     } else if (def.mandatory) s.flags.lastCargoLost = true;
     log.push(`${def.name}: ${ok ? 'éxito' : 'fracaso'} (${r.text})`);
   }

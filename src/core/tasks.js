@@ -1,4 +1,4 @@
-import { MODULES, INSTRUMENTS, DIFFICULTY } from '../data/catalog.js';
+import { MODULES, INSTRUMENTS, DIFFICULTY, ORBITS } from '../data/catalog.js';
 import { ROLES } from '../data/crew.js';
 import { crewScore } from './skill.js';
 import { evaGoNoGo, isWeekend } from './protocols.js';
@@ -134,16 +134,17 @@ export function applyTasks(state, rng) {
 
   if (expEff > 0 && on('laboratorio')) {
     const sci = s.crew.some((c) => c.alive && c.traits.includes('ojo_cientifico')) ? 1.2 : 1;
+    const siteMult = ORBITS[s.design.orbit]?.scienceMult ?? 1;
     for (const id of s.design.instruments) {
       const ins = INSTRUMENTS[id];
       if (!ins) continue;
       r.dataStored += ins.dataPerDay;
-      s.science += ins.sciencePerDay * Math.min(1, expEff) * sci;
+      s.science += ins.sciencePerDay * Math.min(1, expEff) * sci * siteMult;
       if (ins.foodPerDay) r.food += ins.foodPerDay;
     }
   }
 
-  const downlink = s.modules.filter((m) => m.on).reduce((t, m) => t + (MODULES[m.type].downlink ?? 0), 0) + 10 * commTurns;
+  const downlink = s.modules.filter((m) => m.on).reduce((t, m) => t + (MODULES[m.type].downlink ?? 0), 0) + 10 * commTurns + (s.flags?.extraDownlink ?? 0);
   const sent = Math.min(r.dataStored, downlink);
   r.dataStored -= sent;
   s.science += sent * 0.1;
