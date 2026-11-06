@@ -6,7 +6,33 @@ import { MODULES } from '../../data/catalog.js';
 import { repairPuzzle, applyFieldRepair, fieldRepairBlock, FIELD_REPAIRS_PER_DAY } from '../../core/repairs.js';
 import { beep } from '../audio.js';
 
-const view = { pos: 0, open: false, answer: null, picked: [], seq: [], msg: '' };
+const view = { pos: 0, prev: 0, facing: 1, open: false, answer: null, picked: [], seq: [], msg: '' };
+
+// Astronauta de perfil en pixel art (12×16), dibujado con el color de la consola. Dos cuadros de paso.
+const BODY = [
+  '...HHHH.....', '..HHHHHH....', '..HHVVVV....', '..HHVVVV....', '..HHHHHH....', '...HHHH.....',
+  '.BBSSSSS....', '.BBSSSSSS...', '.BBSSSSSAA..', '.BBSSSSS....', '...SSSS.....', '...SSSS.....',
+];
+const LEGS = [
+  ['..SS..SS....', '..SS...SS...', '.SS.....SS..', '.DD.....DD..'],
+  ['...SS.SS....', '...SS.SS....', '...SS.SS....', '...DD.DD....'],
+];
+const PIX = { H: 'px-casco', V: 'px-visor', S: 'px-traje', B: 'px-mochila', A: 'px-traje', D: 'px-bota' };
+function frame(rows, cls) {
+  let r = '';
+  rows.forEach((row, y) => [...row].forEach((ch, x) => { if (PIX[ch]) r += `<rect x="${x}" y="${y}" width="1" height="1" class="${PIX[ch]}"/>`; }));
+  return `<g class="${cls}">${r}</g>`;
+}
+const SPRITE = `<svg viewBox="0 0 12 16" shape-rendering="crispEdges">${frame(BODY, 'cuerpo')}${frame(BODY.map(() => '').concat(LEGS[0]), 'paso paso-a')}${frame(BODY.map(() => '').concat(LEGS[1]), 'paso paso-b')}</svg>`;
+
+function walker(name) {
+  const el = h('div', { class: 'caminante', id: 'caminante' }, h('div', { class: 'nombre code' }, name));
+  const fig = document.createElement('div');
+  fig.className = 'figura';
+  fig.innerHTML = SPRITE;
+  el.prepend(fig);
+  return el;
+}
 
 export function walkPanel(app, commit, redraw, setKey) {
   const s = app.state;
@@ -15,7 +41,7 @@ export function walkPanel(app, commit, redraw, setKey) {
   const here = mods[view.pos];
   const done = s.fieldRepairs?.day === s.day ? s.fieldRepairs.count : 0;
   const reset = () => { view.answer = null; view.picked = []; view.seq = []; };
-  const step = (d) => { view.pos = Math.max(0, Math.min(mods.length - 1, view.pos + d)); view.open = false; view.msg = ''; reset(); beep(500, 15); redraw(); };
+  const step = (d) => { view.facing = d < 0 ? -1 : 1; view.pos = Math.max(0, Math.min(mods.length - 1, view.pos + d)); view.open = false; view.msg = ''; reset(); beep(500, 15); redraw(); };
   const tryOpen = () => { const b = fieldRepairBlock(app.state, here.id); if (b) { view.msg = `No se puede: ${b}.`; beep(300, 60); } else { view.open = true; reset(); } redraw(); };
   const submit = (answer) => {
     const r = applyFieldRepair(app.state, here.id, answer);
@@ -34,8 +60,24 @@ export function walkPanel(app, commit, redraw, setKey) {
   const corridor = h('div', { class: 'pasillo', id: 'pasillo' },
     ...mods.map((m, i) => h('div', {
       class: `tramo ${i === view.pos ? 'aqui' : ''} ${m.health <= 0 ? 'roto' : m.health < 60 ? 'gastado' : ''} ${m.on ? '' : 'off'}`,
-      'data-tramo': m.id, onclick: () => { view.pos = i; view.open = false; view.msg = ''; reset(); redraw(); },
-    }, h('div', { class: 'code' }, MOD_CODE[m.type]), bar(m.health / 100), h('div', { class: 'astro' }, i === view.pos ? '@' : ' '))));
+      'data-tramo': m.id, onclick: () => { if (i !== view.pos) view.facing = i < view.pos ? -1 : 1; view.pos = i; view.open = false; view.msg = ''; reset(); redraw(); },
+    }, h('div', { class: 'code' }, MOD_CODE[m.type]), bar(m.health / 100), h('div', { class: 'piso' }))));
+  // Quien camina: el tripulante con más técnica que pueda trabajar.
+  const tech = s.crew.filter((c) => c.alive && !c.evacuated).sort((a, b) => (b.stats?.tecnica ?? 0) - (a.stats?.tecnica ?? 0))[0];
+  const who = walker(tech ? tech.name.split(' ')[0].toUpperCase() : 'EVA');
+  corridor.append(who);
+  const from = view.prev; const to = view.pos; view.prev = to;
+  const place = (i) => { const t = corridor.children[i]; if (t) who.style.left = `${t.offsetLeft + t.offsetWidth / 2}px`; };
+  who.style.setProperty('--dir', view.facing);
+  requestAnimationFrame(() => {
+    who.style.transition = 'none'; place(from);
+    const ct = corridor.children[to]; if (ct) corridor.scrollLeft = Math.max(0, ct.offsetLeft - corridor.clientWidth / 2);
+    requestAnimationFrame(() => {
+      who.style.transition = '';
+      if (from !== to) { who.classList.add('anda'); setTimeout(() => who.classList.remove('anda'), 120 + 260 * Math.abs(to - from)); who.style.transitionDuration = `${0.26 * Math.abs(to - from)}s`; }
+      place(to);
+    });
+  });
 
   return h('div', { class: 'panel c-violet', id: 'recorrido' },
     h('h2', {}, 'RECORRIDO DE LA BASE'),

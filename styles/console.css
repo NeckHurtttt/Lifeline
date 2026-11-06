@@ -335,7 +335,25 @@ label.pick { background: rgba(255,255,255,.08); padding: .1rem .5rem; border-rad
 .tramo.gastado .code { color: var(--amber); }
 .tramo.roto { border-color: var(--red); animation: latido 1.2s infinite; }
 .tramo.off { opacity: .5; }
-.tramo .astro { font-size: 1.4rem; line-height: 1.2; color: var(--amber); min-height: 1.7rem; }
+.tramo .piso { height: 72px; border-bottom: 2px solid var(--line); margin-top: 4px; }
+.pasillo { position: relative; }
+.caminante { position: absolute; bottom: calc(.5rem + 6px); left: 0; width: 46px; margin-left: -23px; transition: left .26s steps(6); pointer-events: none; text-align: center; }
+.caminante .figura { width: 42px; height: 56px; margin: 0 auto; transform: scaleX(var(--dir, 1)); filter: drop-shadow(0 0 3px var(--fg)); }
+.caminante .figura svg { width: 100%; height: 100%; display: block; }
+.caminante .nombre { font-size: .6rem; color: var(--amber); white-space: nowrap; position: absolute; top: -14px; left: 50%; transform: translateX(-50%); }
+.px-casco, .px-traje { fill: var(--fg); }
+.px-visor { fill: var(--amber); }
+.px-mochila { fill: var(--fg); opacity: .55; }
+.px-bota { fill: var(--fg); opacity: .75; }
+.caminante .paso-b { display: none; }
+.caminante.anda .paso-a { animation: paso-a .26s steps(1) infinite; }
+.caminante.anda .paso-b { display: inline; animation: paso-b .26s steps(1) infinite; }
+.caminante.anda .figura { animation: rebote .26s steps(2) infinite; }
+.caminante:not(.anda) .figura { animation: respira 2.4s steps(2) infinite; }
+@keyframes paso-a { 50% { opacity: 0; } }
+@keyframes paso-b { 0% { opacity: 0; } 50% { opacity: 1; } }
+@keyframes rebote { 50% { translate: 0 -2px; } }
+@keyframes respira { 50% { translate: 0 -1px; } }
 .consola-tarea { border: 2px solid var(--amber); padding: .6rem .8rem; margin-top: .6rem; background: rgba(0,0,0,.45); }
 .consola-tarea .lectura { font-size: 2rem; margin: .3rem 0; }
 .plantas { display: grid; grid-template-columns: repeat(6, 1fr); gap: 6px; }
