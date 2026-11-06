@@ -97,6 +97,15 @@ export function render(root, app, go) {
       saved ? h('div', { class: 'panel c-green', style: { textAlign: 'center' } },
         h('button', { class: 'big', id: 'continuar', onclick: () => { app.state = saved; app.difficulty = saved.difficulty; app.mode = saved.mode ?? app.mode; go(saved.phase === 'reentry' ? 'reentry' : 'ops'); } },
           `▶ SEGUIR MI MISIÓN · DÍA ${saved.day}`)) : null,
+      h('div', { class: 'panel c-green', id: 'modo-ninos', style: { textAlign: 'center' } },
+        h('button', { class: `big ${app.kids ? 'sel' : ''}`, onclick: () => {
+          app.kids = !app.kids; app.autoPlan = true;
+          if (app.kids) app.difficulty = 'facil';
+          try { localStorage.setItem('vdl-ninos', app.kids ? '1' : '0'); } catch { /* sin almacenamiento */ }
+          beep(app.kids ? 1000 : 500, 60); draw();
+          say(app.kids ? '🧒 Modo niños: fácil, menos botones y yo reparto los trabajos cada día. ¡Tú cuidas a la tripulación!' : 'Modo completo: tú decides todo.', { quiet: true, mood: 'feliz', target: '#nueva' });
+        } }, app.kids ? '🧒 MODO NIÑOS: ENCENDIDO' : '🧒 Modo niños (más fácil)'),
+        h('div', { class: 'small dim' }, app.kids ? 'Nova reparte los trabajos, menos números y energía en una barra.' : 'Para jugar sin tantos detalles.')),
       h('div', { class: 'grid2' },
         h('div', { class: 'panel c-blue' },
           h('h2', {}, '1. ¿Cómo quieres jugar?'),
@@ -116,7 +125,7 @@ export function render(root, app, go) {
             h('button', { id: 'mejoras', onclick: () => go('arbol') }, '🌳 Árbol de mejoras')) : null,
           h('h2', { style: { marginTop: '1rem' } }, '2. ¿Qué tan difícil?'),
           h('div', { class: 'row' }, ...Object.values(DIFFICULTY).map((d) =>
-            h('button', { class: app.difficulty === d.id ? 'sel' : '', disabled: app.mode === 'demo' && d.id !== 'facil', 'data-dif': d.id,
+            h('button', { class: app.difficulty === d.id ? 'sel' : '', disabled: (app.mode === 'demo' || app.kids) && d.id !== 'facil', 'data-dif': d.id,
               onclick: () => { app.difficulty = d.id; draw(); say(`${d.name}: ${DIFF_DESC[d.id]}`, { quiet: true, mood: d.id === 'dificil' ? 'alerta' : 'normal' }); } },
             { facil: '🟢 ', medio: '🟠 ', dificil: '🔴 ' }[d.id] + d.name))),
           h('div', { class: 'small dim' }, DIFF_DESC[app.difficulty]),

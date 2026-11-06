@@ -25,6 +25,10 @@ import { evaGoNoGo, isWeekend, TRESERVE_SECONDS } from '../../core/protocols.js'
 import { walkPanel } from '../panels/walk.js';
 import { isGuest, mine } from '../coop.js';
 import { digPanel, digAvailable } from '../panels/dig.js';
+import { autoAssign } from '../../core/autoplan.js';
+
+// Modo niños: menos trabajos, energía en una barra y Nova reparte sola cada día.
+const KID_TASKS = new Set(['cultivo', 'produccion', 'reparacion', 'experimentos', 'medico', 'ejercicio', 'descanso']);
 
 // La noche (sueño o campamento) y la pre-respiración son automáticas: no se arrastran.
 const AUTO_TASKS = new Set(['sueño', 'campamento', 'prerespiracion']);
@@ -119,6 +123,15 @@ export function render(root, app, go) {
     }
   }
 
+  const kids = () => !!app.kids;
+  const autoOn = () => kids() && app.autoPlan !== false && !isGuest();
+  function autoNow() { commit(autoAssign(app.state)); beep(1000, 60); banner = { text: '🪄 Nova repartió los trabajos según lo que falta.', cls: '' }; draw(); }
+  function autoBar() {
+    return h('div', { class: 'row', id: 'auto-reparto', style: { margin: '.3rem 0' } },
+      h('button', { class: 'big', onclick: autoNow }, '🪄 Reparto automático'),
+      kids() ? h('label', { class: 'small row' }, h('input', { type: 'checkbox', checked: app.autoPlan !== false, onchange: (e) => { app.autoPlan = e.target.checked; draw(); } }), 'Nova reparte sola cada día') : null);
+  }
+
   let clock = null;
   let speed = 0;
   function stopClock() { clearInterval(clock); clock = null; speed = 0; }
@@ -129,7 +142,7 @@ export function render(root, app, go) {
     clock = setInterval(() => {
       const st = app.state;
       if (st.pending || st.phase !== 'ops' || phaseDue(st) || document.querySelector('.modal-bg')) { stopClock(); draw(); return; }
-      const r = advanceDay(st);
+      const r = advanceDay(autoOn() ? autoAssign(st) : st);
       commit(r.state);
       if (r.interrupt) { stopClock(); handle(r.interrupt); }
       draw();
@@ -139,7 +152,8 @@ export function render(root, app, go) {
 
   function advance(all) {
     stopClock();
-    const r = all ? runUntilInterrupt(app.state) : advanceDay(app.state);
+    const plan = autoOn() ? autoAssign : null;
+    const r = all ? runUntilInterrupt(app.state, 365, plan) : advanceDay(plan ? plan(app.state) : app.state);
     commit(r.state);
     handle(r.interrupt);
     draw();
@@ -192,7 +206,7 @@ export function render(root, app, go) {
       p.prepared?.length ? h('p', { class: 'small green' }, '✔ Se prepararon antes: ayuda.') : null,
       ev.procedure ? h('p', { class: 'small' }, '📋 ', ev.procedure) : null,
       isMars(s) ? h('p', { class: 'small amber' }, inBlackout(s) ? '📵 Conjunción solar: Control de Misión no puede ayudar. Decide tu tripulación.' : `📡 Control de Misión responde con ${radioDelayMin(s)} min de retraso: la tripulación decide primero.`) : null,
-      ev.countdown ? h('div', { class: 'treserve' }, '⏱️ Tiempo de reserva: ', h('b', { id: 'treserve' }, `${left} s`), h('span', { class: 'small dim' }, ' — si llega a 0 sin decidir, la presión baja al mínimo.')) : null,
+      ev.countdown && !kids() ? h('div', { class: 'treserve' }, '⏱️ Tiempo de reserva: ', h('b', { id: 'treserve' }, `${left} s`), h('span', { class: 'small dim' }, ' — si llega a 0 sin decidir, la presión baja al mínimo.')) : null,
       hatchPanel,
       who ? h('p', { class: 'small' }, h('span', { class: 'tag' }, `decide ${who}`)) : null,
       h('div', {}, ...ev.options.filter((o) => !o.hidden).map((o) => {
@@ -207,7 +221,7 @@ export function render(root, app, go) {
           h('div', { style: { width: '100%' } }, h('span', { class: 'small dim' }, 'Lo que pasa: '), ...chips(effects)));
       })),
     ), { grave: p.severity === 'grave' });
-    if (ev.countdown) {
+    if (ev.countdown && !kids()) {
       timer = setInterval(() => {
         left -= 1;
         const el = document.getElementById('treserve');
@@ -217,7 +231,7 @@ export function render(root, app, go) {
         if (left <= 0) { if (mine(who)) choose('tarde', true); else clearInterval(timer); }
       }, 1000);
     }
-    say(ev.countdown ? '¡Despresurización! Sigan el protocolo: decidan antes de que se acabe el tiempo de reserva. ⏱️' : `¡${ev.name}! Mira cada opción: abajo dice si funciona y qué pasa con cada una.`, { mood: ev.kind === '+' ? 'feliz' : 'alerta', target: '#evento' });
+    say(ev.countdown && kids() ? '¡Hay una fuga de aire! 🫧 Toca el módulo donde crees que está o elige la opción 👍 recomendada. Sin apuro.' : ev.countdown ? '¡Despresurización! Sigan el protocolo: decidan antes de que se acabe el tiempo de reserva. ⏱️' : `¡${ev.name}! Mira cada opción: abajo dice si funciona y qué pasa con cada una.`, { mood: ev.kind === '+' ? 'feliz' : 'alerta', target: '#evento' });
   }
 
   function phaseModal() {
@@ -363,6 +377,12 @@ export function render(root, app, go) {
     const s = app.state;
     let gen = 0; let use = 0;
     for (const m of s.modules) { if (!m.on) continue; const kw = MODULES[m.type].kw; if (kw > 0) gen += kw; else use -= kw; }
+    if (kids()) {
+      const r0 = s.resources; const frac = r0.batteryMax ? r0.battery / r0.batteryMax : 1;
+      const [txt, cls] = gen >= use ? ['⚡ Sobra energía. ¡Todo bien!', 'green'] : frac > 0.3 ? ['🔋 Gastamos más de lo que hacemos: la batería baja.', 'amber'] : ['🪫 ¡Casi sin energía! Apaga lo que no uses (toca el módulo).', 'red'];
+      return h('div', { class: 'panel c-amber', id: 'energia' }, h('h2', {}, 'Energía'), h('div', { class: cls, style: { fontSize: '1.2rem' } }, txt),
+        h('div', { class: 'small' }, '🔋 Batería'), bar(frac));
+    }
     const rank = (m) => (m.type === 'soporte_vital' ? 2 : m.type === 'cabina' ? 1 : 0);
     const order = s.modules.filter((m) => m.on && MODULES[m.type].kw < 0).sort((a, b) => rank(a) - rank(b) || a.priority - b.priority);
     const r = s.resources;
@@ -383,7 +403,7 @@ export function render(root, app, go) {
     const who = whoDecides(app, 'ingeniero');
     return h('div', { class: 'panel c-violet', id: 'estacion' },
       h('h2', {}, `${DEST} ${HOME} `, who ? h('span', { class: 'tag' }, `decide ${who}`) : null),
-      h('div', { class: 'help' }, 'Toca un módulo para prenderlo o apagarlo. El número es su turno para apagarse si falta electricidad (el más bajo, primero).'),
+      h('div', { class: 'help' }, kids() ? 'Toca un módulo para prenderlo o apagarlo. 🟢 prendido · ⚫ apagado.' : 'Toca un módulo para prenderlo o apagarlo. El número es su turno para apagarse si falta electricidad (el más bajo, primero).'),
       h('div', { class: 'ship', style: { gridTemplateColumns: `repeat(${cols}, 1fr)` } },
         ...s.modules.slice().sort((a, b) => a.y - b.y || a.x - b.x).map((m) => h('div', {
           class: `cell full ${m.on ? '' : 'off'} ${m.health < 40 ? 'roto' : ''}`, style: { gridColumn: m.x + 1, gridRow: m.y + 1 }, 'data-module': m.id,
@@ -398,7 +418,7 @@ export function render(root, app, go) {
         }, h('div', { class: 'ico code' }, MOD_CODE[m.type]), h('b', {}, MODULES[m.type].name),
         m.offDays ? h('div', { class: 'amber small' }, `⏸️ ${m.offDays} días`) : null,
         bar(m.health / 100), h('div', { class: 'row small' }, m.on ? '🟢' : '⚫',
-          h('input', { type: 'number', min: 1, max: 10, value: m.priority, style: { width: '3.4rem' }, title: 'Turno para apagarse', onchange: (e) => { commit(setPriority(app.state, m.id, Number(e.target.value))); } }))))),
+          kids() ? null : h('input', { type: 'number', min: 1, max: 10, value: m.priority, style: { width: '3.4rem' }, title: 'Turno para apagarse', onchange: (e) => { commit(setPriority(app.state, m.id, Number(e.target.value))); } }))))),
       s.design.instruments.length ? h('div', { class: 'small', style: { marginTop: '.4rem' } }, '🔬 ', s.design.instruments.map((i) => `${INSTRUMENTS[i].icon} ${INSTRUMENTS[i].name}`).join(' · ')) : null);
   }
 
@@ -440,7 +460,7 @@ export function render(root, app, go) {
       if (AUTO_TASKS.has(job)) { say('La pre-respiración se pone sola: arrastra a los astronautas a 👨‍🚀 Actividad extravehicular.', { mood: 'pensando', target: '[data-job="eva"]' }); return; }
       const need = TASKS[job].needsModule;
       if (need && !hasModule(need)) { say(`Para ${TASKS[job].name} hace falta el módulo ${MODULES[need].name}. Esa casilla está apagada.`, { mood: 'alerta' }); return; }
-      if (shown(app.state.schedule[crewId][shift]) !== job) setTurn(crewId, shift, job);
+      if (shown(app.state.schedule[crewId][shift]) !== job) { if (kids() && app.autoPlan !== false) { app.autoPlan = false; banner = { text: '✋ Ahora repartes tú. Toca 🪄 si quieres que Nova vuelva a repartir sola.', cls: '' }; } setTurn(crewId, shift, job); }
     };
     move(e);
     window.addEventListener('pointermove', move); window.addEventListener('pointerup', up); window.addEventListener('pointercancel', up);
@@ -476,7 +496,8 @@ export function render(root, app, go) {
         campers.length
           ? `🌙 Noche: duermen solos. ⛺ ${campers.join(' y ')} duerme${campers.length > 1 ? 'n' : ''} en la esclusa para la EVA de la mañana (así respiran oxígeno puro, como en la NASA).`
           : '🌙 Noche: todos duermen solos. Si alguien sale a EVA, la pre-respiración también se pone sola.'),
-      h('div', { class: 'job-grid' }, ...TASK_IDS.filter((job) => job !== 'prerespiracion' || here(job).length).map((job) => {
+      autoBar(),
+      h('div', { class: 'job-grid' }, ...TASK_IDS.filter((job) => (job !== 'prerespiracion' || here(job).length) && (!kids() || KID_TASKS.has(job) || here(job).length)).map((job) => {
         const need = TASKS[job].needsModule;
         const off = need && !hasModule(need);
         return h('div', { class: `job ${off ? 'off' : ''} ${job === 'sueño' ? 'sleep' : ''}`, 'data-job': job, title: off ? `Falta el módulo ${MODULES[need].name}` : TASK_DESC[job] },
@@ -509,21 +530,21 @@ export function render(root, app, go) {
               h('div', { class: 'name' }, c.name),
               h('div', { class: 'small' }, h('span', { class: 'pill role' }, ROLES[c.role]?.name ?? c.role)),
               h('div', { class: `estado ${mood === 'feliz' || mood === 'normal' ? 'green' : 'amber'}` }, MOOD_TEXT[mood]),
-              h('div', { class: 'small dim' }, Object.entries(c.stats).map(([k, v]) => `${STAT[k]}${v}`).join(' '), ' ',
+              kids() ? null : h('div', { class: 'small dim' }, Object.entries(c.stats).map(([k, v]) => `${STAT[k]}${v}`).join(' '), ' ',
                 ...c.traits.map((t) => h('span', { class: `chip ${TRAITS[t]?.positive ? 'ok' : 'bad'}`, title: TRAITS[t]?.desc }, TRAITS[t]?.name ?? t))))),
           c.alive ? [
             h('div', { class: 'stats' },
               ...statRow('❤️ Salud', c.health / 100, {}, fmt(c.health)),
               ...statRow('🥱 Cansancio', c.fatigue / 100, { invert: true }, fmt(c.fatigue)),
               ...statRow('😊 Ánimo', c.morale / 100, {}, fmt(c.morale)),
-              ...statRow('🦴 Huesos', c.bone / 100, { warn: 0.8, danger: 0.7 }, fmt(c.bone)),
-              ...statRow('☢️ Radiación', c.radiation / (RAD_LIMIT * 1.2), { invert: true, warn: 0.4, danger: 1 - 1 / 1.2, mark: 1 / 1.2 }, fmt(c.radiation))),
+              ...(kids() ? [] : statRow('🦴 Huesos', c.bone / 100, { warn: 0.8, danger: 0.7 }, fmt(c.bone))),
+              ...(kids() ? [] : statRow('☢️ Radiación', c.radiation / (RAD_LIMIT * 1.2), { invert: true, warn: 0.4, danger: 1 - 1 / 1.2, mark: 1 / 1.2 }, fmt(c.radiation)))),
             h('div', { class: 'turnos-ver' }, ...[0, 1, 2].map((turn) => {
               const t = shown(s.schedule[c.id]?.[turn]);
               return h('div', { class: `turno-chip ${turn === shift ? 'on' : ''}`, onclick: () => { if (turn > 1) return; shift = turn; app.opsShift = turn; draw(); } },
                 h('span', { class: 'small dim' }, TURNS[turn]), h('span', {}, `${TASK_ICON[t]} ${TASKS[t].name}`));
             })),
-            h('label', { class: 'small row', style: { marginTop: '.3rem' } }, 'Ración de comida',
+            kids() ? null : h('label', { class: 'small row', style: { marginTop: '.3rem' } }, 'Ración de comida',
               h('select', { 'data-ration': c.id, onchange: (e) => setRation(c.id, e.target.value) },
                 ...Object.entries(RATIONS).map(([r, t]) => h('option', { value: r, selected: s.rations[c.id] === r }, t)))),
           ] : null);
@@ -633,6 +654,7 @@ export function render(root, app, go) {
     if (site?.nightDays && isNight(site, s.day + 1) && s.resources.battery < s.resources.batteryMax * 0.3) return ['Es de noche y queda poca batería. En la pestaña de la base apaga lo que no sea vital (toca el módulo). El soporte vital y la cabina se apagan al final.', 'alerta', '#estacion', 'estacion'];
     if (s.day === 0 && SC.id === 'marte') return ['¡Empieza el viaje a Marte! Son 210 días sin gravedad: 🏃 ejercicio diario para los huesos y 🛡️ refugio en las tormentas solares. Arrastra a cada uno a su trabajo y toca ▶ AVANZAR.', 'feliz', '#avanzar', null];
     if (s.day === 0 && SC.id !== 'estacion') return [`¡Bienvenidos a ${SC.home}! Aquí hay gravedad baja y más radiación. ${site?.nightDays ? `Ojo: cada tanto llega la noche de ${site.nightDays} días.` : ''} Arrastra a cada astronauta a su trabajo y toca ▶ AVANZAR.`, 'feliz', '#avanzar', null];
+    if (kids() && s.day === 0) return ['¡Hola! 🧒 Yo, Nova, reparto los trabajos cada día. Tú mira los avisos, prende o apaga módulos y toca ▶ AVANZAR. Si quieres mandar tú, arrastra las caritas.', 'feliz', '#avanzar', null];
     if (s.day === 0) return ['¡Bienvenidos a la estación! En la pestaña 🧑‍🚀 Tripulación eliges qué hace cada astronauta. Cuando estés listo, toca ▶ AVANZAR.', 'feliz', '#avanzar', null];
     return ['Sin novedades. Avanza y te llamo si pasa algo.', 'feliz', '#avanzar', null];
   }
@@ -713,6 +735,7 @@ export function render(root, app, go) {
 
   function draw() {
     keyFn = null;
+    if (autoOn() && app.autoDay !== app.state.day && !app.state.pending) { app.autoDay = app.state.day; commit(autoAssign(app.state)); }
     const s = app.state;
     musicMood(s.pending && EVENTS[s.pending.eventId]?.kind !== '+' ? 'danger' : s.dig?.outing ? 'surface' : 'orbit');
     const sched = validateSchedule(Object.fromEntries(Object.entries(s.schedule).filter(([id]) => s.crew.find((c) => c.id === id)?.alive)))
