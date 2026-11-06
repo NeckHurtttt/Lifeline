@@ -1585,4 +1585,9 @@ export const EN = {
   "🧒 Modo niños (más fácil)": "🧒 Kids mode (easier)",
   "Nova reparte los trabajos, menos números y energía en una barra.": "Nova assigns the jobs, fewer numbers and power in one bar.",
   "Para jugar sin tantos detalles.": "To play without so many details.",
+  "🧒 Tu nave ya está lista": "🧒 Your ship is ready",
+  "Nova la armó para ti. Si quieres, cambia piezas: toca una pieza y luego un cuadro. Cuando estés listo, toca 🚀 LANZAR.": "Nova built it for you. If you want, swap parts: tap a part and then a square. When you're ready, tap 🚀 LAUNCH.",
+  "Algo no cuadra en la nave. Toca ✨ Usar una nave de ejemplo y vuelve a la nave lista.": "Something's off with the ship. Tap ✨ Use a sample spacecraft to get the ready ship back.",
+  "¡La nave puede volar! Toca 🚀 LANZAR cuando quieras.": "The ship can fly! Tap 🚀 LAUNCH whenever you want.",
+  "El módulo {0} está muy dañado. Pon a alguien en 🔧 Reparación (o toca 🪄).": "The {0} module is badly damaged. Put someone on 🔧 Repair (or tap 🪄).",
 };

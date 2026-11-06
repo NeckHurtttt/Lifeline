@@ -217,7 +217,7 @@ export function render(root, app, go) {
           control !== 'retraso' && o.id === rec ? h('span', { class: 'chip ok' }, '👍 recomendado') : null,
           pre ? h('div', { class: 'que-pasa', style: { width: '100%' } },
             pre.ok ? h('b', { class: 'green' }, `✔ Funciona: lo hace ${firstName(pre.who)}. `) : h('b', { class: 'red' }, `✖ No alcanza: ${firstName(pre.who)} no sabe lo suficiente. `),
-            `${pre.parts.map((x) => `${x.label} ${x.value >= 0 ? '+' : ''}${x.value}`).join(' · ')} = ${pre.total} de ${pre.need}`) : null,
+            kids() ? null : `${pre.parts.map((x) => `${x.label} ${x.value >= 0 ? '+' : ''}${x.value}`).join(' · ')} = ${pre.total} de ${pre.need}`) : null,
           h('div', { style: { width: '100%' } }, h('span', { class: 'small dim' }, 'Lo que pasa: '), ...chips(effects)));
       })),
     ), { grave: p.severity === 'grave' });
@@ -357,7 +357,7 @@ export function render(root, app, go) {
     const max = { meds: 20 * n, parts: 30, fuel: 100, battery: r.batteryMax || 1, dataStored: 500 };
     return h('div', { class: 'panel c-blue', id: 'recursos' },
       h('h2', {}, '📦 Lo que tenemos'),
-      h('div', { class: 'res-grid' }, ...RES.map(([k, ico, name]) => {
+      h('div', { class: 'res-grid' }, ...RES.filter(([k]) => !kids() || ['o2', 'water', 'food', 'battery'].includes(k)).map(([k, ico, name]) => {
         const days = ['o2', 'water', 'food'].includes(k) ? left[k] : null;
         const frac = days !== null ? (Number.isFinite(days) ? days / 60 : 1) : r[k] / max[k];
         const low = k === 'dataStored' ? frac > 0.8 : frac < 0.15;
@@ -516,7 +516,7 @@ export function render(root, app, go) {
     return h('div', { class: 'panel c-pink', id: 'tripulacion' },
       h('div', { class: 'row', style: { justifyContent: 'space-between' } },
         h('h2', {}, '🧑‍🚀 La tripulación'),
-        h('div', { class: 'row' },
+        kids() ? null : h('div', { class: 'row' },
           h('button', { onclick: () => { app.routine = structuredClone(app.state.schedule); banner = { text: '💾 Rutina guardada.', cls: '' }; draw(); } }, '💾 Guardar rutina'),
           h('button', { disabled: !app.routine, onclick: () => { const st = structuredClone(app.state); for (const id of Object.keys(st.schedule)) if (app.routine[id]) st.schedule[id] = [...app.routine[id]]; commit(st); draw(); } }, '🔁 Repetir rutina'))),
       jobBoard(),
@@ -573,7 +573,7 @@ export function render(root, app, go) {
 
   function minis() {
     const s = app.state;
-    const offers = s.minis.filter((m) => m.status === 'oferta');
+    const offers = s.minis.filter((m) => m.status === 'oferta' && (!kids() || MINIMISSIONS[m.id].mandatory));
     const active = s.minis.filter((m) => m.status === 'activa');
     const busy = new Set(active.flatMap((m) => m.crewIds));
     return h('div', { class: 'panel c-green', id: 'minis' },
@@ -644,12 +644,13 @@ export function render(root, app, go) {
     const tired = living().find((c) => c.fatigue >= 70);
     if (tired) return [`${firstName(tired)} está muy cansado. Dale un turno de 🛋️ Descanso.`, 'pensando', `[data-crew="${tired.id}"]`, 'tripulacion'];
     const broken = s.modules.find((m) => m.health < 40);
+    if (broken && kids()) return [`El módulo ${MODULES[broken.type].name} está muy dañado. Pon a alguien en 🔧 Reparación (o toca 🪄).`, 'alerta', '[data-job="reparacion"]', 'tripulacion'];
     if (broken) return [`El módulo ${MODULES[broken.type].name} está muy dañado. Pon a alguien en 🔧 Reparación o repáralo a mano en Recorrido.`, 'alerta', `[data-tramo="${broken.id}"]`, 'recorrido'];
     const weakBone = living().find((c) => c.bone < 85);
     if (weakBone) return [`Los huesos de ${firstName(weakBone)} se debilitan sin gravedad. Dale 🏃 Ejercicio.`, 'pensando', `[data-crew="${weakBone.id}"]`, 'tripulacion'];
-    const offer = s.minis.find((m) => m.status === 'oferta');
+    const offer = s.minis.find((m) => m.status === 'oferta' && (!kids() || MINIMISSIONS[m.id].mandatory));
     if (offer) return [`Hay una minimisión: ${MINIMISSIONS[offer.id].name}. Elige quién va y mira si le alcanza.`, 'pensando', '#minis', 'misiones'];
-    if (s.resources.dataStored > 300) return ['Se están juntando muchos datos. Pon a alguien en 📞 Comunicación para mandarlos.', 'pensando', '#recursos', 'resumen'];
+    if (s.resources.dataStored > 300 && !kids()) return ['Se están juntando muchos datos. Pon a alguien en 📞 Comunicación para mandarlos.', 'pensando', '#recursos', 'resumen'];
     const site = siteOf(s);
     if (site?.nightDays && isNight(site, s.day + 1) && s.resources.battery < s.resources.batteryMax * 0.3) return ['Es de noche y queda poca batería. En la pestaña de la base apaga lo que no sea vital (toca el módulo). El soporte vital y la cabina se apagan al final.', 'alerta', '#estacion', 'estacion'];
     if (s.day === 0 && SC.id === 'marte') return ['¡Empieza el viaje a Marte! Son 210 días sin gravedad: 🏃 ejercicio diario para los huesos y 🛡️ refugio en las tormentas solares. Arrastra a cada uno a su trabajo y toca ▶ AVANZAR.', 'feliz', '#avanzar', null];
@@ -742,19 +743,20 @@ export function render(root, app, go) {
       .map((e) => { const id = e.split(' ')[0]; const c = s.crew.find((x) => x.id === id); return c ? e.replace(id, c.name) : e; });
     const blocked = sched.length > 0 || !!s.pending || s.phase !== 'ops' || !!phaseDue(s);
     const pct = Math.min(100, (s.day / s.totalDays) * 100);
+    if (kids() && ['recorrido', 'excavar', 'mapa', 'diario'].includes(tab)) tab = 'resumen';
     mount(root,
       h('div', { class: 'day-head' },
         h('div', {},
           h('h1', { style: { fontSize: '2rem', margin: 0 }, id: 'dia' }, `📅 DÍA ${s.day} de ${s.totalDays}`),
           dayNight(),
           marsLeg(),
-          isWeekend(s.day + 1) ? h('div', { class: 'small amber' }, '🗓️ Mañana es fin de semana: día ligero. Descanso y llamadas a casa dan más ánimo; trabajar lo baja un poco.') : null,
+          isWeekend(s.day + 1) && !kids() ? h('div', { class: 'small amber' }, '🗓️ Mañana es fin de semana: día ligero. Descanso y llamadas a casa dan más ánimo; trabajar lo baja un poco.') : null,
           h('div', { class: 'trip' }, h('div', { class: 'trip-fill', style: { width: `${pct}%` } }), h('span', { class: 'trip-ship', style: { left: `${pct}%` } }, '▲'), h('span', { class: 'trip-end small' }, 'FIN'))),
         isGuest() ? h('div', { class: 'small amber', id: 'tiempo-anfitrion' }, 'EN LÍNEA: el anfitrión avanza el tiempo. Tú puedes asignar trabajos, reparar, excavar y decidir lo de tu rol.') :
         h('div', { class: 'row' },
-          h('div', { class: 'velocidad', id: 'velocidad' }, h('span', { class: 'small dim' }, 'TIEMPO'),
+          kids() ? null : h('div', { class: 'velocidad', id: 'velocidad' }, h('span', { class: 'small dim' }, 'TIEMPO'),
             ...[[0, '||'], [1, '1×'], [4, '4×'], [12, '12×']].map(([v, t]) => h('button', { class: speed === v ? 'sel' : '', disabled: blocked && v > 0, 'data-speed': v, onclick: () => play(v) }, t))),
-          h('button', { id: 'avanzar1', disabled: blocked, onclick: () => advance(false) }, '⏭️ 1 día'),
+          kids() ? null : h('button', { id: 'avanzar1', disabled: blocked, onclick: () => advance(false) }, '⏭️ 1 día'),
           h('button', { id: 'avanzar', class: 'big', disabled: blocked, onclick: () => advance(true) }, '▶ AVANZAR'),
           s.phase === 'reentry' ? h('button', { id: 'reentrada', class: 'big warn', onclick: () => go('reentry') }, '🌍 INICIAR REENTRADA') : null,
           s.pending ? h('button', { class: 'warn', onclick: eventModal }, '⚠️ Ver problema') : null)),
@@ -765,10 +767,10 @@ export function render(root, app, go) {
         { id: 'tripulacion', label: '🧑‍🚀 Tripulación', color: 'c-pink', badge: sched.length + living().filter((c) => c.health < 50 || c.fatigue >= 70).length },
         { id: 'estacion', label: SC.id === 'estacion' ? '🛰️ Estación' : `${DEST} Base`, color: 'c-violet', badge: s.modules.filter((m) => m.health < 40 || !m.on).length },
         { id: 'misiones', label: '⚠️ Avisos y misiones', color: 'c-amber', badge: s.alerts.length + s.minis.filter((m) => m.status === 'oferta').length },
-        { id: 'recorrido', label: 'Recorrido', color: 'c-violet', badge: s.modules.filter((m) => m.health <= 0).length },
-        ...(digAvailable(s) ? [{ id: 'excavar', label: 'Excavar', color: 'c-green', badge: s.dig?.outing ? '!' : 0 }] : []),
-        ...(canExplore(s) || s.map ? [{ id: 'mapa', label: '🗺️ Exploración', color: 'c-green', badge: s.expedition ? 0 : (s.map ?? []).filter((n) => n.known && !n.done).length }] : []),
-        { id: 'diario', label: '📖 Diario', color: 'c-cyan' },
+        ...(kids() ? [] : [{ id: 'recorrido', label: 'Recorrido', color: 'c-violet', badge: s.modules.filter((m) => m.health <= 0).length }]),
+        ...(digAvailable(s) && !kids() ? [{ id: 'excavar', label: 'Excavar', color: 'c-green', badge: s.dig?.outing ? '!' : 0 }] : []),
+        ...((canExplore(s) || s.map) && !kids() ? [{ id: 'mapa', label: '🗺️ Exploración', color: 'c-green', badge: s.expedition ? 0 : (s.map ?? []).filter((n) => n.known && !n.done).length }] : []),
+        ...(kids() ? [] : [{ id: 'diario', label: '📖 Diario', color: 'c-cyan' }]),
       ], tab, pick),
       tab === 'resumen' ? h('div', { class: 'grid2' }, h('div', {}, resources()), h('div', {}, monitor(), alerts())) : null,
       tab === 'tripulacion' ? crewCards() : null,
