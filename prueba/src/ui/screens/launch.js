@@ -161,12 +161,17 @@ export function render(root, app, go) {
             nogo: h('button', { class: 'danger', 'data-vote': `${p.name}:nogo`, onclick: () => vote(p.name, 'nogo') }, 'NO GO'),
           };
           box.append(h('div', { class: 'vote-card' },
-            h('b', {}, p.name), h('span', { class: 'dim small' }, p.roles.map((r) => PLAYER_ROLES[r]).join('+'), remote ? ' · vota desde su compu' : ''),
+            h('b', {}, p.name), h('span', { class: 'dim small' }, p.roles.map((r) => PLAYER_ROLES[r]).join('+'), remote ? ' · vota desde su compu (30 s)' : ''),
             btns[p.name].go, btns[p.name].nogo));
         }
         if (inCoop()) {
           offVote = onAction((name, data, from) => { if (name === 'voto' && data?.round === round && (data.v === 'go' || data.v === 'nogo')) vote(from, data.v); });
           shareDraft('gonogo', { round, players: players.map((p) => p.name) });
+          // Si alguien de otra compu no vota (se cayó o tiene la página vieja), a los 30 s cuenta como GO.
+          const timer = setTimeout(() => {
+            for (const p of players) if (!pv[p.name] && p.name !== coopInfo().name) { say(`${p.name} no respondió: cuenta como GO.`, 'aviso'); vote(p.name, 'go'); }
+          }, 30000);
+          const prevOff = offVote; offVote = () => { clearTimeout(timer); prevOff(); };
         }
         return box;
       });
