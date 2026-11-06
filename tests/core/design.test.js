@@ -4,7 +4,7 @@ import { computeDesign, canLaunch } from '../../src/core/design.js';
 
 const mod = (type, x, y) => ({ id: `${type}-${x}-${y}`, type, x, y, health: 100, on: true, priority: 1 });
 const base = () => ({
-  modules: [mod('cabina', 0, 0), mod('soporte_vital', 1, 0), mod('paneles', 2, 0), mod('baterias', 3, 0)],
+  modules: [mod('cabina', 0, 0), mod('soporte_vital', 1, 0), mod('paneles', 2, 0), mod('paneles', 4, 0), mod('baterias', 3, 0)],
   instruments: [], launcher: 'condor1', orbit: 'leo_estacion',
   crewRoles: ['a', 'b', 'c', 'd'], cargoDays: 90,
 });
@@ -14,7 +14,8 @@ test('diseño mínimo válido', () => {
   assert.deepEqual(r.errors, []);
   assert.equal(canLaunch(r), true);
   assert.equal(r.capacity, 25);
-  assert.equal(r.powerNet, 12 * 0.5 - 5);
+  // 2 paneles al 50 % de sol con 90 % de rendimiento, menos cabina+soporte (5 kW) y 4 astronautas (0,4 kW c/u)
+  assert.ok(Math.abs(r.powerNet - (2 * 12 * 0.5 * 0.9 - 5 - 4 * 0.4)) < 1e-9);
   assert.equal(r.energyPerDay, r.powerNet * 24);
   assert.equal(r.cargoMax, 90);
   assert.equal(r.crewMax, 4);
@@ -67,7 +68,7 @@ test('presupuesto, energía, tripulación y carga', () => {
   d.crewRoles = ['a', 'b', 'c', 'd', 'e']; d.cargoDays = 100; d.launcher = 'quetzal5';
   const r = computeDesign(d, 'estacion', 'dificil');
   assert.ok(r.errors.some((e) => e.startsWith('Te pasas del presupuesto por ') && e.endsWith(' M')));
-  assert.ok(r.errors.includes('La energía no alcanza: déficit de 264.0 kWh por día'));
+  assert.ok(r.errors.includes('La energía no alcanza: déficit de 312.0 kWh por día'));
   assert.ok(r.errors.includes('Más tripulantes que camas (máx. 4 por cabina)'));
   assert.ok(r.errors.includes('Carga de 100 días supera la bodega (máx. 90)'));
 });

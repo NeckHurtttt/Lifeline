@@ -177,19 +177,32 @@ test('rollEvents: sin pending múltiple y puro', () => {
   assert.deepEqual(s, copy);
 });
 
-test('resolveResupply: a tiempo suma 60 días y 20 piezas; explota retrasa 30', () => {
+test('resolveResupply con bodega llena: lo que sobra no cabe', () => {
   const s = mk();
   s.nextResupply = 60;
+  for (let seed = 1; seed < 100; seed++) {
+    const r = resolveResupply(s, createRng(seed));
+    if (r.event !== 'carga_a_tiempo') continue;
+    assert.ok(r.state.resources.food <= 90 * 1.2 * 4 * 1.8 + 1e-6);
+    assert.ok(r.log.some((l) => /bodega está llena/.test(l)));
+    return;
+  }
+});
+
+test('resolveResupply: a tiempo trae 68 días (60 + 8 de margen), 20 piezas y puede atrasar la siguiente; explota retrasa 30', () => {
+  const s = mk();
+  s.nextResupply = 60;
+  s.resources.food = 10; s.resources.water = 10; // bodega casi vacía: cabe todo
   let on = null, boom = null;
   for (let seed = 1; seed < 100 && !(on && boom); seed++) {
     const r = resolveResupply(s, createRng(seed));
     if (r.event === 'carga_a_tiempo') on = r; else boom = r;
   }
   const crew = 4;
-  assert.equal(on.state.nextResupply, 120);
+  assert.ok(on.state.nextResupply >= 120 && on.state.nextResupply <= 128);
   assert.equal(on.state.resources.parts, s.resources.parts + 20);
-  assert.ok(Math.abs(on.state.resources.food - s.resources.food - 60 * crew * 1.8) < 1e-6);
-  assert.ok(Math.abs(on.state.resources.o2 - s.resources.o2 - 60 * crew * 0.84) < 1e-6);
+  assert.ok(Math.abs(on.state.resources.food - s.resources.food - 68 * crew * 1.8) < 1e-6);
+  assert.ok(Math.abs(on.state.resources.o2 - s.resources.o2 - 15 * crew * 0.84) < 1e-6);
   assert.equal(boom.state.nextResupply, 90);
   assert.equal(boom.state.resources.parts, s.resources.parts);
   assert.ok(on.log.length && boom.log.length);

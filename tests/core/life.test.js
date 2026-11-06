@@ -20,7 +20,7 @@ test('un dia con soporte vital: comida y agua', () => {
   const s = noTraits(mk());
   const { state, log } = applyDailyLife(s, ctx(s));
   assert.ok(Math.abs(s.resources.food - state.resources.food - 7.2) < 0.01);
-  const w = 2.75 * 4 * 0.02 + 0.95 * 4;
+  const w = 3.5 * 4 * 0.07 + 0.95 * 4; // recupera 93 % del agua; la del O₂ se gasta
   assert.ok(Math.abs(s.resources.water - state.resources.water - w) < 0.01);
   assert.equal(state.resources.o2, s.resources.o2);
   assert.ok(Array.isArray(log));
@@ -54,7 +54,7 @@ test('soporte apagado baja el tanque de O2 y no recicla agua', () => {
   const s = noTraits(mk());
   const { state } = applyDailyLife(s, ctx(s, { lifeSupportOn: false }));
   assert.ok(Math.abs(s.resources.o2 - state.resources.o2 - 3.36) < 0.01);
-  assert.ok(Math.abs(s.resources.water - state.resources.water - 11) < 0.01);
+  assert.ok(Math.abs(s.resources.water - state.resources.water - 14) < 0.01);
 });
 
 test('sin ejercicio 10 dias: hueso 95', () => {

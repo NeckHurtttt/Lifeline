@@ -13,7 +13,7 @@ const mod = (type, x, y) => ({ id: `${type}-${x}-${y}`, type, x, y });
 const marsDesign = (orbit = 'marte_jezero') => ({
   modules: [mod('cabina', 0, 0), mod('soporte_vital', 1, 0), mod('modulo_aterrizaje', 2, 0), mod('planta_combustible', 3, 0), mod('paneles', 4, 0), mod('paneles', 5, 0),
     mod('reactor', 0, 1), mod('pila_regenerativa', 1, 1), mod('laboratorio', 2, 1), mod('invernadero', 3, 1), mod('bodega', 4, 1), mod('bodega', 5, 1),
-    mod('refugio', 0, 2), mod('enfermeria', 1, 2), mod('bodega', 2, 2)],
+    mod('refugio', 0, 2), mod('enfermeria', 1, 2), mod('bodega', 2, 2), mod('paneles', 3, 2)],
   instruments: ['buscador_vida', 'analizador_rocas'], launcher: 'titan', orbit, crewRoles: ['comandante', 'ingeniero', 'medico', 'cientifico'], cargoDays: 240,
 });
 const mk = (difficulty = 'medio', seed = 3) => createMission({ design: marsDesign(), scenarioId: 'marte', difficulty, seed });

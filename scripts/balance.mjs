@@ -2,7 +2,7 @@
 // Tres formas: con cuidado, con cuidado + reparación a mano y excavación ("experto"), y a ciegas.
 // Uso: node scripts/balance.mjs [partidas] [destino]
 import { createMission } from '../src/core/mission.js';
-import { runUntilInterrupt, advanceDay } from '../src/core/sim.js';
+import { runUntilInterrupt, advanceDay, daysLeft } from '../src/core/sim.js';
 import { repairPuzzle, applyFieldRepair, fieldRepairBlock } from '../src/core/repairs.js';
 import { ensureTerrain, startOuting, endOuting, digBlock, canDigHere, T, DIG_COLS, DIG_ROWS, TILE_INFO } from '../src/core/dig.js';
 import { resolveEvent, recommendedOption } from '../src/core/events.js';
@@ -15,11 +15,11 @@ import { EVENTS } from '../src/data/events.js';
 const N = Number(process.argv[2] ?? 30);
 const mod = (type, x, y) => ({ id: `${type}-${x}-${y}`, type, x, y });
 const DESIGNS = {
-  estacion: { modules: [mod('cabina', 0, 0), mod('soporte_vital', 1, 0), mod('paneles', 2, 0), mod('paneles', 3, 0), mod('baterias', 0, 1), mod('laboratorio', 1, 1), mod('antena', 2, 1), mod('refugio', 3, 1)],
+  estacion: { modules: [mod('cabina', 0, 0), mod('soporte_vital', 1, 0), mod('paneles', 2, 0), mod('paneles', 3, 0), mod('baterias', 0, 1), mod('laboratorio', 1, 1), mod('antena', 2, 1), mod('refugio', 3, 1), mod('paneles', 4, 0)],
     instruments: ['camara_tierra', 'espectrometro'], launcher: 'condorH', orbit: 'leo_estacion', crewRoles: ['comandante', 'ingeniero', 'medico', 'cientifico'], cargoDays: 90 },
   luna: { modules: [mod('cabina', 0, 0), mod('soporte_vital', 1, 0), mod('modulo_aterrizaje', 2, 0), mod('paneles', 3, 0), mod('paneles', 4, 0), mod('pila_regenerativa', 0, 1), mod('reactor', 1, 1), mod('laboratorio', 2, 1), mod('bodega', 3, 1), mod('extractor_hielo', 4, 1), mod('rover_autonomo', 5, 1), mod('antena', 0, 2)],
     instruments: ['sismometro', 'georradar'], launcher: 'titan', orbit: 'luna_polo', crewRoles: ['comandante', 'ingeniero', 'medico', 'cientifico'], cargoDays: 150 },
-  marte: { modules: [mod('cabina', 0, 0), mod('soporte_vital', 1, 0), mod('modulo_aterrizaje', 2, 0), mod('planta_combustible', 3, 0), mod('paneles', 4, 0), mod('paneles', 5, 0), mod('reactor', 0, 1), mod('pila_regenerativa', 1, 1), mod('laboratorio', 2, 1), mod('invernadero', 3, 1), mod('bodega', 4, 1), mod('bodega', 5, 1), mod('refugio', 0, 2), mod('enfermeria', 1, 2), mod('bodega', 2, 2), mod('antena', 3, 2)],
+  marte: { modules: [mod('cabina', 0, 0), mod('soporte_vital', 1, 0), mod('modulo_aterrizaje', 2, 0), mod('planta_combustible', 3, 0), mod('paneles', 4, 0), mod('paneles', 5, 0), mod('reactor', 0, 1), mod('pila_regenerativa', 1, 1), mod('laboratorio', 2, 1), mod('invernadero', 3, 1), mod('bodega', 4, 1), mod('bodega', 5, 1), mod('refugio', 0, 2), mod('enfermeria', 1, 2), mod('bodega', 2, 2), mod('antena', 3, 2), mod('paneles', 4, 2)],
     instruments: ['buscador_vida', 'analizador_rocas'], launcher: 'titan', orbit: 'marte_jezero', crewRoles: ['comandante', 'piloto', 'ingeniero', 'medico'], cargoDays: 240 },
 };
 
@@ -75,6 +75,10 @@ function play(scn, dif, seed, careful, expert = false) {
     }
     s.minis = s.minis.map((m) => (m.status === 'oferta' ? { ...m, status: 'vencida' } : m));
     if (careful) {
+      // como un jugador atento: si quedan menos de 15 días de comida o agua, media ración para todos
+      const dl = daysLeft(s);
+      const ration = Math.min(dl.food, dl.water) < 15 ? 'media' : 'completa';
+      for (const c of s.crew) s.rations[c.id] = ration;
       // rutina: si alguien está muy cansado o enfermo, descansa o va al médico
       for (const c of s.crew.filter((x) => x.alive)) {
         if (c.fatigue >= 70) s.schedule[c.id] = ['descanso', 'ejercicio', 'sueño'];
