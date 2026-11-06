@@ -25,6 +25,17 @@ const drafts = {};
 const draftFns = new Set();
 const actionFns = new Set();
 export const getDraft = (k) => drafts[k];
+export const allDrafts = () => ({ ...drafts });
+// Chat rápido con frases fijas.
+const chatFns = new Set();
+export function onChat(fn) { chatFns.add(fn); return () => chatFns.delete(fn); }
+const gotChat = (from, text) => chatFns.forEach((fn) => fn(from, text));
+export function sendChat(text) {
+  if (!coop.role) return;
+  const msg = { type: 'chat', from: coop.name, text: String(text).slice(0, 80) };
+  if (coop.role === 'host') broadcast(msg); else if (coop.hostConn?.open) coop.hostConn.send(msg);
+  gotChat(coop.name, msg.text);
+}
 export function onDraft(fn) { draftFns.add(fn); return () => draftFns.delete(fn); }
 export function onAction(fn) { actionFns.add(fn); return () => actionFns.delete(fn); }
 const gotDraft = (k, v) => { drafts[k] = v; draftFns.forEach((fn) => fn(k, v)); };
@@ -111,15 +122,30 @@ export async function hostRoom(name) {
     peer.on('connection', (conn) => {
       conn.on('data', (msg) => {
         if (msg?.type === 'hola') {
-          if (coop.players.length >= COOP_MAX) { conn.send({ type: 'llena' }); setTimeout(() => conn.close(), 300); return; }
-          coop.conns.push(conn);
           let nm = String(msg.name || 'Jugador').trim().slice(0, 16) || 'Jugador';
-          for (let n = 2; coop.players.some((p) => p.name === nm); n++) nm = `${String(msg.name || 'Jugador').slice(0, 13)} ${n}`;
-          coop.players.push({ id: conn.peer, name: nm });
+          // Reconexión: si vuelve alguien que se cayó (mismo nombre), recupera su lugar y sus roles.
+          // (el aviso de desconexión puede tardar: el mismo nombre recupera su lugar aunque aún no figure como caído)
+          const same = coop.players.find((p) => p.name === nm && p.id !== peer.id);
+          if (same && !same.away) { const old = coop.conns.find((c) => c.peer === same.id); coop.conns = coop.conns.filter((c) => c !== old); try { old?.close(); } catch { /* ya cerrada */ } same.away = true; same.id = null; }
+          const seat = (same?.away ? same : null) ?? (coop.players.length >= COOP_MAX ? coop.players.find((p) => p.away) : null);
+          if (!seat && coop.players.length >= COOP_MAX) { conn.send({ type: 'llena' }); setTimeout(() => conn.close(), 300); return; }
+          coop.conns.push(conn);
+          if (seat) {
+            if (seat.name !== nm) { for (let n = 2; coop.players.some((p) => p.name === nm); n++) nm = `${String(msg.name || 'Jugador').slice(0, 13)} ${n}`; }
+            Object.assign(seat, { id: conn.peer, name: nm, away: false });
+            setStatus(`${nm} volvió a la sala.`);
+          } else {
+            for (let n = 2; coop.players.some((p) => p.name === nm); n++) nm = `${String(msg.name || 'Jugador').slice(0, 13)} ${n}`;
+            coop.players.push({ id: conn.peer, name: nm });
+          }
           if (msg.v !== COOP_VERSION) setStatus(`${nm} tiene una versión vieja del juego: que recargue la página con Ctrl+Shift+R (o borre la caché en el teléfono).`);
           conn.send({ type: 'nombre', name: nm });
           syncPlayers();
           coop.ver++; broadcast(snapshot());
+        } else if (msg?.type === 'chat' && typeof msg.text === 'string') {
+          const from = coop.players.find((p) => p.id === conn.peer)?.name ?? 'Jugador';
+          broadcast({ type: 'chat', from, text: msg.text.slice(0, 80) }, conn);
+          gotChat(from, msg.text.slice(0, 80));
         } else if (msg?.type === 'borrador' && typeof msg.key === 'string') {
           gotDraft(msg.key, msg.value);
           broadcast(msg, conn);
@@ -134,7 +160,13 @@ export async function hostRoom(name) {
           broadcast(snapshot(), null);
         }
       });
-      conn.on('close', () => { coop.conns = coop.conns.filter((c) => c !== conn); coop.players = coop.players.filter((p) => p.id !== conn.peer); syncPlayers(); broadcast(snapshot()); });
+      // Si alguien se cae, su lugar queda guardado (con sus roles) hasta que vuelva con el mismo nombre.
+      conn.on('close', () => {
+        coop.conns = coop.conns.filter((c) => c !== conn);
+        const p = coop.players.find((x) => x.id === conn.peer);
+        if (p) { p.away = true; p.id = null; setStatus(`${p.name} se desconectó: si vuelve a entrar con el mismo nombre recupera su lugar.`); }
+        syncPlayers(); broadcast(snapshot());
+      });
     });
     peer.on('disconnected', () => setStatus('Sin conexión con el directorio; la sala sigue para quien ya entró.'));
     setStatus(`Sala ${code} abierta. Comparte el código.`);
@@ -162,6 +194,7 @@ export async function joinRoom(rawCode, name) {
   conn.on('data', (msg) => {
     if (msg?.type === 'estado') apply(msg);
     else if (msg?.type === 'borrador') gotDraft(msg.key, msg.value);
+    else if (msg?.type === 'chat') gotChat(msg.from, msg.text);
     else if (msg?.type === 'nombre') { coop.name = msg.name; changed(); }
     else if (msg?.type === 'llena') { setStatus('La sala está llena (máximo 4).'); leaveRoom(); }
   });

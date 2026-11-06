@@ -1,7 +1,8 @@
 // Bucle de simulación: avanza días y se detiene cuando hay algo que decidir.
 import { hasUpgrade } from './campaign.js';
 import { restoreRng } from './rng.js';
-import { rollEvents, tickAlerts, resolveResupply } from './events.js';
+import { rollEvents, tickAlerts, resolveResupply, tickDelayed } from './events.js';
+import { dustTick, dustFactor, batteryTick, autoRationTick, gardenTick } from './extras.js';
 import { offerMinis, progressMinis } from './minimissions.js';
 import { applyTasks, validateSchedule } from './tasks.js';
 import { applyEnergy } from './energy.js';
@@ -66,6 +67,8 @@ export function advanceDay(state) {
   const aliveBefore = living(s).length;
 
   s = rollEvents(s, rng);
+  // Misiones históricas: eventos que pasan sí o sí ese día.
+  for (const sc of s.scripted ?? []) if (sc.day === s.day && !s.pending) s.pending = { eventId: sc.eventId, severity: sc.severity, prepared: [] };
   if (s.mode === 'demo') s = rollEvents(s, rng);
   for (const st of s.realStorms ?? []) {
     if (st.day !== s.day || s.alerts.some((a) => a.eventId === 'tormenta_solar')) continue;
@@ -77,6 +80,7 @@ export function advanceDay(state) {
 
   const t = applyTasks(s, rng);
   s = t.state; pushLog(s, t.log, 'labor');
+  pushLog(s, gardenTick(s), 'bueno');
   const p = progressMinis(s, rng);
   s = p.state; pushLog(s, p.log, 'mini');
   const expResult = progressExpedition(s);
@@ -90,7 +94,7 @@ export function advanceDay(state) {
 
   const site = siteOf(s);
   const sc = scenarioOf(s);
-  const wear = WEAR[s.difficulty] * (s.leg === 'superficie' && sc.id !== 'estacion' ? 1.25 : 1);
+  const wear = WEAR[s.difficulty] * (s.leg === 'superficie' && !sc.orbital ? 1.25 : 1);
   for (const m of s.modules) {
     if (m.health <= 0) continue;
     m.health = Math.max(0, m.health - wear);
@@ -98,8 +102,10 @@ export function advanceDay(state) {
   }
   pushLog(s, tickFaults(s), 'evento');
   const night = isNight(site, s.day);
-  const e = applyEnergy(s, { solarFactor: night ? 0 : marsSolarFactor(s, site), heatKw: night ? sc.nightHeatKw ?? 0 : 0 });
+  dustTick(s);
+  const e = applyEnergy(s, { solarFactor: night ? 0 : marsSolarFactor(s, site) * dustFactor(s), heatKw: night ? sc.nightHeatKw ?? 0 : 0 });
   s = e.state; pushLog(s, e.log, 'energia');
+  batteryTick(s);
   // Recursos del lugar: agua del hielo y combustible fabricado allí (ISRU).
   for (const m of s.modules) {
     if (!m.on || m.health <= 0) continue;
@@ -109,6 +115,8 @@ export function advanceDay(state) {
     if (def.fuelPerDay) s.resources.fuel += def.fuelPerDay * (m.health / 100) * (hasUpgrade(s, 'isru_mejorado') ? 1.5 : 1);
   }
 
+  s = tickDelayed(s);
+  pushLog(s, autoRationTick(s), 'aviso');
   const l = applyDailyLife(s, { ...t.ctx, lifeSupportOn: lsOn(s) });
   s = l.state; pushLog(s, l.log, 'vida');
   const proto = [];

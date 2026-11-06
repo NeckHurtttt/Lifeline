@@ -425,3 +425,73 @@ Object.assign(EVENTS, {
     ],
   },
 });
+
+// Vida a bordo y daños en los paneles.
+Object.assign(EVENTS, {
+  impacto_panel: {
+    id: 'impacto_panel', name: 'Micrometeorito en un panel solar', kind: '-', disaster: false, warnDays: 0, weight: 6, needsModule: 'paneles',
+    text: T('Un granito perfora una celda del panel.', 'Un impacto rompe una fila de celdas: el panel da menos.', 'Un impacto parte el panel: casi no da energía.'),
+    prepare: [],
+    options: [
+      { id: 'eva', label: 'Salida al exterior para cambiar las celdas (técnica)', check: { stat: 'tecnica', dc: 12 },
+        effects: T({ parts: -2, crewRadiation: 2 }, { parts: -4, crewRadiation: 3 }, { parts: -6, crewRadiation: 5 }),
+        failEffects: T({ moduleDamage: { paneles: 15 } }, { moduleDamage: { paneles: 35 }, crewHealth: -5 }, { moduleDamage: { paneles: 60 }, crewHealth: -10 }) },
+      { id: 'dejar', label: 'Dejar el panel así', effects: T({ moduleDamage: { paneles: 20 } }, { moduleDamage: { paneles: 45 } }, { moduleDamage: { paneles: 75 } }) },
+    ],
+  },
+  cumpleanos: {
+    id: 'cumpleanos', name: 'Cumpleaños a bordo', kind: '+', disaster: false, warnDays: 0, weight: 5,
+    text: T('Hoy cumple años alguien de la tripulación.', 'Cumpleaños a bordo: la Tierra manda saludos.', 'Cumpleaños número 40 en el espacio: ¡fiesta grande!'),
+    prepare: [],
+    options: [
+      { id: 'fiesta', label: 'Fiesta con postre guardado', effects: T({ food: -2, crewMorale: 8 }, { food: -3, crewMorale: 12 }, { food: -5, crewMorale: 18 }) },
+      { id: 'saludo', label: 'Solo un saludo y seguir trabajando', effects: T({ crewMorale: 3 }, { crewMorale: 4 }, { crewMorale: 5 }) },
+    ],
+  },
+  llamada_familia: {
+    id: 'llamada_familia', name: 'Videollamada con la familia', kind: '+', disaster: false, warnDays: 0, weight: 5, scenarios: ['estacion', 'gateway', 'luna'],
+    text: T('Hay señal para una llamada corta a casa.', 'Una buena ventana de comunicación: llamadas a las familias.', 'Las familias se juntan en Control de Misión para una gran llamada.'),
+    prepare: [],
+    options: [
+      { id: 'llamar', label: 'Llamar (gasta tiempo de antena)', effects: T({ crewMorale: 6, science: -1 }, { crewMorale: 10, science: -2 }, { crewMorale: 15, science: -3 }),
+        later: { days: 7, text: 'La tripulación sigue contenta por la llamada.', effects: { crewMorale: 4 } } },
+      { id: 'despues', label: 'Dejarla para después', effects: T({ crewMorale: -2 }, { crewMorale: -3 }, { crewMorale: -5 }) },
+    ],
+  },
+  pelea: {
+    id: 'pelea', name: 'Discusión en la tripulación', kind: '-', disaster: false, warnDays: 0, weight: 5,
+    text: T('Dos tripulantes discuten por quién lava los platos.', 'Una discusión fuerte divide al equipo.', 'Ya no se hablan: el equipo está partido en dos.'),
+    prepare: [],
+    options: [
+      { id: 'mediar', label: 'El comandante media (calma)', check: { stat: 'temple', dc: 11 },
+        effects: T({ crewMorale: 2 }, { crewMorale: 3 }, { crewMorale: 5 }),
+        failEffects: T({ crewMorale: -5 }, { crewMorale: -10 }, { crewMorale: -18 }) },
+      { id: 'separar', label: 'Separarlos en turnos distintos', effects: T({ crewMorale: -2, science: -1 }, { crewMorale: -4, science: -3 }, { crewMorale: -6, science: -5 }),
+        later: { days: 14, text: 'Los turnos separados cansan: la tensión vuelve un poco.', effects: { crewMorale: -4 } } },
+    ],
+  },
+});
+
+// Decisiones con consecuencias que llegan días después.
+const later = (eventId, optionId, days, text, effects) => { const o = EVENTS[eventId]?.options.find((x) => x.id === optionId); if (o) o.later = { days, text, effects }; };
+later('incendio', 'sellar', 12, 'el humo del incendio tapó los filtros del aire.', T({ o2: -5 }, { o2: -12, moduleDamage: { soporte_vital: 10 } }, { o2: -20, moduleDamage: { soporte_vital: 25 } }));
+later('micrometeoritos', 'ignorar', 15, 'las grietas que ignoraste se agrandaron.', T({ moduleDamage: { random: 8 } }, { moduleDamage: { random: 15 }, o2: -10 }, { moduleDamage: { random: 30 }, o2: -25 }));
+later('fuga_misteriosa', 'parche', 20, 'el parche a ciegas cedió y vuelve la fuga.', T({ o2: -5 }, { o2: -15 }, { o2: -30 }));
+later('basura_tardia', 'aceptar', 10, 'el golpe de la basura dejó un módulo debilitado.', T({ moduleDamage: { random: 5 } }, { moduleDamage: { random: 12 } }, { moduleDamage: { random: 20 } }));
+later('radio_escuelas', 'aprovechar', 20, 'las escuelas mandaron dibujos y cartas.', T({ crewMorale: 3, reputation: 1 }, { crewMorale: 5, reputation: 2 }, { crewMorale: 8, reputation: 3 }));
+later('impacto_panel', 'dejar', 18, 'el panel roto se sigue rajando.', T({ moduleDamage: { paneles: 10 } }, { moduleDamage: { paneles: 20 } }, { moduleDamage: { paneles: 30 } }));
+
+// Para la misión histórica Apolo 13 (no sale al azar).
+EVENTS.tanque_o2 = {
+  id: 'tanque_o2', name: 'Explota un tanque de oxígeno', kind: '-', disaster: true, warnDays: 0, weight: 0,
+  text: T('Un tanque de O₂ pierde presión.', 'Un tanque de O₂ explota y daña los paneles.', '"Houston, tenemos un problema": explota un tanque de O₂ y se apaga media nave.'),
+  procedure: 'Apolo 13 (1970): la tripulación pasó al módulo lunar, apagó casi todo para ahorrar energía y armó con cinta un adaptador para los filtros de CO₂.',
+  prepare: [],
+  options: [
+    { id: 'filtros', label: 'Improvisar filtros de CO₂ con lo que hay a bordo (técnica)', check: { stat: 'tecnica', dc: 12 },
+      effects: T({ o2: -20, parts: -2 }, { o2: -50, parts: -4, battery: -40 }, { o2: -90, parts: -6, battery: -80, crewMorale: -10 }),
+      failEffects: T({ o2: -40, crewHealth: -5 }, { o2: -90, crewHealth: -15, battery: -60 }, { o2: -150, crewHealth: -30, battery: -100 }) },
+    { id: 'apagar', label: 'Apagar todo lo que no sea vital y aguantar', effects: T({ o2: -30, science: -3 }, { o2: -70, moduleOff: { laboratorio: 10, antena: 5 }, science: -8 }, { o2: -120, moduleOff: { laboratorio: 20, antena: 10 }, science: -15, crewMorale: -15 }) },
+    { id: 'volver', label: 'Abortar y volver a casa', effects: T({ endMission: 'evacuar' }, { endMission: 'evacuar' }, { endMission: 'evacuar' }) },
+  ],
+};

@@ -128,7 +128,8 @@ export function applyTasks(state, rng) {
       } else if (t === 'experimentos' || t === 'trabajo') {
         expEff += eff;
       } else if (t === 'cultivo') {
-        r.food += MODULES.invernadero.foodPerDay * eff;
+        s.garden ??= { growth: 0, harvests: 0 };
+        s.garden.care = (s.garden.care ?? 0) + eff; // el huerto crece por etapas (core/extras.js)
       } else if (t === 'produccion') {
         r.water += 3 * eff;
       } else if (t === 'medico') {

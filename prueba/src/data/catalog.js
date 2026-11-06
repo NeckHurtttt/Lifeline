@@ -23,11 +23,16 @@ export const MODULES = indexar([
   { id: 'extractor_hielo', icon: '🧊', desc: 'Saca agua del hielo del suelo. Solo sirve donde hay hielo.', name: 'Extractor de hielo', mass: 3, kw: -2, cost: 70, waterPerDay: 4, scenarios: ['luna', 'marte'] },
   { id: 'rover', icon: '🚙', desc: 'Auto con cabina: lleva a 2 astronautas lejos de la base y les sirve de refugio.', name: 'Rover presurizado', mass: 3, kw: -1, cost: 90, scenarios: ['luna', 'marte'] },
   { id: 'rover_autonomo', icon: '🤖', desc: 'Robot que explora solo, sin arriesgar a nadie, pero tarda el doble.', name: 'Rover autónomo', mass: 1, kw: -0.5, cost: 50, scenarios: ['luna', 'marte'] },
+  { id: 'centrifuga', icon: '🌀', desc: 'Una rueda que gira para crear gravedad: los huesos se pierden la mitad de rápido.', name: 'Centrífuga', mass: 4, kw: -2, cost: 120, boneProtect: 0.5 },
+  { id: 'impresora_comida', icon: '🖨️', desc: 'Imprime comidas con polvos y desperdicia menos: se come 10 % menos.', name: 'Impresora de comida', mass: 1.5, kw: -1, cost: 70, foodSave: 0.9 },
+  { id: 'escudo_agua', icon: '💧', desc: 'Paredes con bolsas de agua: frenan la radiación (−40 %).', name: 'Escudo de agua', mass: 6, kw: 0, cost: 50, radShield: 0.6 },
   { id: 'planta_combustible', icon: '⛽', desc: 'Fabrica combustible con el aire de Marte (CO₂). Sin ella no se puede volver.', name: 'Planta de combustible (ISRU)', mass: 4, kw: -4, cost: 160, fuelPerDay: 1, scenarios: ['marte'] },
 ]);
 
 export const INSTRUMENTS = indexar([
   { id: 'camara_tierra', icon: '📷', desc: 'Fotos de la Tierra desde arriba.', name: 'Cámara terrestre', mass: 0.3, kw: -0.2, cost: 10, dataPerDay: 20, sciencePerDay: 2, scenarios: ['estacion'] },
+  { id: 'monitor_clima', icon: '🌀', desc: 'Sigue huracanes y sequías para avisar a la gente en la Tierra.', name: 'Monitor de clima', mass: 0.4, kw: -0.3, cost: 20, dataPerDay: 18, sciencePerDay: 3, scenarios: ['estacion'] },
+  { id: 'dosimetro', icon: '☢️', desc: 'Mide la radiación del espacio profundo: clave para viajar a Marte.', name: 'Dosímetro científico', mass: 0.2, kw: -0.1, cost: 15, dataPerDay: 3, sciencePerDay: 2, scenarios: ['gateway', 'luna', 'marte'] },
   { id: 'espectrometro', icon: '🌈', desc: 'Separa la luz en colores para saber de qué están hechas las cosas.', name: 'Espectrómetro', mass: 0.5, kw: -0.5, cost: 25, dataPerDay: 15, sciencePerDay: 4 },
   { id: 'cristales', icon: '💎', desc: 'Cristales que ayudan a crear medicinas.', name: 'Cristalización de proteínas', mass: 0.4, kw: -0.6, cost: 20, dataPerDay: 5, sciencePerDay: 3 },
   { id: 'bio_celulas', icon: '🧫', desc: 'Cómo crecen las células flotando.', name: 'Cultivo de células', mass: 0.6, kw: -0.8, cost: 30, dataPerDay: 8, sciencePerDay: 5 },
@@ -51,6 +56,7 @@ export const ORBITS = indexar([
   { id: 'leo_estacion', scenario: 'estacion', icon: '🌍', name: 'Órbita baja 400 km, 51,6°', factor: 1.0, solarFraction: 0.5, desc: 'La de la estación espacial. La más fácil; basura espacial media.' },
   { id: 'sso', scenario: 'estacion', icon: '🛰️', name: 'Heliosíncrona 600 km', factor: 0.8, solarFraction: 0.65, desc: 'Pasa siempre a la misma hora de luz: buena para fotos de la Tierra.' },
   { id: 'geo', scenario: 'estacion', icon: '🌐', name: 'Geoestacionaria 35 786 km', factor: 0.35, solarFraction: 0.99, desc: 'Muy lejos: casi siempre al sol, pero el cohete lleva mucho menos y hay más radiación.' },
+  { id: 'nrho', scenario: 'gateway', icon: '🌘', name: 'Órbita halo lunar (NRHO)', factor: 0.3, solarFraction: 0.98, desc: 'La órbita del Gateway real: casi siempre al sol, una vuelta cada 7 días, pasando cerca del polo sur lunar.' },
   // Sitios de alunizaje: de día el sol da `solarFraction`; de noche nada. Ciclo de 28 días (un día lunar).
   { id: 'luna_polo', scenario: 'luna', icon: '🧊', name: 'Polo sur lunar (borde del cráter Shackleton)', factor: 0.3, solarFraction: 0.8, cycleDays: 28, nightDays: 4, ice: true, scienceMult: 1,
     desc: 'Sol casi siempre (noches de solo 4 días) y hielo en los cráteres oscuros. Donde quiere ir Artemis.' },
@@ -73,7 +79,10 @@ export const DIFFICULTY = {
 
 export const SCENARIOS = {
   estacion: { id: 'estacion', icon: '🛰️', short: 'Estación', name: 'Estación espacial: un año en órbita', orbit: 'leo_estacion', days: 365, resupplyEvery: 60,
-    requiredModules: ['cabina', 'soporte_vital'], minScience: 0, scienceGoalPerDay: 8, disasterMult: 1, budgetMult: 1, boneMult: 1, radiationMult: 1, nightHeatKw: 0, home: 'la estación' },
+    requiredModules: ['cabina', 'soporte_vital'], minScience: 0, scienceGoalPerDay: 8, disasterMult: 1, budgetMult: 1, boneMult: 1, radiationMult: 1, nightHeatKw: 0, home: 'la estación', orbital: true },
+  // Como el Gateway real de Artemis: estación en órbita halo lunar; lejos del campo magnético de la Tierra.
+  gateway: { id: 'gateway', icon: '🌘', short: 'Gateway', name: 'Gateway: un año en órbita alrededor de la Luna', orbit: 'nrho', days: 365, resupplyEvery: 180,
+    requiredModules: ['cabina', 'soporte_vital'], minScience: 0, scienceGoalPerDay: 9, disasterMult: 1.1, budgetMult: 1.4, boneMult: 1, radiationMult: 1.8, nightHeatKw: 0, home: 'el Gateway', orbital: true },
   luna: { id: 'luna', icon: '🌙', short: 'Luna', name: 'Base lunar: un año en la Luna', orbit: 'luna_polo', days: 365, resupplyEvery: 120,
     requiredModules: ['cabina', 'soporte_vital', 'modulo_aterrizaje'], minScience: 0, scienceGoalPerDay: 9, disasterMult: 1.5, budgetMult: 1.5, boneMult: 0.5, radiationMult: 1.5, nightHeatKw: 3, home: 'la base lunar' },
   marte: { id: 'marte', icon: '🔴', short: 'Marte', name: 'Marte: 7 meses de ida, 1 año allá y 7 meses de vuelta', orbit: 'marte_jezero', days: 365, travelDays: 210, resupplyEvery: 0,

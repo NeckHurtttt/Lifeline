@@ -1,13 +1,17 @@
-import { h, mount } from '../dom.js';
+import { h, mount, modal } from '../dom.js';
+import { HISTORICAS } from '../../data/historicas.js';
+import { ACHIEVEMENTS, loadAchievements } from '../../core/achievements.js';
+import { SUGGESTED } from './design.js';
 import { load } from '../../core/save.js';
 import { makePlayers, PLAYER_ROLES, updateBar } from '../main.js';
 import { hostRoom, joinRoom, leaveRoom, coopInfo, onCoopChange, normalizeCode } from '../coop.js';
 import { DIFFICULTY, SCENARIOS } from '../../data/catalog.js';
 import { loadCampaign } from '../../core/campaign.js';
 
-export const PLAYABLE = ['estacion', 'luna', 'marte'];
+export const PLAYABLE = ['estacion', 'gateway', 'luna', 'marte'];
 const SCN_DESC = {
   estacion: 'Un año dando vueltas a la Tierra. Llega carga cada 60 días. La más fácil.',
+  gateway: 'Estación en órbita de la Luna, como el Gateway real: más radiación y carga solo cada 180 días. Solo en modo Libre o Demo.',
   luna: 'Un año en la Luna: noches de hasta 14 días sin sol, polvo, sismos y hielo. Carga cada 120 días.',
   marte: '7 meses de viaje, 1 año allá y 7 de vuelta. Sin cargas: hay que fabricar combustible para volver.',
 };
@@ -61,7 +65,7 @@ function onlinePanel() {
       ? h('div', {},
         h('div', { class: 'lectura code' }, `SALA ${c.code}`),
         h('div', { class: 'small' }, c.role === 'host' ? 'Eres el anfitrión: deja esta pestaña abierta.' : 'Conectado como invitado.'),
-        h('div', { class: 'small' }, 'En la sala: ', c.players.map((p) => p.name).join(' · ') || '...'),
+        h('div', { class: 'small' }, 'En la sala: ', c.players.map((p) => (p.away ? `${p.name} (desconectado)` : p.name)).join(' · ') || '...'),
         h('button', { onclick: () => { leaveRoom(); redrawTitle(); } }, 'SALIR DE LA SALA'))
       : h('div', { class: 'row' },
         h('input', { placeholder: 'Tu nombre', value: online.name, size: 12, maxlength: 16, oninput: (e) => { online.name = e.target.value; } }),
@@ -129,6 +133,9 @@ export function render(root, app, go) {
               onclick: () => { app.difficulty = d.id; draw(); say(`${d.name}: ${DIFF_DESC[d.id]}`, { quiet: true, mood: d.id === 'dificil' ? 'alerta' : 'normal' }); } },
             { facil: '🟢 ', medio: '🟠 ', dificil: '🔴 ' }[d.id] + d.name))),
           h('div', { class: 'small dim' }, DIFF_DESC[app.difficulty]),
+          h('div', { class: 'row', id: 'contrarreloj', style: { marginTop: '.4rem' } }, '⏱️ Contrarreloj:',
+            ...[[0, 'No'], [10, '10 min'], [20, '20 min'], [30, '30 min']].map(([m, t]) => h('button', { class: `small ${(app.contrarreloj ?? 0) === m ? 'sel' : ''}`, 'data-contra': m,
+              onclick: () => { app.contrarreloj = m || null; draw(); if (m) say(`Contrarreloj de ${m} minutos reales: cuando se acabe el tiempo, la misión termina y gana el equipo con más puntaje. ¡Ideal para competir en clase!`, { quiet: true }); } }, t))),
           h('div', { class: 'small' }, `💰 Dinero para la nave: ${Math.round(DIFFICULTY[app.difficulty].budget * (app.mode === 'libre' ? app.budgetMult : 1))} millones`),
           app.mode === 'libre' ? h('div', { class: 'row', style: { marginTop: '.4rem' } }, 'Más o menos dinero',
             h('input', { type: 'range', min: 50, max: 150, step: 10, value: app.budgetMult * 100, oninput: (e) => { app.budgetMult = e.target.value / 100; draw(); } }),
@@ -147,19 +154,43 @@ export function render(root, app, go) {
       onlinePanel(),
       h('div', { style: { textAlign: 'center', margin: '1.2rem 0' } },
         coopInfo().role === 'guest' ? h('div', { class: 'small amber' }, 'Estás en la sala de otra persona: el anfitrión empieza la misión y tu pantalla lo sigue.') : null,
-        h('button', { class: 'big', id: 'nueva', disabled: coopInfo().role === 'guest', onclick: () => { app.state = null; app.lastDesign = null; app.lastSeed = null; app.objective = null; app.reto = null; if (app.mode !== 'libre') app.budgetMult = 1; beep(990, 80); go('design'); } }, '🚀 NUEVA MISIÓN'),
+        h('button', { class: 'big', id: 'nueva', disabled: coopInfo().role === 'guest', onclick: () => { app.state = null; app.lastDesign = null; app.lastSeed = null; app.objective = null; app.reto = null; app.historica = null; app.practice = null; if (app.mode !== 'libre') app.budgetMult = 1; beep(990, 80); go('design'); } }, '🚀 NUEVA MISIÓN'),
         ' ', h('button', { id: 'reto', title: 'Pega el código que te pasó otro equipo: jugarán la misma misión y compararán puntajes.', onclick: () => {
           const code = prompt('Pega el código de misión (empieza con VDL1-):');
           if (code === null) return;
           const m = decodeMission(code);
           if (!m || !SCENARIOS[m.scenarioId] || !DIFFICULTY[m.difficulty]) { say('Ese código no sirve. Revisa que esté completo y empiece con VDL1-.', { mood: 'alerta' }); beep(300, 120); return; }
           Object.assign(app, { mode: 'libre', budgetMult: 1, scenario: m.scenarioId, difficulty: m.difficulty, objective: m.objective, state: null,
-            lastDesign: m.design, lastScenario: m.scenarioId, lastSeed: m.seed, reto: code.trim() });
+            lastDesign: m.design, lastScenario: m.scenarioId, lastSeed: m.seed, reto: code.trim(), historica: null, practice: null });
           beep(990, 80);
           say('🏁 Reto cargado: misma nave, mismo destino y mismo clima espacial. Pueden cambiar la nave si quieren. ¡A ver quién saca más puntaje!', { mood: 'feliz' });
           go('design', { design: m.design });
         } }, '🏁 Jugar un reto'),
-        ' ', h('button', { id: 'como', onclick: () => { tour = -1; nextTour(); } }, '❓ ¿Cómo se juega?')),
+        ' ', h('button', { id: 'como', onclick: () => { tour = -1; nextTour(); } }, '❓ ¿Cómo se juega?'),
+        ' ', h('button', { id: 'practica', title: 'Una misión corta y fácil con Nova explicando cada parte.', onclick: () => {
+          Object.assign(app, { mode: 'demo', scenario: 'estacion', difficulty: 'facil', objective: 'ciencia', historica: null, reto: null, practice: 0, state: null, lastDesign: null, lastSeed: null, budgetMult: 1 });
+          beep(990, 80); go('design', { design: SUGGESTED('estacion') });
+          say('🎓 Práctica guiada: la nave ya está armada. Toca 🚀 LANZAR y te explico todo en la misión.', { mood: 'feliz', target: '#lanzar' });
+        } }, '🎓 Práctica guiada'),
+        ' ', h('button', { id: 'historicas', onclick: () => {
+          const close = modal(h('div', {}, h('h2', {}, '📜 Misiones históricas'),
+            h('div', { class: 'small dim' }, 'Problemas que pasaron de verdad. ¿Tu equipo lo haría mejor?'),
+            ...HISTORICAS.map((m) => h('div', { class: 'lesson', style: { margin: '.5rem 0' } },
+              h('b', {}, `${m.icon} ${m.name} (${m.year})`), h('div', { class: 'small' }, m.story),
+              h('button', { 'data-historica': m.id, onclick: () => {
+                close();
+                Object.assign(app, { mode: 'libre', budgetMult: 1, scenario: m.scenarioId, difficulty: m.difficulty, objective: m.objective, historica: m, reto: null, practice: null, state: null, lastDesign: null, lastSeed: null });
+                beep(990, 80); go('design', { design: SUGGESTED(m.scenarioId) });
+                say(`📜 ${m.name}. Te dejé una nave de ejemplo: cámbiala si quieres y lanza cuando estén listos.`, { mood: 'pensando', target: '#lanzar' });
+              } }, '▶ Jugar esta misión'))),
+            h('button', { onclick: () => close() }, 'Cerrar')));
+        } }, '📜 Misiones históricas'),
+        ' ', h('button', { id: 'ver-logros', onclick: () => {
+          const got = loadAchievements();
+          const close = modal(h('div', {}, h('h2', {}, `🏅 Logros (${Object.keys(got).length} de ${ACHIEVEMENTS.length})`),
+            ...ACHIEVEMENTS.map((a) => h('div', { class: got[a.id] ? '' : 'dim' }, `${got[a.id] ? '✅' : '⬜'} ${a.icon} ${a.name}: ${a.desc}${got[a.id] ? ` (${got[a.id]})` : ''}`)),
+            h('button', { onclick: () => close() }, 'Cerrar')));
+        } }, '🏅 Logros')),
       h('div', { class: 'small dim', style: { textAlign: 'center' } },
         'Agencia ficticia. Inspirado en procedimientos y datos abiertos de NASA. Hecho para NASA Space Apps 2026 · desafío Space Mission Design Game.'),
     );

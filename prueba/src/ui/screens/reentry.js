@@ -8,6 +8,8 @@ import { save } from '../../core/save.js';
 import { beep, alarm, radio, hum } from '../audio.js';
 import { say as nova } from '../guide.js';
 import { crewAvatar } from '../avatar.js';
+import { goNoGo } from '../poll.js';
+import { inCoop, shareDraft } from '../coop.js';
 
 const ANGLES = {
   normal: 'Normal: el ángulo de diseño',
@@ -38,7 +40,10 @@ export function render(root, app, go) {
         h('div', { class: `small ${risk > 20 ? 'red' : risk > 5 ? 'amber' : 'dim'}` }, `Riesgo del escudo térmico: ${risk} % (según la salud de la cabina)`)),
       h('div', { class: 'panel c-cyan' }, h('h2', {}, '📻 Radio'), action, out)),
   );
-  const say = (text, cls = '') => { lines.unshift(h('div', { class: cls }, text)); out.replaceChildren(...lines); radio(); };
+  const say = (text, cls = '') => {
+    lines.unshift(h('div', { class: cls }, text)); out.replaceChildren(...lines); radio();
+    if (inCoop()) shareDraft('radio', lines.slice(0, 15).map((e) => [e.textContent, e.className]));
+  };
   const drawSteps = (now) => steps.replaceChildren(...REENTRY_STEPS.map((st) =>
     h('li', { class: `${status[st.id] ?? ''} ${st.id === now ? 'now' : ''}` }, st.label)));
   const wait = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -55,6 +60,18 @@ export function render(root, app, go) {
       if (i >= 4) document.getElementById('cielo')?.classList.remove('space');
       nova(`${step.label}: ${step.desc}`, { quiet: true, mood: step.id === 'escudo_termico' ? 'alerta' : step.id === 'recuperacion' ? 'feliz' : 'normal' });
       let choice;
+      // Antes de encender los motores para volver, cada jugador (cada rol) dice si está listo.
+      if (i === 0 && app.players.length > 1) {
+        for (;;) {
+          nova('Go/No-Go para volver a casa: cada uno revisa su consola y dice si está listo.', { target: '#gonogo' });
+          const pv = await goNoGo(app.players, action, { title: 'Go/No-Go para la reentrada', onTimeout: (n) => say(`${n} no respondió: cuenta como GO.`, 'aviso') });
+          if (cancelled) return;
+          const nogo = Object.entries(pv).filter(([, v]) => v !== 'go').map(([n]) => n);
+          if (!nogo.length) { say('Todas las consolas: GO para la reentrada.'); break; }
+          say(`NO GO de ${nogo.join(', ')}: revisamos y se vuelve a preguntar.`, 'aviso'); alarm('aviso');
+          await wait(speed);
+        }
+      }
       if (step.id === 'interfaz_entrada' && mode === 'manual') {
         setTimeout(() => nova('Elige cómo entrar al aire. Normal es lo seguro. Empinado lastima más. Rasante puede rebotar y perder un día.', { mood: 'pensando', target: '#angulo' }), 30);
         choice = await new Promise((res) => action.replaceChildren(h('div', { class: 'panel c-amber', id: 'angulo' },
