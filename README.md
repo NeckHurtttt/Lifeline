@@ -28,6 +28,21 @@ Este juego junta las mejores ideas de tres prototipos del equipo:
 
 El cooperativo en línea usa PeerJS (WebRTC) y necesita internet; todo lo demás funciona también en `Jugar.html` sin conexión.
 
+## Herramientas, datos y uso de IA
+
+Space Apps pide documentar el software y los servicios de terceros. Este juego usa:
+
+| Qué | Para qué | Licencia / nota |
+|---|---|---|
+| [PeerJS](https://peerjs.com/) 1.5.4 (desde jsDelivr) | Cooperativo en línea (WebRTC) | MIT; solo se carga al crear o unirse a una sala |
+| [esbuild](https://esbuild.github.io/) (vía `npx`) | Empaquetar `Jugar.html` | MIT; solo en desarrollo |
+| API DONKI de NASA | Fechas reales de llamaradas solares (con respaldo de 2024 sin conexión) | Datos abiertos de NASA |
+| Fuente VT323 | Letra de consola | SIL Open Font License |
+| Música generativa de *Los Tira Vida 02* | Banda sonora | CC0 (del propio equipo) |
+| Claude (Anthropic) | Asistente de IA usado para programar y redactar con el equipo | Las decisiones de diseño y las pruebas son del equipo |
+
+Datos de radiación: Chang'E-4 LND (Luna), MSL/Curiosity RAD (Marte), NASA-STD-3001 (límite de carrera).
+
 ## Jugar
 
 **En línea:** https://neckhurtttt.github.io/Proyecto-Nasa/
