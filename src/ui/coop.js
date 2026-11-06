@@ -9,6 +9,8 @@ const PEERJS = 'https://cdn.jsdelivr.net/npm/peerjs@1.5.4/dist/peerjs.min.js';
 const PREFIX = 'vdl-sala-';
 const ALPHA = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
 export const COOP_MAX = 4;
+// Versión del protocolo: si alguien entra con la página vieja (caché), se avisa que recargue.
+const COOP_VERSION = 2;
 
 const coop = { base: null, role: null, code: '', name: '', peer: null, conns: [], hostConn: null, players: [], ver: 0, applying: false, status: '', listeners: new Set() };
 let hooks = { getApp: null, rerender: null };
@@ -114,6 +116,7 @@ export async function hostRoom(name) {
           let nm = String(msg.name || 'Jugador').trim().slice(0, 16) || 'Jugador';
           for (let n = 2; coop.players.some((p) => p.name === nm); n++) nm = `${String(msg.name || 'Jugador').slice(0, 13)} ${n}`;
           coop.players.push({ id: conn.peer, name: nm });
+          if (msg.v !== COOP_VERSION) setStatus(`${nm} tiene una versión vieja del juego: que recargue la página con Ctrl+Shift+R (o borre la caché en el teléfono).`);
           conn.send({ type: 'nombre', name: nm });
           syncPlayers();
           coop.ver++; broadcast(snapshot());
@@ -163,7 +166,7 @@ export async function joinRoom(rawCode, name) {
     else if (msg?.type === 'llena') { setStatus('La sala está llena (máximo 4).'); leaveRoom(); }
   });
   conn.on('close', () => { setStatus('El anfitrión cerró la sala. La partida sigue en esta compu, sin conexión.'); coop.role = null; changed(); hooks.rerender(null); });
-  conn.send({ type: 'hola', name: coop.name });
+  conn.send({ type: 'hola', name: coop.name, v: COOP_VERSION });
   setStatus(`Conectado a la sala ${code}.`);
 }
 
