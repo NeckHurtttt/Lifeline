@@ -99,13 +99,24 @@ langBtn.addEventListener('click', () => {
 });
 langLabel(); muteLabel();
 const musicBtn = document.getElementById('musica');
-let musicOn = false;
+// Música encendida por defecto: el navegador solo deja sonar tras el primer toque, así que arranca ahí.
+// Si el jugador la apaga, se recuerda.
+let musicOn = (() => { try { return localStorage.getItem('vdl-musica') !== 'no'; } catch { return true; } })();
 const musicLabel = () => { musicBtn.textContent = tr(musicOn ? 'MÚSICA: SÍ' : 'MÚSICA: NO'); };
+const musicPlay = async () => { await music.start(); music.muted = false; music.setVolume(0.18); };
 musicBtn.addEventListener('click', async () => {
   musicOn = !musicOn;
-  if (musicOn) { await music.start(); music.muted = false; music.setVolume(0.18); } else music.suspend();
+  try { localStorage.setItem('vdl-musica', musicOn ? 'si' : 'no'); } catch {}
+  if (musicOn) await musicPlay(); else music.suspend();
   musicLabel();
 });
+const musicFirstTouch = (e) => {
+  window.removeEventListener('pointerdown', musicFirstTouch, true);
+  window.removeEventListener('keydown', musicFirstTouch, true);
+  if (musicOn && e.target !== musicBtn) musicPlay();
+};
+window.addEventListener('pointerdown', musicFirstTouch, true);
+window.addEventListener('keydown', musicFirstTouch, true);
 musicLabel();
 /** Cambia el ánimo de la música según lo que pasa. */
 export function musicMood(mode) { if (musicOn && music.mode !== mode) music.modeTo(mode); }
