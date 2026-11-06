@@ -10,7 +10,7 @@ import { setMuted, isMuted, beep } from './audio.js';
 import { hideGuide, relang } from './guide.js';
 import { tr, getLang, setLang, retranslate } from '../i18n/i18n.js';
 import { music } from './music.js';
-import { initCoop, onCoopChange, coopInfo, coopScreen, isGuest } from './coop.js';
+import { initCoop, onCoopChange, coopInfo, coopScreen, isGuest, getDraft, onDraft, coopAction } from './coop.js';
 import { h } from './dom.js';
 
 export const PLAYER_ROLES = {
@@ -66,12 +66,33 @@ export function go(name, params = {}) {
   hideGuide();
   updateBar();
   // En el cooperativo en línea el anfitrión dirige el diseño, el despegue y la reentrada; el invitado mira el resultado.
-  const HOST_ONLY = { design: 'diseñando la nave', launch: 'dirigiendo el despegue', reentry: 'dirigiendo la reentrada', arbol: 'en el árbol de mejoras' };
+  const HOST_ONLY = { launch: 'dirigiendo el despegue', reentry: 'dirigiendo la reentrada', arbol: 'en el árbol de mejoras' };
   if (isGuest() && HOST_ONLY[name]) {
     root.append(h('div', { class: 'panel c-cyan', id: 'esperando', style: { textAlign: 'center', marginTop: '2rem' } },
       h('h2', {}, 'EN LÍNEA · ESPERANDO AL ANFITRIÓN'),
-      h('p', {}, `El anfitrión está ${HOST_ONLY[name]}. Tu pantalla cambia sola cuando termine.`),
+      h('p', {}, `El anfitrión está ${HOST_ONLY[name]}. Tu pantalla cambia sola cuando termine.${name === 'launch' ? ' Escucha la radio y vota GO / NO GO cuando te pregunten.' : ''}`),
       h('div', { class: 'code amber' }, `SALA ${coopInfo().code}`)));
+    if (name === 'launch') {
+      // El invitado vota GO/NO GO desde su compu y escucha la radio del despegue.
+      const live = h('div', { id: 'en-vivo', style: { maxWidth: '640px', margin: '1rem auto' } });
+      root.append(live);
+      const paint = () => {
+        const poll = getDraft('gonogo');
+        const me = coopInfo().name;
+        const voted = poll && app.votedRound === poll.round;
+        live.replaceChildren(...[
+          poll && !voted && poll.players.includes(me) ? h('div', { class: 'panel c-amber', id: 'gonogo' },
+            h('h3', {}, 'Sondeo Go/No-Go: ¿estás listo?'),
+            h('button', { 'data-vote': 'go', onclick: () => { app.votedRound = poll.round; coopAction('voto', { v: 'go', round: poll.round }); paint(); } }, 'GO'), ' ',
+            h('button', { class: 'danger', 'data-vote': 'nogo', onclick: () => { app.votedRound = poll.round; coopAction('voto', { v: 'nogo', round: poll.round }); paint(); } }, 'NO GO')) :
+            poll && voted ? h('div', { class: 'small amber' }, 'Voto enviado. Esperando a los demás…') : null,
+          h('div', { class: 'panel c-cyan' }, h('h2', {}, '📻 Radio de Control'),
+            h('div', { class: 'log', id: 'radio' }, ...(getDraft('radio') ?? []).map(([t, cls]) => h('div', { class: cls }, t))))].filter(Boolean));
+      };
+      paint();
+      const off = onDraft((k) => { if (k === 'gonogo' || k === 'radio') paint(); });
+      cleanup = off;
+    }
     return;
   }
   const r = screens[name].render(root, app, go, params);

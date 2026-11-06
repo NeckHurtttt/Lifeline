@@ -11,6 +11,7 @@ import { OBJECTIVES, SCORE_PARTS, criticalResources } from '../../data/objective
 import { createMission } from '../../core/mission.js';
 import { fetchFlares, flaresToStorms } from '../../core/realdata.js';
 import { whoDecides } from '../main.js';
+import { inCoop, isGuest, mine, coopInfo, getDraft, shareDraft, onDraft, onAction, coopAction } from '../coop.js';
 import { beep } from '../audio.js';
 import { say } from '../guide.js';
 import { crewAvatar } from '../avatar.js';
@@ -129,6 +130,13 @@ export function render(root, app, go, params = {}) {
   d.hires ??= {};
   d.interviews ??= {};
   d.crewSeed ??= Math.floor(Math.random() * 2 ** 31);
+  // En línea todos ven y arman la misma nave: cada uno cambia la parte de su rol.
+  const start = isGuest() ? getDraft('diseno') : null;
+  if (start) { Object.assign(d, structuredClone(start.d)); app.objective = start.o; }
+  const can = (role) => mine(whoDecides(app, role));
+  const snapOf = () => JSON.stringify({ d, o: app.objective });
+  let sent = start ? snapOf() : null;
+  let first = isGuest();
   // Entrevista opcional: cada puesto ya trae a alguien asignado (sin conocerlo). Entrevistar permite elegir mejor.
   const autoHire = () => {
     for (const ro of d.crewRoles) {
@@ -213,6 +221,12 @@ export function render(root, app, go, params = {}) {
 
   const draw = () => {
     autoHire();
+    if (inCoop()) {
+      const snap = snapOf();
+      if (snap !== sent) { if (!first) shareDraft('diseno', JSON.parse(snap)); sent = snap; }
+      first = false;
+    }
+    const myRoles = inCoop() ? app.players.find((p) => p.name === coopInfo().name)?.roles ?? [] : [];
     const r = computeDesign(d, scn, app.difficulty, budgetMult);
     const ok = canLaunch(r) && !!app.objective;
     const crit = criticalResources(app.objective, scn);
@@ -221,7 +235,7 @@ export function render(root, app, go, params = {}) {
       const def = m && MODULES[m.type];
       return h('div', {
         class: `cell ${m ? 'full' : ''}`, 'data-x': x, 'data-y': y, title: m ? `${def.name}. Clic derecho para quitar.` : `Clic para poner: ${MODULES[selected].name}`,
-        onclick: () => place(x, y), oncontextmenu: (e) => { e.preventDefault(); if (m) remove(x, y); },
+        onclick: () => { if (can('ingeniero')) place(x, y); }, oncontextmenu: (e) => { e.preventDefault(); if (m && can('ingeniero')) remove(x, y); },
       }, m ? [h('div', { class: 'ico code' }, MOD_CODE[m.type]), h('b', {}, def.name), h('div', { class: 'dim small' }, def.kw > 0 ? `⚡ da ${def.kw}` : def.kw < 0 ? `⚡ usa ${-def.kw}` : '')] : h('span', { class: 'muted', style: { fontSize: '1.4rem' } }, '+'));
     };
     const row = (label, frac, text, lesson, opts, key) => h('div', { class: `res ${crit.has(key) ? 'critico' : ''}`, title: crit.has(key) ? 'Recurso crítico para tu objetivo y destino' : null },
@@ -234,8 +248,13 @@ export function render(root, app, go, params = {}) {
         h('h1', { style: { fontSize: '1.8rem' } }, `🛠️ Arma tu ${scn === 'estacion' ? 'nave' : 'base'} · ${sc.icon} ${sc.short}`),
         d.upgrades.length ? h('span', { class: 'small', title: d.upgrades.map((u) => UPGRADES[u].name).join(', ') }, `🌳 Mejoras: ${d.upgrades.map((u) => UPGRADES[u].icon).join(' ')}`) : null,
         h('div', { class: 'row' },
-          h('button', { onclick: () => { Object.assign(d, SUGGESTED(scn)); explain = null; draw(); say('Te puse un diseño que funciona. ¡Puedes cambiarlo como quieras!', { mood: 'feliz' }); } }, '✨ Usar una nave de ejemplo'),
+          h('button', { disabled: !can('ingeniero'), onclick: () => { Object.assign(d, SUGGESTED(scn)); explain = null; draw(); say('Te puse un diseño que funciona. ¡Puedes cambiarlo como quieras!', { mood: 'feliz' }); } }, '✨ Usar una nave de ejemplo'),
           h('button', { onclick: () => go('title') }, '🏠 Menú'))),
+      inCoop() && app.players.length > 1 ? h('div', { class: 'panel c-cyan', id: 'mi-parte' },
+        h('b', {}, 'EN LÍNEA: todos arman la misma nave. '),
+        h('span', {}, `Tú (${coopInfo().name}) decides: `,
+          [myRoles.includes('comandante') && 'objetivo, cohete, destino y LANZAR', myRoles.includes('ingeniero') && 'piezas de la nave',
+            myRoles.includes('cientifico') && 'instrumentos de ciencia', myRoles.includes('comunicaciones') && 'astronautas y comida'].filter(Boolean).join(' · ') || 'nada aquí; mira y aconseja')) : null,
       app.kids ? h('div', { class: 'panel c-green', id: 'objetivo' },
         h('h2', {}, '🧒 Tu nave ya está lista'),
         h('div', { class: 'help', style: { fontSize: '1.1rem' } }, 'Nova la armó para ti. Si quieres, cambia piezas: toca una pieza y luego un cuadro. Cuando estés listo, toca 🚀 LANZAR.')) :
@@ -243,7 +262,7 @@ export function render(root, app, go, params = {}) {
         h('h2', {}, '0. Objetivo de la misión ', who('comandante')),
         h('div', { class: 'help' }, 'Primero decidan qué quieren lograr: cambia qué cuenta más en el puntaje y qué recursos son críticos (★).'),
         h('div', { class: 'row' }, ...Object.values(OBJECTIVES).map((o) => h('button', {
-          class: app.objective === o.id ? 'sel' : '', 'data-objetivo': o.id, title: o.desc,
+          class: app.objective === o.id ? 'sel' : '', 'data-objetivo': o.id, title: o.desc, disabled: !can('comandante'),
           onclick: () => { app.objective = o.id; explain = `${o.icon} ${o.name}: ${o.tip}`; say(explain, { mood: 'pensando', target: '#tablero' }); beep(820, 40); draw(); },
         }, `${o.icon} ${o.name}`))),
         app.objective ? h('div', { class: 'small', style: { marginTop: '.4rem' } },
@@ -276,7 +295,7 @@ export function render(root, app, go, params = {}) {
             h('h2', {}, '3. Instrumentos de ciencia ', who('cientifico')),
             h('div', { class: 'help' }, `Van dentro del 🔬 laboratorio: usas ${d.instruments.length} de ${instrSlots} lugares.`),
             ...Object.values(INSTRUMENTS).filter((i) => availableIn(i, scn)).map((i) => h('label', { class: 'row small', style: { margin: '.25rem 0' }, title: i.desc },
-              h('input', { type: 'checkbox', 'data-ins': i.id, checked: d.instruments.includes(i.id), onchange: (e) => {
+              h('input', { type: 'checkbox', 'data-ins': i.id, disabled: !can('cientifico'), checked: d.instruments.includes(i.id), onchange: (e) => {
                 d.instruments = e.target.checked ? [...d.instruments, i.id] : d.instruments.filter((x) => x !== i.id);
                 explain = i.id; draw(); say(`${i.icon} ${i.name}: ${i.desc} Da ${i.sciencePerDay} de ciencia por día.`, { quiet: true });
               } }),
@@ -284,25 +303,25 @@ export function render(root, app, go, params = {}) {
           tab === 'cohete' && !app.kids ? h('div', { class: 'panel c-pink', id: 'cohetes' },
             h('h2', {}, '4. Cohete ', who('comandante')),
             ...Object.values(LAUNCHERS).map((l) => h('label', { class: 'row small', style: { margin: '.2rem 0' } },
-              h('input', { type: 'radio', name: 'cohete', 'data-launcher': l.id, checked: d.launcher === l.id, onchange: () => {
+              h('input', { type: 'radio', name: 'cohete', 'data-launcher': l.id, disabled: !can('comandante'), checked: d.launcher === l.id, onchange: () => {
                 d.launcher = l.id; explain = l.id; draw();
                 say(`${l.name}: ${l.desc} Sube ${l.capacity} t y funciona bien ${Math.round(l.reliability * 100)} de cada 100 veces.`, { quiet: true });
               } }),
               h('b', {}, l.name), h('span', { class: 'dim' }, `${l.capacity} t · 💰${l.cost} · ${Math.round(l.reliability * 100)} % seguro`))),
             h('h2', { style: { marginTop: '.6rem' } }, scn === 'estacion' ? '5. ¿A dónde? (órbita) ' : '5. ¿Dónde aterrizar? ', who('comandante')),
             ...Object.values(ORBITS).filter((o) => o.scenario === scn).map((o) => h('label', { class: 'row small', style: { margin: '.2rem 0' }, title: o.desc },
-              h('input', { type: 'radio', name: 'orbita', 'data-orbit': o.id, checked: d.orbit === o.id, onchange: () => { d.orbit = o.id; explain = o.id; draw(); say(`${o.icon} ${o.name}: ${o.desc}`, { quiet: true }); } }),
+              h('input', { type: 'radio', name: 'orbita', 'data-orbit': o.id, disabled: !can('comandante'), checked: d.orbit === o.id, onchange: () => { d.orbit = o.id; explain = o.id; draw(); say(`${o.icon} ${o.name}: ${o.desc}`, { quiet: true }); } }),
               `${o.icon} ${o.name}`, h('span', { class: 'dim' }, o.nightDays ? ` · noche de ${o.nightDays} días${o.ice ? ' · hielo' : ''}` : o.ice ? ' · hielo' : ''))),
             h('div', { class: 'help' }, ORBITS[d.orbit]?.desc ?? '')) : null,
           tab === 'astronautas' && !app.kids ? h('div', { class: 'panel c-cyan', id: 'tripulantes' },
-            h('h2', {}, '6. Comida y astronautas ', who('comandante')),
+            h('h2', {}, '6. Comida y astronautas ', who('comunicaciones')),
             h('div', { class: 'row small' }, '🍎 Comida para',
-              h('input', { type: 'range', id: 'carga', min: 30, max: scn === 'marte' ? 400 : 365, step: 5, value: d.cargoDays, oninput: (e) => { d.cargoDays = Number(e.target.value); draw(); } }),
+              h('input', { type: 'range', id: 'carga', disabled: !can('comunicaciones'), min: 30, max: scn === 'marte' ? 400 : 365, step: 5, value: d.cargoDays, oninput: (e) => { d.cargoDays = Number(e.target.value); draw(); } }),
               h('b', {}, `${d.cargoDays} días`)),
             h('div', { class: 'help' }, sc.resupplyEvery ? `📦 Cada ${sc.resupplyEvery} días llega una nave con más comida… si no explota.` : '📦 A Marte no llega ninguna nave de carga: lleva comida para el viaje de ida (210 días) y algo de reserva. Allá te espera la carga enviada antes, y la nave de regreso trae comida para volver.'),
             h('div', { class: 'capsule', style: { margin: '.4rem 0' } }, ...d.crewRoles.map((role, i) => crewAvatar({ name: `${role}-${i}`, role, alive: true, health: 100, morale: 80, fatigue: 0, radiation: 0, hunger: 0, thirst: 0 }, { size: 52 }))),
             h('div', { class: 'row small' }, ...Object.values(ROLES).map((ro) =>
-              h('button', { class: d.crewRoles.includes(ro.id) ? 'sel' : '', 'data-role': ro.id, title: ROLE_DESC[ro.id], onclick: () => {
+              h('button', { class: d.crewRoles.includes(ro.id) ? 'sel' : '', 'data-role': ro.id, disabled: !can('comunicaciones'), title: ROLE_DESC[ro.id], onclick: () => {
                 const adding = !d.crewRoles.includes(ro.id);
                 d.crewRoles = adding ? [...d.crewRoles, ro.id] : d.crewRoles.filter((x) => x !== ro.id);
                 explain = ro.id; draw();
@@ -320,7 +339,7 @@ export function render(root, app, go, params = {}) {
                   h('div', {}, `${ROLE_ICON[ro]} ${ROLES[ro].name}`),
                   c ? h('div', { class: 'name' }, c.name) : h('div', { class: 'small amber' }, 'Sin contratar'),
                   c ? h('div', { class: 'small dim' }, c.auto ? 'Asignado por la agencia: no sabes cómo es.' : Object.entries(known.stats).map(([k, v]) => `${STAT_ICON[k]}${v}`).join(' ') || 'No le preguntaste nada.') : null,
-                  h('button', { class: 'small', 'data-hire': ro, onclick: () => interview(ro) }, c?.auto ? 'Entrevistar (opcional)' : 'Cambiar')));
+                  h('button', { class: 'small', 'data-hire': ro, disabled: !can('comunicaciones'), onclick: () => interview(ro) }, c?.auto ? 'Entrevistar (opcional)' : 'Cambiar')));
             }))) : null),
         h('div', {},
           h('div', { class: 'panel c-amber', id: 'tablero' },
@@ -336,7 +355,7 @@ export function render(root, app, go, params = {}) {
               ...r.errors.map((e) => h('li', { class: 'red' }, '❌ ', e)),
               ...(app.kids ? [] : r.warnings.map((w) => h('li', { class: 'amber' }, '⚠️ ', w)))),
             h('div', { style: { textAlign: 'center', marginTop: '.6rem' } },
-              h('button', { class: 'big', id: 'lanzar', disabled: !ok || launching, onclick: launch }, launching ? '☀️ MIRANDO EL CLIMA ESPACIAL…' : '🚀 LANZAR'),
+              h('button', { class: 'big', id: 'lanzar', disabled: !ok || launching || !can('comandante'), onclick: () => (isGuest() ? coopAction('lanzar') : launch()) }, launching ? '☀️ MIRANDO EL CLIMA ESPACIAL…' : '🚀 LANZAR'),
               ' ', who('comandante'))))),
     );
     if (!explain) {
@@ -349,4 +368,15 @@ export function render(root, app, go, params = {}) {
     }
   };
   draw();
+  if (!inCoop()) return undefined;
+  const offDraft = onDraft((k, v) => {
+    if (k !== 'diseno' || !v || launching) return;
+    for (const key of Object.keys(d)) delete d[key];
+    Object.assign(d, structuredClone(v.d));
+    app.objective = v.o;
+    sent = snapOf();
+    draw();
+  });
+  const offAction = onAction((name) => { if (name === 'lanzar' && !isGuest()) launch(); });
+  return () => { offDraft(); offAction(); };
 }
