@@ -6,6 +6,7 @@ import { restoreRng } from '../../core/rng.js';
 import { DIFFICULTY, SCENARIOS } from '../../data/catalog.js';
 import { save } from '../../core/save.js';
 import { PLAYER_ROLES } from '../main.js';
+import { inCoop, coopInfo, shareDraft, onAction } from '../coop.js';
 import { beep, alarm, radio, hum } from '../audio.js';
 import { say as nova } from '../guide.js';
 import { crewAvatar } from '../avatar.js';
@@ -89,7 +90,10 @@ export function render(root, app, go) {
       h('div', { class: 'panel c-cyan' }, h('h2', {}, '📻 Radio de Control'), els.radio)),
   );
 
-  const say = (text, cls = '') => { radioLog.unshift(h('div', { class: cls }, `[${clockText(t)}] ${text}`)); els.radio.replaceChildren(...radioLog.slice(0, 60)); radio(); };
+  const say = (text, cls = '') => {
+    radioLog.unshift(h('div', { class: cls }, `[${clockText(t)}] ${text}`)); els.radio.replaceChildren(...radioLog.slice(0, 60)); radio();
+    if (inCoop()) shareDraft('radio', radioLog.slice(0, 15).map((e) => [e.textContent, e.className]));
+  };
   const drawSteps = (now) => els.steps.replaceChildren(...STEPS.map((st) =>
     h('li', { class: `${status[st.id] ?? ''} ${st.id === now ? 'now' : ''}`, 'data-step': st.id }, `${clockText(st.t)}  ${st.label}`)));
   const drawTel = () => {
@@ -141,13 +145,28 @@ export function render(root, app, go) {
       const result = await ask((res) => {
         const box = h('div', { class: 'panel', id: 'gonogo' }, h('h3', {}, 'Sondeo Go/No-Go'));
         const pv = {};
-        const finish = () => res(pv);
+        const round = Date.now();
+        let offVote = null;
+        const finish = () => { offVote?.(); if (inCoop()) shareDraft('gonogo', null); res(pv); };
+        const btns = {};
+        const vote = (name, v) => {
+          if (!btns[name] || pv[name] || cancelled) return;
+          pv[name] = v; btns[name][v].classList.add('sel');
+          if (Object.keys(pv).length === players.length) finish();
+        };
         for (const p of players) {
-          const line = h('div', { class: 'vote-card' },
-            h('b', {}, p.name), h('span', { class: 'dim small' }, p.roles.map((r) => PLAYER_ROLES[r]).join('+')),
-            h('button', { 'data-vote': `${p.name}:go`, onclick: (e) => { pv[p.name] = 'go'; e.target.classList.add('sel'); if (Object.keys(pv).length === players.length) finish(); } }, 'GO'),
-            h('button', { class: 'danger', 'data-vote': `${p.name}:nogo`, onclick: (e) => { pv[p.name] = 'nogo'; e.target.classList.add('sel'); if (Object.keys(pv).length === players.length) finish(); } }, 'NO GO'));
-          box.append(line);
+          const remote = inCoop() && p.name !== coopInfo().name;
+          btns[p.name] = {
+            go: h('button', { 'data-vote': `${p.name}:go`, onclick: () => vote(p.name, 'go') }, 'GO'),
+            nogo: h('button', { class: 'danger', 'data-vote': `${p.name}:nogo`, onclick: () => vote(p.name, 'nogo') }, 'NO GO'),
+          };
+          box.append(h('div', { class: 'vote-card' },
+            h('b', {}, p.name), h('span', { class: 'dim small' }, p.roles.map((r) => PLAYER_ROLES[r]).join('+'), remote ? ' · vota desde su compu' : ''),
+            btns[p.name].go, btns[p.name].nogo));
+        }
+        if (inCoop()) {
+          offVote = onAction((name, data, from) => { if (name === 'voto' && data?.round === round && (data.v === 'go' || data.v === 'nogo')) vote(from, data.v); });
+          shareDraft('gonogo', { round, players: players.map((p) => p.name) });
         }
         return box;
       });

@@ -18,6 +18,27 @@ export const inCoop = () => !!coop.role;
 export const isGuest = () => coop.role === 'guest';
 /** En línea: ¿le toca a esta compu decidir lo de `who` (nombre del jugador)? Sin conexión siempre sí. */
 export const mine = (who) => !coop.role || !who || who === coop.name;
+// Borradores compartidos (diseño de la nave, sondeo Go/No-Go, radio del despegue) y acciones que pide un invitado.
+const drafts = {};
+const draftFns = new Set();
+const actionFns = new Set();
+export const getDraft = (k) => drafts[k];
+export function onDraft(fn) { draftFns.add(fn); return () => draftFns.delete(fn); }
+export function onAction(fn) { actionFns.add(fn); return () => actionFns.delete(fn); }
+const gotDraft = (k, v) => { drafts[k] = v; draftFns.forEach((fn) => fn(k, v)); };
+/** Comparte un borrador con todos (sin pasar por la partida guardada). */
+export function shareDraft(key, value) {
+  if (!coop.role) return;
+  drafts[key] = value;
+  const msg = { type: 'borrador', key, value };
+  if (coop.role === 'host') broadcast(msg);
+  else if (coop.hostConn?.open) coop.hostConn.send(msg);
+}
+/** Pide algo al anfitrión (lanzar, votar). En el anfitrión se cumple al tiro. */
+export function coopAction(name, data = null) {
+  if (coop.role === 'host' || !coop.role) actionFns.forEach((fn) => fn(name, data, coop.name));
+  else if (coop.hostConn?.open) coop.hostConn.send({ type: 'accion', name, data });
+}
 export function onCoopChange(fn) { coop.listeners.add(fn); return () => coop.listeners.delete(fn); }
 const changed = () => coop.listeners.forEach((fn) => fn(coopInfo()));
 const setStatus = (t) => { coop.status = t; changed(); };
@@ -39,12 +60,13 @@ export const normalizeCode = (v) => String(v).toUpperCase().replace(/[^A-Z0-9]/g
 
 function snapshot() {
   const app = hooks.getApp();
-  return { type: 'estado', ver: coop.ver, screen: app.screen, state: app.state, meta: { difficulty: app.difficulty, mode: app.mode, objective: app.objective }, players: coop.players };
+  return { type: 'estado', ver: coop.ver, screen: app.screen, state: app.state, meta: { difficulty: app.difficulty, mode: app.mode, objective: app.objective }, players: coop.players, drafts };
 }
 
 function apply(msg) {
   const app = hooks.getApp();
   if (msg.players) { coop.players = msg.players; changed(); }
+  if (msg.drafts) Object.assign(drafts, msg.drafts);
   if (typeof msg.ver === 'number') coop.ver = Math.max(coop.ver, msg.ver);
   if (msg.meta) Object.assign(app, msg.meta);
   coop.applying = true;
@@ -95,6 +117,12 @@ export async function hostRoom(name) {
           conn.send({ type: 'nombre', name: nm });
           syncPlayers();
           coop.ver++; broadcast(snapshot());
+        } else if (msg?.type === 'borrador' && typeof msg.key === 'string') {
+          gotDraft(msg.key, msg.value);
+          broadcast(msg, conn);
+        } else if (msg?.type === 'accion' && typeof msg.name === 'string') {
+          const from = coop.players.find((p) => p.id === conn.peer)?.name;
+          if (from) actionFns.forEach((fn) => fn(msg.name, msg.data, from));
         } else if (msg?.type === 'cambio' && Array.isArray(msg.changes) && hooks.getApp().state) {
           let next;
           try { next = patch(hooks.getApp().state, msg.changes.filter((c) => Array.isArray(c?.[0]) && c[0].length)); } catch { return; }
@@ -130,6 +158,7 @@ export async function joinRoom(rawCode, name) {
   Object.assign(coop, { role: 'guest', code, peer, hostConn: conn, name: name || 'Jugador' });
   conn.on('data', (msg) => {
     if (msg?.type === 'estado') apply(msg);
+    else if (msg?.type === 'borrador') gotDraft(msg.key, msg.value);
     else if (msg?.type === 'nombre') { coop.name = msg.name; changed(); }
     else if (msg?.type === 'llena') { setStatus('La sala está llena (máximo 4).'); leaveRoom(); }
   });
@@ -141,6 +170,7 @@ export async function joinRoom(rawCode, name) {
 export function leaveRoom() {
   try { coop.peer?.destroy(); } catch { /* ya cerrada */ }
   Object.assign(coop, { role: null, code: '', peer: null, conns: [], hostConn: null, players: [], ver: 0 });
+  for (const k of Object.keys(drafts)) delete drafts[k];
   changed();
 }
 
