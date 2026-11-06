@@ -42,6 +42,8 @@ export const app = {
   players: makePlayers(1),
   difficulty: 'medio',
   mode: 'libre',
+  kids: (() => { try { return localStorage.getItem('vdl-ninos') === '1'; } catch { return false; } })(),
+  autoPlan: true,
   budgetMult: 1,
   routine: null,
   lastDesign: null,

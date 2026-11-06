@@ -172,10 +172,10 @@ export function advanceDay(state) {
   return { state: s, interrupt: null };
 }
 
-export function runUntilInterrupt(state, maxDays = 365) {
+export function runUntilInterrupt(state, maxDays = 365, plan = null) {
   let s = state;
   for (let i = 0; i < maxDays; i++) {
-    const r = advanceDay(s);
+    const r = advanceDay(plan ? plan(s) : s);
     s = r.state;
     if (r.interrupt) return r;
   }
