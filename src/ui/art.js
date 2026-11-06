@@ -8,7 +8,7 @@ export const MOD_CODE = {
 };
 export const RES_CODE = { o2: 'O₂', water: 'H₂O', food: 'ALIM', meds: 'MED', parts: 'PZA', fuel: 'COMB', battery: 'BAT', dataStored: 'DATOS' };
 export const NODE_CODE = { base: 'B', crater_hielo: 'H', crater: 'C', cueva: 'T', roca: 'R', sonda: 'S', mirador: 'M', peligro: '!', pico: 'L', delta: 'D' };
-export const DEST_CODE = { estacion: 'ISS', luna: 'LUNA', marte: 'MARTE' };
+export const DEST_CODE = { estacion: 'ISS', gateway: 'GTWY', luna: 'LUNA', marte: 'MARTE' };
 
 const svg = (body, vb = '0 0 40 40', cls = '') => `<svg class="art ${cls}" viewBox="${vb}" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round">${body}</svg>`;
 

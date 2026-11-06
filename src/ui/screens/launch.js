@@ -31,6 +31,8 @@ const RADIO = {
   insercion: 'Inserción en órbita confirmada.',
   paneles: 'Despliegue de paneles solares.',
   acople_estacion: 'Captura suave… acople firme con la estación.',
+  nri: 'Encendido completo: estamos en la órbita halo lunar.',
+  acople_gateway: 'Captura suave… acople firme con el Gateway.',
   tli: 'Encendido de inyección translunar. Rumbo a la Luna.',
   loi: 'Llegando a la Luna. Encendido de frenado para la órbita lunar.',
   descenso: 'Inicia el descenso motorizado. Altitud y velocidad, bien.',
@@ -66,7 +68,7 @@ export function render(root, app, go) {
   let cancelled = false;
   const STEPS = launchSteps(s.scenarioId);
   const sc = SCENARIOS[s.scenarioId] ?? SCENARIOS.estacion;
-  const DEST_ICON = { estacion: '🛰️', luna: '🌕', marte: '🔴' }[s.scenarioId] ?? '🛰️';
+  const DEST_ICON = { estacion: '🛰️', gateway: '🌘', luna: '🌕', marte: '🔴' }[s.scenarioId] ?? '🛰️';
   let t = STEPS[0].t;
   let attempts = 0;
 
@@ -79,7 +81,7 @@ export function render(root, app, go) {
     radio: h('div', { class: 'log', id: 'radio', style: { maxHeight: '320px' } }),
     action: h('div', { id: 'accion', style: { marginTop: '.6rem' } }),
   };
-  els.sky = h('div', { class: 'sky' }, h('div', { class: 'planet' }), h('div', { class: 'station' }, art({ estacion: 'estacion', luna: 'luna', marte: 'marte' }[s.scenarioId])), h('div', { class: 'ground' }), h('div', { class: 'tower' }), els.rocket);
+  els.sky = h('div', { class: 'sky' }, h('div', { class: 'planet' }), h('div', { class: 'station' }, art({ estacion: 'estacion', gateway: 'estacion', luna: 'luna', marte: 'marte' }[s.scenarioId])), h('div', { class: 'ground' }), h('div', { class: 'tower' }), els.rocket);
   const MODE_TXT = { auto: 'automático: solo mira', pausas: 'con pausas: ustedes deciden el clima y el GO', manual: 'manual: ustedes deciden todo, ¡hasta los abortos!' };
   mount(root,
     h('h1', { style: { fontSize: '1.8rem' } }, '🚀 Despegue', h('span', { class: 'dim small' }, ` · ${MODE_TXT[mode]}`)),
@@ -247,7 +249,7 @@ export function render(root, app, go) {
           await wait(speed);
           continue;
         }
-        if (step.id === 'acople_estacion') {
+        if (step.id === 'acople_estacion' || step.id === 'acople_gateway') {
           say('Segundo intento de acople…', 'aviso');
           s = { ...s }; status[step.id] = '';
           i -= 1; await wait(speed); continue;
@@ -269,7 +271,7 @@ export function render(root, app, go) {
     }
     els.sky.classList.add('dock');
     s = { ...s, phase: 'ops' };
-    const START = { estacion: 'Acople con la estación. Comienza la misión de 365 días.', luna: '¡Alunizaje! Comienza un año en la base lunar.', marte: 'Rumbo a Marte: empiezan 7 meses de viaje.' };
+    const START = { estacion: 'Acople con la estación. Comienza la misión de 365 días.', gateway: 'Acople con el Gateway. Un año en órbita lunar, lejos de casa.', luna: '¡Alunizaje! Comienza un año en la base lunar.', marte: 'Rumbo a Marte: empiezan 7 meses de viaje.' };
     s.log = [...s.log, { day: 0, text: START[s.scenarioId] ?? START.estacion, kind: 'bueno' }];
     finish();
   }

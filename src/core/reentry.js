@@ -29,7 +29,7 @@ const OVERRIDES = {
 };
 /** Pasos de la reentrada según el destino (mismos ids, textos propios). */
 export const reentrySteps = (scenarioId) => REENTRY_STEPS.map((st) => ({ ...st, ...(OVERRIDES[scenarioId]?.[st.id] ?? {}) }));
-const SHIELD_MULT = { estacion: 1, luna: 1.4, marte: 1.6 };
+const SHIELD_MULT = { estacion: 1, gateway: 1.4, luna: 1.4, marte: 1.6 };
 
 const DEORBIT_FUEL = 10;
 const MAIN_CHUTE_RISK = 0.03;
@@ -75,7 +75,7 @@ export function runReentryStep(state, stepId, rng, choice) {
       if (s.resources.fuel < DEORBIT_FUEL) {
         loseDay(s);
         log.push('No hay combustible suficiente para salir de órbita: se espera reabastecimiento (−1 día)');
-        if (s.scenarioId === 'estacion') {
+        if (s.scenarioId === 'estacion' || s.scenarioId === 'gateway') {
           s.resources.fuel += DEORBIT_FUEL;
           log.push('La estación transfiere combustible para el próximo intento');
         }

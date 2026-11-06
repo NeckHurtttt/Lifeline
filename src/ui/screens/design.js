@@ -39,6 +39,13 @@ const SUGGESTED_BY = {
     launcher: 'condorH', orbit: 'leo_estacion',
     crewRoles: ['comandante', 'ingeniero', 'medico', 'cientifico'], cargoDays: 90,
   }),
+  gateway: () => ({
+    modules: [mod('cabina', 0, 0), mod('soporte_vital', 1, 0), mod('paneles', 2, 0), mod('paneles', 3, 0),
+      mod('baterias', 0, 1), mod('laboratorio', 1, 1), mod('antena', 2, 1), mod('refugio', 3, 1), mod('bodega', 4, 1), mod('bodega', 5, 1)],
+    instruments: ['dosimetro', 'espectrometro'],
+    launcher: 'titan', orbit: 'nrho',
+    crewRoles: ['comandante', 'ingeniero', 'medico', 'cientifico'], cargoDays: 210,
+  }),
   luna: () => ({
     modules: [mod('cabina', 0, 0), mod('soporte_vital', 1, 0), mod('modulo_aterrizaje', 2, 0), mod('paneles', 3, 0), mod('paneles', 4, 0),
       mod('pila_regenerativa', 0, 1), mod('reactor', 1, 1), mod('laboratorio', 2, 1), mod('bodega', 3, 1), mod('extractor_hielo', 4, 1), mod('rover_autonomo', 5, 1), mod('antena', 0, 2)],
@@ -58,7 +65,7 @@ const SUGGESTED_BY = {
 export const SUGGESTED = (scn = 'estacion') => (SUGGESTED_BY[scn] ?? SUGGESTED_BY.estacion)();
 
 const EMPTY = (scn = 'estacion') => ({
-  modules: [mod('cabina', 0, 0), mod('soporte_vital', 1, 0), ...(scn === 'estacion' ? [] : [mod('modulo_aterrizaje', 2, 0)])], instruments: [],
+  modules: [mod('cabina', 0, 0), mod('soporte_vital', 1, 0), ...(SCENARIOS[scn]?.orbital ? [] : [mod('modulo_aterrizaje', 2, 0)])], instruments: [],
   launcher: scn === 'estacion' ? 'condor1' : 'titan', orbit: SCENARIOS[scn]?.orbit ?? 'leo_estacion',
   crewRoles: ['comandante', 'piloto', 'ingeniero'], cargoDays: scn === 'marte' ? 240 : scn === 'luna' ? 150 : 90,
 });
@@ -88,7 +95,7 @@ function coach(d, r) {
   if (!has('cabina')) return ['Falta la 🛏️ CABINA: es la casa de los astronautas. Tócala en la lista y luego toca un cuadro vacío de la nave.', 'alerta', '[data-mod="cabina"]'];
   if (!has('soporte_vital')) return ['Falta el 🫁 SOPORTE VITAL: sin él no hay aire. Tócalo y ponlo en la nave.', 'alerta', '[data-mod="soporte_vital"]'];
   const scnOf = ORBITS[d.orbit]?.scenario ?? 'estacion';
-  if (scnOf !== 'estacion' && !has('modulo_aterrizaje')) return ['Falta el 🛬 MÓDULO DE ATERRIZAJE: sin él no se puede bajar al suelo ni volver a subir.', 'alerta', '[data-mod="modulo_aterrizaje"]'];
+  if (!SCENARIOS[scnOf]?.orbital && !has('modulo_aterrizaje')) return ['Falta el 🛬 MÓDULO DE ATERRIZAJE: sin él no se puede bajar al suelo ni volver a subir.', 'alerta', '[data-mod="modulo_aterrizaje"]'];
   if (scnOf === 'marte' && !has('planta_combustible')) return ['Falta la ⛽ PLANTA DE COMBUSTIBLE: en Marte hay que fabricar el combustible para volver, con el aire de allá.', 'alerta', '[data-mod="planta_combustible"]'];
   const noSirve = r.errors.find((e) => /No sirve/.test(e));
   if (noSirve) return [`${noSirve}. Quítalo de la nave (clic derecho).`, 'alerta', '#nave'];
@@ -213,6 +220,8 @@ export function render(root, app, go, params = {}) {
     state.players = app.players.length;
     state.realStorms = pickStorms(f.flares, app.difficulty);
     state.flareSource = f.source;
+    if (app.contrarreloj) state.deadline = Date.now() + app.contrarreloj * 60000;
+    if (app.historica) { state.historica = app.historica.id; state.scripted = app.historica.scripted ?? []; state.forceBoom = app.historica.forceBoom ?? 0; }
     app.lastDesign = structuredClone(d);
     app.lastScenario = scn;
     app.lastSeed = seed;
@@ -246,7 +255,7 @@ export function render(root, app, go, params = {}) {
     const instrSlots = d.modules.filter((m) => m.type === 'laboratorio').length * 3;
     mount(root,
       h('div', { class: 'row', style: { justifyContent: 'space-between' } },
-        h('h1', { style: { fontSize: '1.8rem' } }, `🛠️ Arma tu ${scn === 'estacion' ? 'nave' : 'base'} · ${sc.icon} ${sc.short}`),
+        h('h1', { style: { fontSize: '1.8rem' } }, `🛠️ Arma tu ${sc.orbital ? 'nave' : 'base'} · ${sc.icon} ${sc.short}`),
         d.upgrades.length ? h('span', { class: 'small', title: d.upgrades.map((u) => UPGRADES[u].name).join(', ') }, `🌳 Mejoras: ${d.upgrades.map((u) => UPGRADES[u].icon).join(' ')}`) : null,
         h('div', { class: 'row' },
           h('button', { disabled: !can('ingeniero'), onclick: () => { Object.assign(d, SUGGESTED(scn)); explain = null; draw(); say('Te puse un diseño que funciona. ¡Puedes cambiarlo como quieras!', { mood: 'feliz' }); } }, '✨ Usar una nave de ejemplo'),
@@ -309,7 +318,7 @@ export function render(root, app, go, params = {}) {
                 say(`${l.name}: ${l.desc} Sube ${l.capacity} t y funciona bien ${Math.round(l.reliability * 100)} de cada 100 veces.`, { quiet: true });
               } }),
               h('b', {}, l.name), h('span', { class: 'dim' }, `${l.capacity} t · 💰${l.cost} · ${Math.round(l.reliability * 100)} % seguro`))),
-            h('h2', { style: { marginTop: '.6rem' } }, scn === 'estacion' ? '5. ¿A dónde? (órbita) ' : '5. ¿Dónde aterrizar? ', who('comandante')),
+            h('h2', { style: { marginTop: '.6rem' } }, sc.orbital ? '5. ¿A dónde? (órbita) ' : '5. ¿Dónde aterrizar? ', who('comandante')),
             ...Object.values(ORBITS).filter((o) => o.scenario === scn).map((o) => h('label', { class: 'row small', style: { margin: '.2rem 0' }, title: o.desc },
               h('input', { type: 'radio', name: 'orbita', 'data-orbit': o.id, disabled: !can('comandante'), checked: d.orbit === o.id, onchange: () => { d.orbit = o.id; explain = o.id; draw(); say(`${o.icon} ${o.name}: ${o.desc}`, { quiet: true }); } }),
               `${o.icon} ${o.name}`, h('span', { class: 'dim' }, o.nightDays ? ` · noche de ${o.nightDays} días${o.ice ? ' · hielo' : ''}` : o.ice ? ' · hielo' : ''))),

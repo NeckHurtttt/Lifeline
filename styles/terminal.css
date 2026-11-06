@@ -264,3 +264,22 @@ button.big::before { content: "[ "; } button.big::after { content: " ]"; }
   .design-layout > *, .grid2 > *, .grid-base > * { min-width: 0; }
   h2 { white-space: normal !important; overflow-wrap: anywhere; letter-spacing: .04em; font-size: 1.05rem; }
 }
+
+/* Colores para daltonismo (rojo/verde): peligro en magenta y aviso en amarillo claro; barras con rayas. */
+body.daltonico { --red: #ff5cf0; --amber: #fff06a; }
+body.daltonico .bar > i { background-image: repeating-linear-gradient(45deg, rgba(0,0,0,.35) 0 4px, transparent 4px 8px) !important; }
+body.daltonico .bar.red > i { background-color: var(--red); }
+.glosario .lesson { margin: .4rem 0; }
+.reservas { display: flex; flex-wrap: wrap; gap: .4rem; margin: .3rem 0; }
+.reservas .chip-res { border: 1px solid var(--line); padding: .1rem .5rem; }
+.reservas .chip-res.ok { color: var(--green); }
+.reservas .chip-res.warn { color: var(--amber); border-color: var(--amber); }
+.reservas .chip-res.bad { color: var(--red); border-color: var(--red); animation: latido 1s infinite; }
+.chat-bar { position: fixed; left: .5rem; bottom: .5rem; z-index: 50; display: flex; flex-wrap: wrap; gap: .25rem; max-width: 60vw; }
+.chat-bar button { font-size: .8rem; padding: .1rem .4rem; }
+.chat-toast { position: fixed; left: .5rem; bottom: 3rem; z-index: 60; background: var(--panel); border: 1px solid var(--amber); color: var(--amber); padding: .3rem .6rem; }
+.quiz-q { margin: .5rem 0; }
+.quiz-q button.ok { border-color: var(--green); color: var(--green); }
+.quiz-q button.mal { border-color: var(--red); color: var(--red); }
+.logro { display: inline-block; margin: .2rem; padding: .2rem .5rem; border: 1px solid var(--amber); }
+.logro.no { opacity: .35; border-color: var(--line); }

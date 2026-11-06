@@ -39,11 +39,14 @@ export function applyDailyLife(state, ctx) {
   const r = s.resources;
   const deathAllowed = DIFFICULTY[s.difficulty].deathAllowed;
   const living = s.crew.filter((c) => c.alive);
-  const { boneMult, radMult } = envMults(s);
+  const env = envMults(s);
+  const boneMult = env.boneMult * (s.modules.some((m) => m.type === 'centrifuga' && m.on && m.health > 0) ? 0.5 : 1);
+  const radMult = env.radMult * (s.modules.some((m) => m.type === 'escudo_agua' && m.health > 0) ? 0.6 : 1);
 
   const ration = (c) => RATION[s.rations[c.id]] ?? 1;
   const foodMult = (c) => (c.traits.includes('gloton') ? 1.2 : 1) * (c.traits.includes('frugal') ? 0.8 : 1);
-  const foodNeed = living.reduce((t, c) => t + FOOD * ration(c) * foodMult(c), 0);
+  const modOn = (t) => s.modules.some((m) => m.type === t && m.on && m.health > 0);
+  const foodNeed = living.reduce((t, c) => t + FOOD * ration(c) * foodMult(c), 0) * (modOn('impresora_comida') ? 0.9 : 1);
   // Agua para beber, comer e higiene (lo que no se recupera) y aparte la que la electrólisis vuelve O₂.
   const drinkNeed = living.reduce((t, c) => t + WATER * ration(c) * (ctx.lifeSupportOn ? recycleLoss(s) : 1), 0);
   const electroNeed = ctx.lifeSupportOn ? living.length * O2_AS_WATER : 0;
