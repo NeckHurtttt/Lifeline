@@ -225,3 +225,33 @@ button.big::before { content: "[ "; } button.big::after { content: " ]"; }
 .job .checklist { font-size: .8rem; }
 .job-crew { min-height: 46px; }
 .cell .ico.code { margin-right: .35rem; }
+
+/* ---------- teléfono (≤ 600 px) ---------- */
+@media (max-width: 600px) {
+  #barra { flex-wrap: wrap; gap: .35rem .5rem; padding: .35rem .6rem; }
+  #barra .logo { font-size: .85rem; letter-spacing: .08em; }
+  #barra-info { order: 5; flex-basis: 100%; font-size: .7rem; line-height: 1.2; }
+  #barra button { padding: .2rem .45rem; font-size: .75rem; }
+  #app { padding-left: .5rem; padding-right: .5rem; }
+  .panel { padding: .6rem .6rem; }
+  .tabs { gap: .25rem; }
+  .tab { padding: .35rem .55rem; font-size: .85rem; white-space: normal; max-width: 100%; }
+  .res-card > div:last-child { grid-template-columns: 1fr auto; }
+  .res-card > div:last-child .bar { grid-column: 1 / -1; min-width: 0; }
+  .ship, .hatch-grid { grid-auto-columns: minmax(0, 1fr); }
+  .cell { min-width: 0; padding: 3px; font-size: .68rem; overflow: hidden; }
+  .cell b { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .cell input[type=number] { width: 2.6rem !important; }
+  .bar { min-width: 0; }
+  h1 { font-size: 1.5rem !important; }
+  button.big { font-size: 1rem; padding: .55rem .9rem; }
+  .plantas { grid-template-columns: repeat(3, 1fr); }
+  .consola-tarea .lectura { font-size: 1.5rem; }
+  .terreno { margin-left: -.4rem; margin-right: -.4rem; }
+  .tramo { flex-basis: 64px; }
+  .res { grid-template-columns: 6.5rem minmax(0, 1fr) auto; gap: .35rem; font-size: .85rem; }
+  .res > :last-child { white-space: nowrap; }
+  .design-layout, .grid2, .grid3, .grid-base { grid-template-columns: minmax(0, 1fr) !important; }
+  .design-layout > *, .grid2 > *, .grid-base > * { min-width: 0; }
+  h2 { white-space: normal !important; overflow-wrap: anywhere; letter-spacing: .04em; font-size: 1.05rem; }
+}

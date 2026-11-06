@@ -107,3 +107,19 @@ test('excavación: moverse, poner regolito y el muro de regolito', () => {
   s = endOuting(s).state;
   assert.equal(s.flags.regolithWall, true);
 });
+
+import { diff, patch } from '../../src/core/patch.js';
+test('cooperativo: los cambios de dos personas se juntan sin pisarse', () => {
+  const base = { day: 3, resources: { parts: 10, water: 100 }, modules: [{ id: 'a', on: true }, { id: 'b', on: true }], schedule: { c1: ['eva', 'descanso'] } };
+  const host = structuredClone(base); host.day = 5; host.resources.water = 90; // el anfitrión avanzó dos días
+  const guest = structuredClone(base); guest.modules[1].on = false; guest.schedule.c1[1] = 'reparacion'; // el invitado decidió cosas
+  const merged = patch(host, diff(base, guest));
+  assert.equal(merged.day, 5);
+  assert.equal(merged.resources.water, 90);
+  assert.equal(merged.modules[1].on, false);
+  assert.deepEqual(merged.schedule.c1, ['eva', 'reparacion']);
+  const grown = structuredClone(base); grown.modules.push({ id: 'c', on: true }); delete grown.schedule;
+  const m2 = patch(host, diff(base, grown));
+  assert.equal(m2.modules.length, 3);
+  assert.equal(m2.schedule, undefined);
+});

@@ -3,17 +3,21 @@
 // buena y la reparte. Cada cambio que alguien hace se manda al anfitrión, que lo reenvía a todos.
 // No necesita servidor propio, pero sí internet. PeerJS se carga solo cuando se usa.
 import { onSave, save } from '../core/save.js';
+import { diff, patch } from '../core/patch.js';
 
 const PEERJS = 'https://cdn.jsdelivr.net/npm/peerjs@1.5.4/dist/peerjs.min.js';
 const PREFIX = 'vdl-sala-';
 const ALPHA = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
 export const COOP_MAX = 4;
 
-const coop = { role: null, code: '', name: '', peer: null, conns: [], hostConn: null, players: [], ver: 0, applying: false, status: '', listeners: new Set() };
+const coop = { base: null, role: null, code: '', name: '', peer: null, conns: [], hostConn: null, players: [], ver: 0, applying: false, status: '', listeners: new Set() };
 let hooks = { getApp: null, rerender: null };
 
-export const coopInfo = () => ({ role: coop.role, code: coop.code, players: coop.players.slice(), status: coop.status });
+export const coopInfo = () => ({ name: coop.name, role: coop.role, code: coop.code, players: coop.players.slice(), status: coop.status });
 export const inCoop = () => !!coop.role;
+export const isGuest = () => coop.role === 'guest';
+/** En línea: ¿le toca a esta compu decidir lo de `who` (nombre del jugador)? Sin conexión siempre sí. */
+export const mine = (who) => !coop.role || !who || who === coop.name;
 export function onCoopChange(fn) { coop.listeners.add(fn); return () => coop.listeners.delete(fn); }
 const changed = () => coop.listeners.forEach((fn) => fn(coopInfo()));
 const setStatus = (t) => { coop.status = t; changed(); };
@@ -45,7 +49,7 @@ function apply(msg) {
   if (msg.meta) Object.assign(app, msg.meta);
   coop.applying = true;
   try {
-    if (msg.state !== undefined) { app.state = msg.state; if (msg.state) save(msg.state); }
+    if (msg.state !== undefined) { app.state = msg.state; coop.base = msg.state ? structuredClone(msg.state) : null; if (msg.state) save(msg.state); }
   } finally { coop.applying = false; }
   hooks.rerender(msg.screen && msg.screen !== app.screen ? msg.screen : null);
 }
@@ -56,7 +60,12 @@ function broadcast(msg, except = null) { for (const c of coop.conns) if (c !== e
 onSave((state) => {
   if (!coop.role || coop.applying) return;
   if (coop.role === 'host') { coop.ver++; broadcast(snapshot()); }
-  else if (coop.hostConn?.open) coop.hostConn.send({ type: 'cambio', state, screen: hooks.getApp().screen });
+  else if (coop.hostConn?.open) {
+    // Solo se manda lo que cambió desde el último estado recibido: el anfitrión lo junta con el suyo.
+    const changes = coop.base ? diff(coop.base, state) : [[[], state]];
+    coop.base = structuredClone(state);
+    if (changes.length) coop.hostConn.send({ type: 'cambio', changes });
+  }
 });
 
 /** Avisa a los demás que el anfitrión cambió de pantalla (diseño → despegue, etc.). */
@@ -80,12 +89,17 @@ export async function hostRoom(name) {
         if (msg?.type === 'hola') {
           if (coop.players.length >= COOP_MAX) { conn.send({ type: 'llena' }); setTimeout(() => conn.close(), 300); return; }
           coop.conns.push(conn);
-          coop.players.push({ id: conn.peer, name: String(msg.name || 'Jugador').slice(0, 16) });
+          let nm = String(msg.name || 'Jugador').trim().slice(0, 16) || 'Jugador';
+          for (let n = 2; coop.players.some((p) => p.name === nm); n++) nm = `${String(msg.name || 'Jugador').slice(0, 13)} ${n}`;
+          coop.players.push({ id: conn.peer, name: nm });
+          conn.send({ type: 'nombre', name: nm });
           syncPlayers();
           coop.ver++; broadcast(snapshot());
-        } else if (msg?.type === 'cambio' && msg.state && typeof msg.state === 'object') {
+        } else if (msg?.type === 'cambio' && Array.isArray(msg.changes) && hooks.getApp().state) {
+          let next;
+          try { next = patch(hooks.getApp().state, msg.changes.filter((c) => Array.isArray(c?.[0]) && c[0].length)); } catch { return; }
           coop.ver++;
-          apply({ state: msg.state, ver: coop.ver });
+          apply({ state: next, ver: coop.ver });
           broadcast(snapshot(), null);
         }
       });
@@ -116,9 +130,10 @@ export async function joinRoom(rawCode, name) {
   Object.assign(coop, { role: 'guest', code, peer, hostConn: conn, name: name || 'Jugador' });
   conn.on('data', (msg) => {
     if (msg?.type === 'estado') apply(msg);
+    else if (msg?.type === 'nombre') { coop.name = msg.name; changed(); }
     else if (msg?.type === 'llena') { setStatus('La sala está llena (máximo 4).'); leaveRoom(); }
   });
-  conn.on('close', () => { setStatus('El anfitrión cerró la sala.'); coop.role = null; changed(); });
+  conn.on('close', () => { setStatus('El anfitrión cerró la sala. La partida sigue en esta compu, sin conexión.'); coop.role = null; changed(); hooks.rerender(null); });
   conn.send({ type: 'hola', name: coop.name });
   setStatus(`Conectado a la sala ${code}.`);
 }

@@ -10,7 +10,8 @@ import { setMuted, isMuted, beep } from './audio.js';
 import { hideGuide, relang } from './guide.js';
 import { tr, getLang, setLang, retranslate } from '../i18n/i18n.js';
 import { music } from './music.js';
-import { initCoop, onCoopChange, coopInfo, coopScreen } from './coop.js';
+import { initCoop, onCoopChange, coopInfo, coopScreen, isGuest } from './coop.js';
+import { h } from './dom.js';
 
 export const PLAYER_ROLES = {
   comandante: 'Comandante',
@@ -62,6 +63,15 @@ export function go(name, params = {}) {
   app.screen = name;
   hideGuide();
   updateBar();
+  // En el cooperativo en línea el anfitrión dirige el diseño, el despegue y la reentrada; el invitado mira el resultado.
+  const HOST_ONLY = { design: 'diseñando la nave', launch: 'dirigiendo el despegue', reentry: 'dirigiendo la reentrada', arbol: 'en el árbol de mejoras' };
+  if (isGuest() && HOST_ONLY[name]) {
+    root.append(h('div', { class: 'panel c-cyan', id: 'esperando', style: { textAlign: 'center', marginTop: '2rem' } },
+      h('h2', {}, 'EN LÍNEA · ESPERANDO AL ANFITRIÓN'),
+      h('p', {}, `El anfitrión está ${HOST_ONLY[name]}. Tu pantalla cambia sola cuando termine.`),
+      h('div', { class: 'code amber' }, `SALA ${coopInfo().code}`)));
+    return;
+  }
   const r = screens[name].render(root, app, go, params);
   if (typeof r === 'function') cleanup = r;
   if (!params.keepScroll) window.scrollTo(0, 0);

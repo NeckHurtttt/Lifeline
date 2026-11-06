@@ -23,6 +23,7 @@ import { say } from '../guide.js';
 import { crewAvatar, moodOf, MOOD_TEXT } from '../avatar.js';
 import { evaGoNoGo, isWeekend, TRESERVE_SECONDS } from '../../core/protocols.js';
 import { walkPanel } from '../panels/walk.js';
+import { isGuest, mine } from '../coop.js';
 import { digPanel, digAvailable } from '../panels/dig.js';
 
 // La noche (sueño o campamento) y la pre-respiración son automáticas: no se arrastran.
@@ -198,7 +199,7 @@ export function render(root, app, go) {
         const pre = previewOption(s, p.eventId, o.id);
         const effects = pre && !pre.ok ? o.failEffects[p.severity] : o.effects[p.severity];
         return h('div', { class: `option ${control !== 'retraso' && o.id === rec ? 'sel' : ''}` },
-          h('button', { 'data-option': o.id, onclick: () => choose(o.id, pre && !pre.ok) }, o.label),
+          h('button', { 'data-option': o.id, disabled: !mine(who), title: mine(who) ? undefined : `Decide ${who}`, onclick: () => choose(o.id, pre && !pre.ok) }, o.label),
           control !== 'retraso' && o.id === rec ? h('span', { class: 'chip ok' }, '👍 recomendado') : null,
           pre ? h('div', { class: 'que-pasa', style: { width: '100%' } },
             pre.ok ? h('b', { class: 'green' }, `✔ Funciona: lo hace ${firstName(pre.who)}. `) : h('b', { class: 'red' }, `✖ No alcanza: ${firstName(pre.who)} no sabe lo suficiente. `),
@@ -213,7 +214,7 @@ export function render(root, app, go) {
         if (!el) { clearInterval(timer); return; }
         el.textContent = `${left} s`;
         if (left <= 10) { el.classList.add('red'); beep(440, 60); }
-        if (left <= 0) choose('tarde', true);
+        if (left <= 0) { if (mine(who)) choose('tarde', true); else clearInterval(timer); }
       }, 1000);
     }
     say(ev.countdown ? '¡Despresurización! Sigan el protocolo: decidan antes de que se acabe el tiempo de reserva. ⏱️' : `¡${ev.name}! Mira cada opción: abajo dice si funciona y qué pasa con cada una.`, { mood: ev.kind === '+' ? 'feliz' : 'alerta', target: '#evento' });
@@ -726,6 +727,7 @@ export function render(root, app, go) {
           marsLeg(),
           isWeekend(s.day + 1) ? h('div', { class: 'small amber' }, '🗓️ Mañana es fin de semana: día ligero. Descanso y llamadas a casa dan más ánimo; trabajar lo baja un poco.') : null,
           h('div', { class: 'trip' }, h('div', { class: 'trip-fill', style: { width: `${pct}%` } }), h('span', { class: 'trip-ship', style: { left: `${pct}%` } }, '▲'), h('span', { class: 'trip-end small' }, 'FIN'))),
+        isGuest() ? h('div', { class: 'small amber', id: 'tiempo-anfitrion' }, 'EN LÍNEA: el anfitrión avanza el tiempo. Tú puedes asignar trabajos, reparar, excavar y decidir lo de tu rol.') :
         h('div', { class: 'row' },
           h('div', { class: 'velocidad', id: 'velocidad' }, h('span', { class: 'small dim' }, 'TIEMPO'),
             ...[[0, '||'], [1, '1×'], [4, '4×'], [12, '12×']].map(([v, t]) => h('button', { class: speed === v ? 'sel' : '', disabled: blocked && v > 0, 'data-speed': v, onclick: () => play(v) }, t))),
