@@ -38,7 +38,10 @@ const TOUR = [
   ['Primero se arma la nave: módulo por módulo, el cohete, la comida y la gente que va. Cada astronauta se elige por entrevista.', 'normal'],
   ['Después viene el despegue, igual que uno real: cuenta regresiva, clima y cada equipo dice si está listo.', 'normal'],
   ['Allá arriba tú repartes el trabajo de cada turno: dormir, reparar, hacer ciencia, curar.', 'pensando'],
+  ['Si algo se rompe, puedes ir caminando en Recorrido y repararlo a mano siguiendo el procedimiento.', 'normal'],
+  ['En la Luna y Marte, en Excavar salen dos con el traje a sacar hielo, hierro y rocas. Vuelvan antes de quedarse sin oxígeno.', 'pensando'],
   ['Van a pasar cosas. Casi siempre aviso antes y te marco qué tocar.', 'alerta'],
+  ['Pueden jugar juntos en una compu o en línea, cada uno desde la suya, con el código de sala.', 'feliz'],
   ['Al final vuelven a la Tierra y vemos qué salió bien y qué no. La misión vale si vuelve al menos uno sano.', 'feliz'],
 ];
 

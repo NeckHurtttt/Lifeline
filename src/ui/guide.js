@@ -13,7 +13,9 @@ let box = null;
 let arrow = null;
 let typing = null;
 let current = { text: '', target: null };
-let hidden = false;
+// En el teléfono Nova empieza recogida (solo la carita): se abre tocándola. Las alertas la abren sola.
+let hidden = globalThis.matchMedia?.('(max-width: 600px)').matches ?? false;
+let autoOpened = false;
 let follow = null;
 
 function ensure() {
@@ -26,6 +28,7 @@ function ensure() {
   document.body.append(box);
   box.querySelector('.g-avatar').addEventListener('click', () => {
     hidden = !hidden;
+    autoOpened = false;
     box.classList.toggle('closed', hidden);
     if (!hidden) point(current.target);
   });
@@ -74,7 +77,11 @@ export function say(text, { mood = 'normal', target = null, buttons = [], quiet 
   const same = current.text === text;
   current.text = text;
   box.querySelector('.g-avatar').innerHTML = guideSvg(mood);
-  box.className = `mood-${mood}${hidden ? ' closed' : ''}`;
+  // En el teléfono una alerta abre a Nova solo mientras dura; después vuelve a recogerse.
+  const phone = globalThis.matchMedia?.('(max-width: 600px)').matches;
+  if (phone && mood === 'alerta' && !quiet && hidden) { hidden = false; autoOpened = true; }
+  else if (phone && autoOpened && mood !== 'alerta') { hidden = true; autoOpened = false; }
+  box.className = `mood-${mood}${hidden ? ' closed' : ''}${hidden && !same ? ' nuevo' : ''}`;
   const btns = box.querySelector('.g-btns');
   btns.replaceChildren(...buttons.map((b) => {
     const el = document.createElement('button');

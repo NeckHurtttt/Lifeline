@@ -8,22 +8,7 @@ import { beep } from '../audio.js';
 
 const view = { pos: 0, prev: 0, facing: 1, open: false, answer: null, picked: [], seq: [], msg: '' };
 
-// Astronauta de perfil en pixel art (12×16), dibujado con el color de la consola. Dos cuadros de paso.
-const BODY = [
-  '...HHHH.....', '..HHHHHH....', '..HHVVVV....', '..HHVVVV....', '..HHHHHH....', '...HHHH.....',
-  '.BBSSSSS....', '.BBSSSSSS...', '.BBSSSSSAA..', '.BBSSSSS....', '...SSSS.....', '...SSSS.....',
-];
-const LEGS = [
-  ['..SS..SS....', '..SS...SS...', '.SS.....SS..', '.DD.....DD..'],
-  ['...SS.SS....', '...SS.SS....', '...SS.SS....', '...DD.DD....'],
-];
-const PIX = { H: 'px-casco', V: 'px-visor', S: 'px-traje', B: 'px-mochila', A: 'px-traje', D: 'px-bota' };
-function frame(rows, cls) {
-  let r = '';
-  rows.forEach((row, y) => [...row].forEach((ch, x) => { if (PIX[ch]) r += `<rect x="${x}" y="${y}" width="1" height="1" class="${PIX[ch]}"/>`; }));
-  return `<g class="${cls}">${r}</g>`;
-}
-const SPRITE = `<svg viewBox="0 0 12 16" shape-rendering="crispEdges">${frame(BODY, 'cuerpo')}${frame(BODY.map(() => '').concat(LEGS[0]), 'paso paso-a')}${frame(BODY.map(() => '').concat(LEGS[1]), 'paso paso-b')}</svg>`;
+import { SPRITE } from '../sprite.js';
 
 function walker(name) {
   const el = h('div', { class: 'caminante', id: 'caminante' }, h('div', { class: 'nombre code' }, name));
@@ -110,7 +95,7 @@ function puzzleView(p, submit, redraw) {
         if (!sick) { view.picked = []; beep(300, 80); redraw(); return; }
         view.picked = [...view.picked, i]; beep(900, 30);
         if (view.picked.length === p.sick.length) submit(view.picked); else redraw();
-      } }, out ? 'x' : sick ? '*' : '♣', h('small', {}, ` ${i + 1}`));
+      } }, out ? 'x' : sick ? '*' : 'ψ', h('small', {}, ` ${i + 1}`));
     })));
   }
   const options = [...p.steps].sort();

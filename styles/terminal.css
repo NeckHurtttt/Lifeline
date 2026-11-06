@@ -247,8 +247,17 @@ button.big::before { content: "[ "; } button.big::after { content: " ]"; }
   button.big { font-size: 1rem; padding: .55rem .9rem; }
   .plantas { grid-template-columns: repeat(3, 1fr); }
   .consola-tarea .lectura { font-size: 1.5rem; }
-  .terreno { margin-left: -.4rem; margin-right: -.4rem; }
+  .terreno { min-width: calc(36 * 22px); }
+  .bloque { font-size: .8rem; }
   .tramo { flex-basis: 64px; }
+  #barra { position: static; }
+  #barra-info { display: none; }
+  #guia { left: 6px; bottom: 6px; max-width: calc(100vw - 12px); }
+  #guia .g-avatar, #guia .guide-svg { width: 62px !important; height: 74px !important; }
+  #guia .g-bubble { font-size: .85rem; max-height: 34vh; overflow-y: auto; margin-bottom: 30px !important; padding: .5rem .6rem; }
+  #guia.closed.nuevo .g-avatar { animation: pulso 1s steps(2) 4; }
+  #app { padding-bottom: 7rem; }
+  #app table { display: block; max-width: 100%; overflow-x: auto; font-size: .8rem; }
   .res { grid-template-columns: 6.5rem minmax(0, 1fr) auto; gap: .35rem; font-size: .85rem; }
   .res > :last-child { white-space: nowrap; }
   .design-layout, .grid2, .grid3, .grid-base { grid-template-columns: minmax(0, 1fr) !important; }

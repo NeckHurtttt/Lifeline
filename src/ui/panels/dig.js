@@ -3,8 +3,9 @@ import { h, bar } from '../dom.js';
 import { ensureTerrain, startOuting, move, mine, place, endOuting, digBlock, atAirlock, bagValue, canDigHere,
   DIG_COLS, DIG_ROWS, T, TILE_INFO, DIG_REWARD, WALL_BLOCKS } from '../../core/dig.js';
 import { beep, alarm } from '../audio.js';
+import { SPRITE } from '../sprite.js';
 
-const view = { pick: [], build: false, msg: '' };
+const view = { pick: [], build: false, msg: '', dir: 1 };
 const CHAR = { [T.AIRE]: ' ', [T.BASE]: '█' };
 
 export const digAvailable = canDigHere;
@@ -27,8 +28,8 @@ export function digPanel(app, commit, redraw, setKey) {
 
   setKey(o ? (e) => {
     const k = e.key.toLowerCase();
-    if (k === 'a' || k === 'arrowleft') { e.preventDefault(); act((st) => move(st, -1)); }
-    else if (k === 'd' || k === 'arrowright') { e.preventDefault(); act((st) => move(st, 1)); }
+    if (k === 'a' || k === 'arrowleft') { e.preventDefault(); view.dir = -1; act((st) => move(st, -1)); }
+    else if (k === 'd' || k === 'arrowright') { e.preventDefault(); view.dir = 1; act((st) => move(st, 1)); }
     else if (k === 's' || k === 'arrowdown') { e.preventDefault(); act((st) => mine(st, st.dig.outing.x, st.dig.outing.y + 1)); }
     else if (k === 'b') { view.build = !view.build; redraw(); }
   } : null);
@@ -61,7 +62,7 @@ export function digPanel(app, commit, redraw, setKey) {
     h('div', { class: 'small' }, `BOLSA: regolito ${o.bag.regolito} · hielo ${o.bag.hielo} · hierro ${o.bag.metal} · rocas raras ${o.bag.rara}  →  +${v.water} L agua, +${v.parts} piezas, +${v.science} ciencia`),
     grid(d, o, (x, y) => act((st) => (view.build ? place(st, x, y) : mine(st, x, y)))),
     h('div', { class: 'row' },
-      h('button', { onclick: () => act((st) => move(st, -1)) }, '< A'), h('button', { onclick: () => act((st) => mine(st, st.dig.outing.x, st.dig.outing.y + 1)) }, 'S excavar abajo'), h('button', { onclick: () => act((st) => move(st, 1)) }, 'D >'),
+      h('button', { onclick: () => { view.dir = -1; act((st) => move(st, -1)); } }, '< A'), h('button', { onclick: () => act((st) => mine(st, st.dig.outing.x, st.dig.outing.y + 1)) }, 'S abajo'), h('button', { onclick: () => { view.dir = 1; act((st) => move(st, 1)); } }, 'D >'),
       h('button', { id: 'volver-esclusa', class: atAirlock(s) ? 'big' : 'warn', onclick: finish }, atAirlock(s) ? 'ENTRAR POR LA ESCLUSA' : 'REGRESO DE EMERGENCIA (pierde la mitad)')),
     view.msg ? h('div', { class: 'small' }, view.msg) : null);
 }
@@ -73,8 +74,14 @@ function grid(d, o, onCell) {
     const me = o && o.x === x && o.y === y;
     const lock = x === 1 && y + 1 < DIG_ROWS && d.tiles[(y + 1) * DIG_COLS + 1] !== T.AIRE;
     const reach = o && Math.abs(x - o.x) <= 1 && Math.abs(y - o.y) <= 1 && !me;
-    cells.push(h('div', { class: `bloque b${t} ${me ? 'yo' : ''} ${reach ? 'alcance' : ''}`, 'data-x': x, 'data-y': y, onclick: () => reach && onCell(x, y) },
-      me ? '@' : lock && t === T.AIRE ? '▯' : CHAR[t] ?? TILE_INFO[t]?.code ?? ' '));
+    const cell = h('div', { class: `bloque b${t} ${me ? 'yo' : ''} ${reach ? 'alcance' : ''}`, 'data-x': x, 'data-y': y, onclick: () => reach && onCell(x, y) },
+      me ? '' : lock && t === T.AIRE ? '▯' : CHAR[t] ?? TILE_INFO[t]?.code ?? ' ');
+    if (me) { const fig = document.createElement('div'); fig.className = 'mini-astro'; fig.style.setProperty('--dir', view.dir); fig.innerHTML = SPRITE; cell.append(fig); }
+    cells.push(cell);
   }
-  return h('div', { class: 'terreno', style: { gridTemplateColumns: `repeat(${DIG_COLS}, 1fr)` } }, ...cells);
+  const grid = h('div', { class: 'terreno', style: { gridTemplateColumns: `repeat(${DIG_COLS}, 1fr)` } }, ...cells);
+  const wrap = h('div', { class: 'terreno-wrap' }, grid);
+  // En pantallas chicas el terreno se desliza: la vista sigue al astronauta.
+  if (o) requestAnimationFrame(() => { const me = grid.querySelector('.yo'); if (me) wrap.scrollLeft = Math.max(0, me.offsetLeft - wrap.clientWidth / 2); });
+  return wrap;
 }

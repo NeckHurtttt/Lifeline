@@ -362,6 +362,7 @@ label.pick { background: rgba(255,255,255,.08); padding: .1rem .5rem; border-rad
 .pasos { margin: .3rem 0 .6rem 1.2rem; }
 
 /* ---------- EVA de excavación ---------- */
+.terreno-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
 .terreno { display: grid; gap: 1px; margin: .5rem 0; background: rgba(0,0,0,.5); padding: 2px; user-select: none; touch-action: manipulation; }
 .bloque { aspect-ratio: 1; display: flex; align-items: center; justify-content: center; font-size: clamp(.5rem, 1.6vw, 1rem); line-height: 1; color: var(--dim, #5f8f6f); }
 .bloque.b1 { background: rgba(77,255,136,.10); }
@@ -371,4 +372,7 @@ label.pick { background: rgba(255,255,255,.08); padding: .1rem .5rem; border-rad
 .bloque.b5 { color: #ffffff; background: rgba(77,255,136,.12); }
 .bloque.b6 { background: rgba(77,255,136,.35); }
 .bloque.alcance { outline: 1px dashed var(--amber); cursor: pointer; }
-.bloque.yo { color: var(--amber); font-weight: bold; animation: pulso 1s steps(2) infinite; }
+.bloque.yo { position: relative; overflow: visible; }
+.mini-astro { position: absolute; left: 50%; bottom: 0; width: 120%; height: 160%; transform: translateX(-50%) scaleX(var(--dir, 1)); filter: drop-shadow(0 0 2px var(--fg)); pointer-events: none; z-index: 2; }
+.mini-astro svg { width: 100%; height: 100%; display: block; }
+.mini-astro .paso-b { display: none; }

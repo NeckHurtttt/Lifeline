@@ -1,7 +1,10 @@
 // Simula muchas partidas por destino y dificultad: jugando con cuidado vs. a ciegas.
-// Uso: node scripts/balance.mjs [partidas]
+// Tres formas: con cuidado, con cuidado + reparación a mano y excavación ("experto"), y a ciegas.
+// Uso: node scripts/balance.mjs [partidas] [destino]
 import { createMission } from '../src/core/mission.js';
-import { runUntilInterrupt } from '../src/core/sim.js';
+import { runUntilInterrupt, advanceDay } from '../src/core/sim.js';
+import { repairPuzzle, applyFieldRepair, fieldRepairBlock } from '../src/core/repairs.js';
+import { ensureTerrain, startOuting, endOuting, digBlock, canDigHere, T, DIG_COLS, DIG_ROWS, TILE_INFO } from '../src/core/dig.js';
 import { resolveEvent, recommendedOption } from '../src/core/events.js';
 import { resolvePhase } from '../src/core/mars.js';
 import { candidatesFor } from '../src/core/interview.js';
@@ -20,7 +23,32 @@ const DESIGNS = {
     instruments: ['buscador_vida', 'analizador_rocas'], launcher: 'titan', orbit: 'marte_jezero', crewRoles: ['comandante', 'piloto', 'ingeniero', 'medico'], cargoDays: 240 },
 };
 
-function play(scn, dif, seed, careful) {
+const solve = (p) => (p.kind === 'ajuste' ? p.target : p.kind === 'plantas' ? p.sick : p.steps);
+// Lo que haría un jugador experto en un día: 2 reparaciones a mano y, cada 3 días, una salida de excavación
+// que saca los bloques más valiosos cerca de la esclusa (estimación generosa: sin perder tiempo caminando).
+function expertDay(s) {
+  for (let k = 0; k < 2; k++) {
+    const m = s.modules.filter((x) => x.health < 70).sort((a, b) => a.health - b.health)[0];
+    if (!m || fieldRepairBlock(s, m.id)) break;
+    s = applyFieldRepair(s, m.id, solve(repairPuzzle(s, m.id))).state;
+  }
+  if (canDigHere(s) && s.day % 3 === 0) {
+    s = ensureTerrain(s);
+    const crew = s.crew.filter((c) => c.alive && !c.evacuated && c.fatigue < 70 && c.health >= 50).slice(0, 2);
+    if (!digBlock(s, crew)) {
+      s = startOuting(s, crew.map((c) => c.id)).state;
+      const o = s.dig.outing; let o2 = o.o2 - 10; // 10 de oxígeno para ir y volver
+      const cells = [];
+      for (let y = 0; y < DIG_ROWS; y++) for (let x = 2; x < 9; x++) { const t = s.dig.tiles[y * DIG_COLS + x]; if (TILE_INFO[t]?.bag) cells.push([t === T.HIELO ? 3 : t === T.METAL ? 2 : t === T.RARA ? 2 : 1, x, y, t]); }
+      cells.sort((a, b) => b[0] - a[0]);
+      for (const [, x, y, t] of cells) { const c = TILE_INFO[t].cost; if (o2 < c) break; o2 -= c; s.dig.tiles[y * DIG_COLS + x] = T.AIRE; o.bag[TILE_INFO[t].bag]++; }
+      s = endOuting(s).state;
+    }
+  }
+  return s;
+}
+
+function play(scn, dif, seed, careful, expert = false) {
   const design = structuredClone(DESIGNS[scn]);
   if (careful) {
     // contrata al mejor candidato en la habilidad principal del puesto
@@ -34,9 +62,10 @@ function play(scn, dif, seed, careful) {
     for (const c of s.crew) s.schedule[c.id] = [jobs[c.role] ?? 'mantenimiento', 'ejercicio', 'sueño'];
     if (scn !== 'estacion' && s.modules.some((m) => m.type === 'invernadero')) s.schedule[s.crew.at(-1).id] = ['cultivo', 'ejercicio', 'sueño'];
   }
-  for (let i = 0; i < 4000 && s.phase === 'ops'; i++) {
-    const r = runUntilInterrupt(s, 900);
+  for (let i = 0; i < (expert ? 20000 : 4000) && s.phase === 'ops'; i++) {
+    const r = expert ? advanceDay(s) : runUntilInterrupt(s, 900);
     s = r.state;
+    if (expert && s.phase === 'ops' && !s.pending) s = expertDay(s);
     if (r.interrupt?.kind === 'fase') { s = resolvePhase(s, r.interrupt.data.phase).state; continue; }
     if (s.pending) {
       const rng = restoreRng(s.rng);
@@ -60,14 +89,14 @@ function play(scn, dif, seed, careful) {
 
 for (const scn of Object.keys(DESIGNS).filter((x) => !process.argv[3] || x === process.argv[3])) {
   for (const dif of ['facil', 'medio', 'dificil']) {
-    for (const careful of [true, false]) {
-      const res = Array.from({ length: N }, (_, i) => play(scn, dif, 1000 + i, careful));
+    for (const [careful, expert] of [[true, true], [true, false], [false, false]]) {
+      const res = Array.from({ length: N }, (_, i) => play(scn, dif, 1000 + i, careful, expert));
       const ok = res.filter((r) => r.ok).length;
       const avgDay = Math.round(res.reduce((t, r) => t + r.day, 0) / N);
       const sci = Math.round(res.filter((r) => r.ok).reduce((t, r) => t + r.science, 0) / Math.max(1, ok));
       const reasons = {};
       for (const r of res.filter((x) => !x.ok)) reasons[r.reason.slice(0, 45)] = (reasons[r.reason.slice(0, 45)] ?? 0) + 1;
-      console.log(`${scn.padEnd(8)} ${dif.padEnd(7)} ${careful ? 'cuidado' : 'ciegas '}  éxito ${String(Math.round((ok / N) * 100)).padStart(3)} %  día medio ${String(avgDay).padStart(3)}  ciencia ${sci}  ${JSON.stringify(reasons)}`);
+      console.log(`${scn.padEnd(8)} ${dif.padEnd(7)} ${expert ? 'experto' : careful ? 'cuidado' : 'ciegas '}  éxito ${String(Math.round((ok / N) * 100)).padStart(3)} %  día medio ${String(avgDay).padStart(3)}  ciencia ${sci}  ${JSON.stringify(reasons)}`);
     }
   }
 }

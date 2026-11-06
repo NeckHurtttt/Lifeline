@@ -760,6 +760,7 @@ export function render(root, app, go) {
     else if (s.pending && !document.getElementById('evento')) eventModal();
     else if (!s.pending) {
       const [t, mood, target, where] = coach(sched);
+      if ((tab === 'recorrido' || tab === 'excavar') && mood !== 'alerta') return; // ahí Nova no tapa los controles
       const elsewhere = where && where !== tab;
       say(elsewhere ? `${t} (Toca la pestaña señalada.)` : t, { mood, target: elsewhere ? `[data-tab="${where}"]` : target, quiet: true });
     }
