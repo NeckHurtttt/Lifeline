@@ -1,6 +1,6 @@
 // Eventos, avisos, desastres y cadenas. Funciones puras: devuelven estado nuevo (structuredClone).
 import { hasUpgrade } from './campaign.js';
-import { DIFFICULTY, MODULES, SCENARIOS } from '../data/catalog.js';
+import { DIFFICULTY, MODULES, SCENARIOS, CARGO } from '../data/catalog.js';
 import { EVENTS } from '../data/events.js';
 import { skillCheck } from './skill.js';
 import { envMults, siteOf, availableIn } from './surface.js';
@@ -9,8 +9,12 @@ import { addFault } from './repairs.js';
 
 const SEVERITIES = ['leve', 'media', 'grave'];
 const POSITIVE_CHANCE = 0.06;
-const BOOM = { facil: 0.1, medio: 0.15, dificil: 0.2 };
-const NEEDS = { food: 1.8, water: 2.75 * 0.02 + 0.95, o2: 0.84 };
+// Fallas reales de naves de carga a la estación: ~5 % (CRS-7, Orb-3, Progress M-27M y MS-04 en ~70 vuelos).
+const BOOM = { facil: 0.04, medio: 0.07, dificil: 0.1 };
+// Parte del consumo que cubre cada nave de carga, y cuántos días se puede atrasar la siguiente.
+const CARGO_SHARE = { facil: 1.1, medio: 1, dificil: 1 };
+const SLIP_DAYS = { facil: 4, medio: 8, dificil: 15 };
+import { NEEDS } from './life.js';
 const RESOURCE_KEYS = ['o2', 'water', 'food', 'meds', 'parts', 'fuel', 'battery'];
 const RESUPPLY_ONLY = new Set(['carga_a_tiempo', 'carga_explota']);
 const DEBRIS = new Set(['micrometeoritos', 'basura_tardia']);
@@ -215,13 +219,26 @@ export function resolveResupply(state, rng) {
     log.push(`${ev.name}: ${ev.text.media} Próximo intento en 30 días.`);
   } else {
     const n = s.crew.filter((c) => c.alive).length;
-    const days = Math.max(60, SCENARIOS[s.scenarioId].resupplyEvery || 60);
+    const every = SCENARIOS[s.scenarioId].resupplyEvery || 60;
+    // Como en la estación real: la nave de carga trae más o menos lo que se gasta en el periodo,
+    // pero los lanzamientos se atrasan y a veces explotan (2014-15 fallaron 3 seguidas). Hay que llevar reserva propia.
+    // Control de Misión carga para el periodo más el atraso máximo, como margen.
+    const days = Math.round((every + SLIP_DAYS[s.difficulty]) * CARGO_SHARE[s.difficulty]);
     s = applyEffects(s, {
-      food: days * n * NEEDS.food, water: days * n * NEEDS.water, o2: days * n * NEEDS.o2, parts: 20, meds: 5 * n,
+      food: days * n * NEEDS.food, water: days * n * NEEDS.water, o2: Math.min(days, 15) * n * NEEDS.o2, parts: 20, meds: 5 * n,
     });
+    // La bodega tiene lugar limitado: lo que no cabe se queda en la nave de carga (que se desecha al irse).
+    const storeDays = (CARGO.baseDays + s.modules.reduce((t, m) => t + (MODULES[m.type]?.cargoDays ?? 0), 0)) * (1 + DIFFICULTY[s.difficulty].reserveBonus);
+    let lost = 0;
+    for (const k of ['food', 'water']) {
+      const cap = storeDays * n * NEEDS[k];
+      if (s.resources[k] > cap) { lost = Math.max(lost, (s.resources[k] - cap) / (n * NEEDS[k])); s.resources[k] = cap; }
+    }
+    if (lost >= 1) log.push(`La bodega está llena: no cupieron ${Math.round(lost)} días de comida y agua. Más 📦 bodegas = más reserva.`);
     s.medsExpiry = s.day + 180;
-    s.nextResupply += SCENARIOS[s.scenarioId].resupplyEvery;
-    log.push(`${ev.name}: ${ev.text.media} Llegan ${days} días de comida, agua y O₂, 20 piezas y medicinas frescas.`);
+    const delay = rng.int(0, SLIP_DAYS[s.difficulty]);
+    s.nextResupply += every + delay;
+    log.push(`${ev.name}: ${ev.text.media} Trae comida y agua para ${days} días, 20 piezas y medicinas frescas.${delay ? ` La próxima se atrasa ${delay} días.` : ''}`);
   }
   for (const t of log) addLog(s, t, boom ? 'evento' : 'bueno');
   return { state: s, log, event };

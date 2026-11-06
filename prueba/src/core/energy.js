@@ -1,18 +1,19 @@
 import { hasUpgrade } from './campaign.js';
 import { MODULES, INSTRUMENTS, ORBITS } from '../data/catalog.js';
+import { CREW_KW, SOLAR_EFFICIENCY } from './life.js';
 
 const LAST = ['cabina', 'soporte_vital'];
 
 function balance(state, solarFactor, heatKw = 0) {
   const fraction = ORBITS[state.design.orbit].solarFraction;
-  let total = -heatKw * 24;
+  let total = -heatKw * 24 - state.crew.filter((c) => c.alive && !c.evacuated).length * CREW_KW * 24;
   let labOn = false;
   for (const m of state.modules) {
     if (!m.on) continue;
     const def = MODULES[m.type];
     if (m.type === 'laboratorio') labOn = true;
     let kw = def.kw;
-    if (def.solar) kw *= fraction * solarFactor * (hasUpgrade(state, 'paneles_eficientes') ? 1.2 : 1);
+    if (def.solar) kw *= fraction * solarFactor * SOLAR_EFFICIENCY * (hasUpgrade(state, 'paneles_eficientes') ? 1.2 : 1);
     if (m.health < 30) kw *= 0.5;
     total += kw * 24;
   }

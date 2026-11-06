@@ -5,7 +5,7 @@ import { rollEvents, tickAlerts, resolveResupply } from './events.js';
 import { offerMinis, progressMinis } from './minimissions.js';
 import { applyTasks, validateSchedule } from './tasks.js';
 import { applyEnergy } from './energy.js';
-import { applyDailyLife } from './life.js';
+import { applyDailyLife, NEEDS } from './life.js';
 import { expireMeds, exerciseRule } from './protocols.js';
 import { siteOf, scenarioOf, isNight, daysToNight } from './surface.js';
 import { MODULES } from '../data/catalog.js';
@@ -18,7 +18,7 @@ export const NIGHT_WARN_DAYS = 2;
 export const WEAR = { facil: 0.2, medio: 0.3, dificil: 0.4 };
 
 const LOW_DAYS = 7;
-const NEED = { food: 1.8, water: 2.75 * 0.02 + 0.95, waterNoLS: 2.75, o2: 0.84 };
+const NEED = NEEDS;
 const RES_NAME = { food: 'comida', water: 'agua', o2: 'oxígeno' };
 
 const living = (s) => s.crew.filter((c) => c.alive);

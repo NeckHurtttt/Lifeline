@@ -13,7 +13,7 @@ export const EDL_FUEL = 30;
 export const EDL_CHECK = { stat: 'fuerza', dc: 12 };
 export const CONJUNCTION = { start: 400, end: 414, warn: 395 }; // ~2 semanas sin radio con la Tierra
 export const TRANSIT_SUN = 0.7; // sol medio en el viaje (relativo a la Tierra)
-const NEEDS = { food: 1.8, water: 2.75 * 0.02 + 0.95, o2: 0.84 };
+import { NEEDS } from './life.js';
 
 export const isMars = (s) => s.scenarioId === 'marte';
 

@@ -3,6 +3,7 @@ import { hasUpgrade } from './campaign.js';
 import { createRng } from './rng.js';
 import { DIFFICULTY, MODULES, SCENARIOS } from '../data/catalog.js';
 import { ROLES, STAT_RANGES, TRAITS, NAMES } from '../data/crew.js';
+import { NEEDS } from './life.js';
 
 /** @typedef {'facil'|'medio'|'dificil'} Difficulty */
 /** @typedef {'leve'|'media'|'grave'} Severity */
@@ -87,10 +88,10 @@ export function createMission({ design, scenarioId, difficulty, seed, demo = fal
       : { totalDays: demo ? DEMO_DAYS[scenarioId] ?? 60 : sc.days + 2 * (sc.travelDays ?? 0) }),
     phase: 'launch', design, modules, crew, schedule, rations,
     resources: {
-      o2: 0.84 * mult,
-      // El O2 sale del agua (0,95 L/persona/día) con el soporte vital encendido.
-      water: (2.75 * 0.02 + 0.95) * mult + 500,
-      food: 1.8 * mult,
+      // Tanques de O₂ solo para emergencias (~45 días): el aire de cada día sale del agua con el soporte vital.
+      o2: NEEDS.o2 * n * Math.min(days, 45) * (1 + DIFFICULTY[difficulty].reserveBonus),
+      water: NEEDS.water * mult,
+      food: NEEDS.food * mult,
       meds: 20 * n, parts: 30 + (hasUpgrade(design, 'impresion_3d') ? 15 : 0), fuel: 100,
       battery: batteryMax, batteryMax, dataStored: 0,
     },
