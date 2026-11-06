@@ -5,6 +5,7 @@ import { EVENTS } from '../data/events.js';
 import { skillCheck } from './skill.js';
 import { envMults, siteOf, availableIn } from './surface.js';
 import { inBlackout } from './mars.js';
+import { addFault } from './repairs.js';
 
 const SEVERITIES = ['leve', 'media', 'grave'];
 const POSITIVE_CHANCE = 0.06;
@@ -127,6 +128,7 @@ export function applyEffects(state, effects) {
         if (!m) continue;
         m.health = clamp(m.health - n, 0, 100);
         if (m.health <= 0) m.on = false;
+        if (n > 0 && s.phase === 'ops') addFault(s, m);
       }
     } else if (k === 'moduleOff') {
       for (const [type, days] of Object.entries(v)) {

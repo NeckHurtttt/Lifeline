@@ -123,3 +123,44 @@ test('cooperativo: los cambios de dos personas se juntan sin pisarse', () => {
   assert.equal(m2.modules.length, 3);
   assert.equal(m2.schedule, undefined);
 });
+
+test('avería de un evento: tiene plazo, se resuelve a mano con +fama o empeora al vencer', async () => {
+  const { applyEffects } = await import('../../src/core/events.js');
+  const { tickFaults, faultOf, FAULT_DAYS, FAULT_WORSEN } = await import('../../src/core/repairs.js');
+  let s = applyEffects(station(), { moduleDamage: { soporte_vital: 30 } });
+  const m = s.modules.find((x) => x.type === 'soporte_vital');
+  const f = faultOf(s, m.id);
+  assert.equal(f.deadline, s.day + FAULT_DAYS.medio);
+  const rep = s.reputation;
+  const r = applyFieldRepair(s, m.id, solve(repairPuzzle(s, m.id)));
+  assert.ok(r.ok);
+  assert.equal(faultOf(r.state, m.id), null);
+  assert.equal(r.state.reputation, Math.min(100, rep + 2));
+  // Sin reparar: al pasar el plazo pierde salud extra y la avería se borra.
+  const late = structuredClone(s); late.day = f.deadline + 1;
+  const h0 = late.modules.find((x) => x.id === m.id).health;
+  assert.equal(tickFaults(late).length, 1);
+  assert.equal(late.modules.find((x) => x.id === m.id).health, Math.max(0, h0 - FAULT_WORSEN));
+  assert.equal(faultOf(late, m.id), null);
+});
+
+test('regolito sobrante de Excavar: se guarda y paga parches, menos en equipos eléctricos', async () => {
+  const { REGOLITH_PATCH } = await import('../../src/core/repairs.js');
+  const s0 = station();
+  let s = ensureTerrain({ ...s0, scenarioId: 'luna' });
+  s = structuredClone(s);
+  s.dig.wall = 18;
+  s.dig.outing = { crewIds: [], x: 1, y: 4, o2: 30, bag: { regolito: 7, hielo: 0, metal: 0, rara: 0 }, carry: 0 };
+  s = endOuting(s).state;
+  assert.equal(s.dig.wall, 20);
+  assert.equal(s.dig.stock, 5);
+  const cab = s.modules.find((x) => x.type === 'cabina'); cab.health = 50;
+  const pan = s.modules.find((x) => x.type === 'paneles'); pan.health = 50;
+  s.resources.parts = 0;
+  assert.match(fieldRepairBlock(s, pan.id, 'regolito'), /eléctricos/);
+  assert.match(fieldRepairBlock(s, cab.id), /piezas/);
+  const r = applyFieldRepair(s, cab.id, solve(repairPuzzle(s, cab.id)), 'regolito');
+  assert.ok(r.ok);
+  assert.equal(r.state.dig.stock, 5 - REGOLITH_PATCH);
+  assert.equal(r.state.resources.parts, 0);
+});

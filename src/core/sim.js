@@ -10,6 +10,7 @@ import { expireMeds, exerciseRule } from './protocols.js';
 import { siteOf, scenarioOf, isNight, daysToNight } from './surface.js';
 import { MODULES } from '../data/catalog.js';
 import { progressExpedition } from './explore.js';
+import { tickFaults } from './repairs.js';
 import { legOf, phaseDue, marsSolarFactor, inBlackout, isMars, planOf } from './mars.js';
 
 export const NIGHT_WARN_DAYS = 2;
@@ -95,6 +96,7 @@ export function advanceDay(state) {
     m.health = Math.max(0, m.health - wear);
     if (m.health === 0) { m.on = false; pushLog(s, [`Se rompió por desgaste: ${MODULES[m.type].name}. Hace falta 🔧 Reparación.`], 'evento'); }
   }
+  pushLog(s, tickFaults(s), 'evento');
   const night = isNight(site, s.day);
   const e = applyEnergy(s, { solarFactor: night ? 0 : marsSolarFactor(s, site), heatKw: night ? sc.nightHeatKw ?? 0 : 0 });
   s = e.state; pushLog(s, e.log, 'energia');

@@ -37,7 +37,7 @@ export function digPanel(app, commit, redraw, setKey) {
   const head = [h('h2', {}, 'EVA DE EXCAVACIÓN'),
     h('div', { class: 'help' }, 'Salen dos con el traje. A / D caminan, S excava hacia abajo y un clic en un bloque vecino lo excava. Con B cambias a construir: un clic en un hueco vecino pone regolito (escalón o techo). Vuelvan a la esclusa antes de que se acabe el oxígeno.'),
     h('div', { class: 'small' }, Object.entries(DIG_REWARD).map(([k, v]) => `${TILE_INFO[{ hielo: T.HIELO, metal: T.METAL, rara: T.RARA, regolito: T.REGOLITO }[k]].code} ${v.label}`).join(' · ')),
-    h('div', { class: 'small' }, `Muro de regolito: ${d.wall}/${WALL_BLOCKS}${s.flags?.regolithWall ? ' (terminado)' : ''}`)];
+    h('div', { class: 'small' }, `Muro de regolito: ${d.wall}/${WALL_BLOCKS}${s.flags?.regolithWall ? ' (terminado)' : ''} · Regolito guardado para parches: ${d.stock ?? 0}`)];
 
   if (!o) {
     const living = s.crew.filter((c) => c.alive && !c.evacuated);

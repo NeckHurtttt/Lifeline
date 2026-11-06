@@ -20,7 +20,7 @@ export const DIG_REWARD = {
   hielo: { water: 25, label: '25 L de agua por bloque (se derrite y se filtra)' },
   metal: { parts: 0.5, label: '1 pieza cada 2 bloques (la impresora 3D la funde)' },
   rara: { science: 3, label: '3 de ciencia por muestra' },
-  regolito: { wall: 1, label: '20 bloques levantan el muro de regolito (-40 % radiación)' },
+  regolito: { wall: 1, label: '20 bloques levantan el muro de regolito (-40 % radiación); lo que sobra se guarda para parches (3 bloques = 1 reparación sin pieza)' },
 };
 export const WALL_BLOCKS = 20;
 const SUIT_O2 = { facil: 80, medio: 60, dificil: 45 };
@@ -58,7 +58,7 @@ export function ensureTerrain(state) {
   if (state.dig) return state;
   const s = structuredClone(state);
   const t = genTerrain(s.seed, s.scenarioId);
-  s.dig = { tiles: t.tiles, lastDay: -1, wall: 0, outing: null };
+  s.dig = { tiles: t.tiles, lastDay: -1, wall: 0, stock: 0, outing: null };
   return s;
 }
 
@@ -132,7 +132,8 @@ export const atAirlock = (state) => state.dig?.outing && state.dig.outing.x <= A
 /** Lo que daría la bolsa al volver. */
 export function bagValue(bag, wallNow = 0) {
   const wall = Math.min(WALL_BLOCKS, wallNow + bag.regolito);
-  return { water: bag.hielo * DIG_REWARD.hielo.water, parts: Math.floor(bag.metal * DIG_REWARD.metal.parts), science: bag.rara * DIG_REWARD.rara.science, wall };
+  const stock = Math.max(0, wallNow + bag.regolito - WALL_BLOCKS);
+  return { stock, water: bag.hielo * DIG_REWARD.hielo.water, parts: Math.floor(bag.metal * DIG_REWARD.metal.parts), science: bag.rara * DIG_REWARD.rara.science, wall };
 }
 
 /**
@@ -150,13 +151,14 @@ export function endOuting(state) {
   s.resources.parts += v.parts;
   s.resources.science += v.science;
   d.wall = v.wall;
+  d.stock = (d.stock ?? 0) + v.stock;
   const log = [];
   if (d.wall >= WALL_BLOCKS && !s.flags?.regolithWall) { s.flags = { ...(s.flags ?? {}), regolithWall: true }; log.push('Muro de regolito terminado: la radiación en la base baja 40 %.'); }
   if (emergency) {
     for (const c of s.crew) if (o.crewIds.includes(c.id)) c.health = Math.max(1, c.health - 15);
     log.unshift('Regreso de emergencia: se acabó el oxígeno del traje o no llegaron a la esclusa. Se perdió la mitad del material y hubo golpes.');
   }
-  log.push(`Material guardado: +${v.water} L de agua, +${v.parts} piezas, +${v.science} de ciencia, muro ${d.wall}/${WALL_BLOCKS}.`);
+  log.push(`Material guardado: +${v.water} L de agua, +${v.parts} piezas, +${v.science} de ciencia, muro ${d.wall}/${WALL_BLOCKS}${v.stock ? `, +${v.stock} de regolito guardado (${d.stock} en total)` : ''}.`);
   d.outing = null;
   s.log = [...(s.log ?? []), { day: s.day, text: log.join(' '), kind: emergency ? 'evento' : 'bueno' }];
   return { state: s, log };
