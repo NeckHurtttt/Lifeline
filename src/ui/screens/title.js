@@ -1,6 +1,7 @@
 import { h, mount } from '../dom.js';
 import { load } from '../../core/save.js';
 import { makePlayers, PLAYER_ROLES, updateBar } from '../main.js';
+import { hostRoom, joinRoom, leaveRoom, coopInfo, onCoopChange, normalizeCode } from '../coop.js';
 import { DIFFICULTY, SCENARIOS } from '../../data/catalog.js';
 import { loadCampaign } from '../../core/campaign.js';
 
@@ -40,6 +41,34 @@ const TOUR = [
   ['Van a pasar cosas. Casi siempre aviso antes y te marco qué tocar.', 'alerta'],
   ['Al final vuelven a la Tierra y vemos qué salió bien y qué no. La misión vale si vuelve al menos uno sano.', 'feliz'],
 ];
+
+const online = { name: '', code: '', msg: '', busy: false };
+
+function onlinePanel() {
+  const c = coopInfo();
+  const run = async (fn) => {
+    online.busy = true; online.msg = 'Conectando...'; redrawTitle();
+    try { await fn(); online.msg = ''; } catch (e) { online.msg = e.message; }
+    online.busy = false; redrawTitle();
+  };
+  return h('div', { class: 'panel c-cyan', id: 'en-linea' },
+    h('h2', {}, 'EN LÍNEA: CADA UNO DESDE SU COMPU'),
+    h('div', { class: 'help' }, 'De 2 a 4 personas, cada una en su navegador. Quien crea la sala comparte el código de 6 letras; las demás lo escriben. Los roles se reparten como arriba y todos ven la misma misión. Necesita internet.'),
+    c.role
+      ? h('div', {},
+        h('div', { class: 'lectura code' }, `SALA ${c.code}`),
+        h('div', { class: 'small' }, c.role === 'host' ? 'Eres el anfitrión: deja esta pestaña abierta.' : 'Conectado como invitado.'),
+        h('div', { class: 'small' }, 'En la sala: ', c.players.map((p) => p.name).join(' · ') || '...'),
+        h('button', { onclick: () => { leaveRoom(); redrawTitle(); } }, 'SALIR DE LA SALA'))
+      : h('div', { class: 'row' },
+        h('input', { placeholder: 'Tu nombre', value: online.name, size: 12, maxlength: 16, oninput: (e) => { online.name = e.target.value; } }),
+        h('button', { id: 'crear-sala', disabled: online.busy, onclick: () => run(() => hostRoom(online.name)) }, 'CREAR SALA'),
+        h('input', { placeholder: 'CÓDIGO', value: online.code, size: 7, maxlength: 6, oninput: (e) => { online.code = normalizeCode(e.target.value); e.target.value = online.code; } }),
+        h('button', { id: 'unirse', disabled: online.busy, onclick: () => run(() => joinRoom(online.code, online.name)) }, 'UNIRSE')),
+    c.status ? h('div', { class: 'small' }, c.status) : null,
+    online.msg ? h('div', { class: 'small amber' }, online.msg) : null);
+}
+let redrawTitle = () => {};
 
 export function render(root, app, go) {
   const saved = load();
@@ -103,8 +132,10 @@ export function render(root, app, go) {
             ...app.players.map((p, i) => h('tr', {},
               h('td', {}, h('input', { value: p.name, size: 12, oninput: (e) => { p.name = e.target.value; names[i] = e.target.value; updateBar(); } })),
               h('td', {}, p.roles.map((r) => h('div', { class: 'small' }, h('b', {}, PLAYER_ROLES[r]), h('span', { class: 'dim' }, `: ${ROLE_DESC[r]}`))))))))),
+      onlinePanel(),
       h('div', { style: { textAlign: 'center', margin: '1.2rem 0' } },
-        h('button', { class: 'big', id: 'nueva', onclick: () => { app.state = null; app.lastDesign = null; app.lastSeed = null; app.objective = null; app.reto = null; if (app.mode !== 'libre') app.budgetMult = 1; beep(990, 80); go('design'); } }, '🚀 NUEVA MISIÓN'),
+        coopInfo().role === 'guest' ? h('div', { class: 'small amber' }, 'Estás en la sala de otra persona: el anfitrión empieza la misión y tu pantalla lo sigue.') : null,
+        h('button', { class: 'big', id: 'nueva', disabled: coopInfo().role === 'guest', onclick: () => { app.state = null; app.lastDesign = null; app.lastSeed = null; app.objective = null; app.reto = null; if (app.mode !== 'libre') app.budgetMult = 1; beep(990, 80); go('design'); } }, '🚀 NUEVA MISIÓN'),
         ' ', h('button', { id: 'reto', title: 'Pega el código que te pasó otro equipo: jugarán la misma misión y compararán puntajes.', onclick: () => {
           const code = prompt('Pega el código de misión (empieza con VDL1-):');
           if (code === null) return;
@@ -121,7 +152,10 @@ export function render(root, app, go) {
         'Agencia ficticia. Inspirado en procedimientos y datos abiertos de NASA. Hecho para NASA Space Apps 2026 · desafío Space Mission Design Game.'),
     );
   };
+  redrawTitle = draw;
+  const offCoop = onCoopChange(() => draw());
   draw();
   say(saved ? `¡Hola otra vez! Tu misión va en el día ${saved.day}. Toca SEGUIR para continuar.` : 'Aquí Nova, Control de Misión. Si es tu primera vez, toca "¿Cómo se juega?".',
     { mood: 'feliz', target: saved ? '#continuar' : '#como', buttons: saved ? [] : [{ label: 'Explícame', onclick: () => { tour = -1; nextTour(); } }] });
+  return () => { offCoop(); redrawTitle = () => {}; };
 }

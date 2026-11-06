@@ -109,6 +109,6 @@ export function buildReport(state) {
     resources: { min, end },
     causes: top.map((f) => f.cause),
     suggestions: top.map((f) => f.suggestion),
-    lessons: [...new Set(top.map((f) => f.lesson))],
+    lessons: [...new Set([...top.map((f) => f.lesson), ...(state.dig?.lastDay > 0 ? ['excavar_recursos'] : []), ...(state.fieldRepairs ? ['reparar_a_mano'] : [])])],
   };
 }

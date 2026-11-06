@@ -17,11 +17,13 @@ import { acceptMini, previewMini, usesAutoRover } from '../../core/minimissions.
 import { setPriority } from '../../core/energy.js';
 import { restoreRng } from '../../core/rng.js';
 import { save } from '../../core/save.js';
-import { whoDecides } from '../main.js';
+import { whoDecides, musicMood } from '../main.js';
 import { alarm, beep } from '../audio.js';
 import { say } from '../guide.js';
 import { crewAvatar, moodOf, MOOD_TEXT } from '../avatar.js';
 import { evaGoNoGo, isWeekend, TRESERVE_SECONDS } from '../../core/protocols.js';
+import { walkPanel } from '../panels/walk.js';
+import { digPanel, digAvailable } from '../panels/dig.js';
 
 // La noche (sueño o campamento) y la pre-respiración son automáticas: no se arrastran.
 const AUTO_TASKS = new Set(['sueño', 'campamento', 'prerespiracion']);
@@ -82,6 +84,10 @@ function chips(effects) {
 
 export function render(root, app, go) {
   let banner = null;
+  let keyFn = null;
+  const setKey = (fn) => { keyFn = fn; };
+  const onKey = (e) => { if (!document.querySelector('.modal-bg')) keyFn?.(e); };
+  document.addEventListener('keydown', onKey);
   let tab = app.opsTab ?? 'resumen';
   let shift = Math.min(app.opsShift ?? 0, 1);
   const pick = (t) => { tab = t; app.opsTab = t; beep(760, 30); draw(); window.scrollTo({ top: 0, behavior: 'smooth' }); };
@@ -616,7 +622,7 @@ export function render(root, app, go) {
     const tired = living().find((c) => c.fatigue >= 70);
     if (tired) return [`${firstName(tired)} está muy cansado. Dale un turno de 🛋️ Descanso.`, 'pensando', `[data-crew="${tired.id}"]`, 'tripulacion'];
     const broken = s.modules.find((m) => m.health < 40);
-    if (broken) return [`El módulo ${MODULES[broken.type].name} está muy dañado. Pon a alguien en 🔧 Reparación.`, 'alerta', `[data-module="${broken.id}"]`, 'estacion'];
+    if (broken) return [`El módulo ${MODULES[broken.type].name} está muy dañado. Pon a alguien en 🔧 Reparación o repáralo a mano en Recorrido.`, 'alerta', `[data-tramo="${broken.id}"]`, 'recorrido'];
     const weakBone = living().find((c) => c.bone < 85);
     if (weakBone) return [`Los huesos de ${firstName(weakBone)} se debilitan sin gravedad. Dale 🏃 Ejercicio.`, 'pensando', `[data-crew="${weakBone.id}"]`, 'tripulacion'];
     const offer = s.minis.find((m) => m.status === 'oferta');
@@ -705,7 +711,9 @@ export function render(root, app, go) {
   }
 
   function draw() {
+    keyFn = null;
     const s = app.state;
+    musicMood(s.pending && EVENTS[s.pending.eventId]?.kind !== '+' ? 'danger' : s.dig?.outing ? 'surface' : 'orbit');
     const sched = validateSchedule(Object.fromEntries(Object.entries(s.schedule).filter(([id]) => s.crew.find((c) => c.id === id)?.alive)))
       .map((e) => { const id = e.split(' ')[0]; const c = s.crew.find((x) => x.id === id); return c ? e.replace(id, c.name) : e; });
     const blocked = sched.length > 0 || !!s.pending || s.phase !== 'ops' || !!phaseDue(s);
@@ -732,6 +740,8 @@ export function render(root, app, go) {
         { id: 'tripulacion', label: '🧑‍🚀 Tripulación', color: 'c-pink', badge: sched.length + living().filter((c) => c.health < 50 || c.fatigue >= 70).length },
         { id: 'estacion', label: SC.id === 'estacion' ? '🛰️ Estación' : `${DEST} Base`, color: 'c-violet', badge: s.modules.filter((m) => m.health < 40 || !m.on).length },
         { id: 'misiones', label: '⚠️ Avisos y misiones', color: 'c-amber', badge: s.alerts.length + s.minis.filter((m) => m.status === 'oferta').length },
+        { id: 'recorrido', label: 'Recorrido', color: 'c-violet', badge: s.modules.filter((m) => m.health <= 0).length },
+        ...(digAvailable(s) ? [{ id: 'excavar', label: 'Excavar', color: 'c-green', badge: s.dig?.outing ? '!' : 0 }] : []),
         ...(canExplore(s) || s.map ? [{ id: 'mapa', label: '🗺️ Exploración', color: 'c-green', badge: s.expedition ? 0 : (s.map ?? []).filter((n) => n.known && !n.done).length }] : []),
         { id: 'diario', label: '📖 Diario', color: 'c-cyan' },
       ], tab, pick),
@@ -741,6 +751,8 @@ export function render(root, app, go) {
       tab === 'misiones' ? h('div', { class: 'grid2' }, alerts(), minis()) : null,
       tab === 'diario' ? logPanel() : null,
       tab === 'mapa' ? explorePanel() : null,
+      tab === 'recorrido' ? walkPanel(app, commit, draw, setKey) : null,
+      tab === 'excavar' && digAvailable(s) ? digPanel(app, commit, draw, setKey) : null,
     );
     if (phaseDue(s) && s.phase === 'ops') { if (!document.getElementById('fase')) phaseModal(); }
     else if (s.pending && !document.getElementById('evento')) eventModal();
@@ -752,5 +764,5 @@ export function render(root, app, go) {
   }
 
   draw();
-  return () => { stopClock(); clearInterval(monitorTimer); document.querySelectorAll('.modal-bg').forEach((e) => e.remove()); };
+  return () => { stopClock(); clearInterval(monitorTimer); document.removeEventListener('keydown', onKey); document.querySelectorAll('.modal-bg').forEach((e) => e.remove()); };
 }

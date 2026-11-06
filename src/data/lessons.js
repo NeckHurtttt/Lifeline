@@ -2,6 +2,12 @@
 const L = (id, title, space, earth) => [id, { id, title, space, earth }];
 
 export const LESSONS = Object.fromEntries([
+  L('excavar_recursos', 'Usar lo que hay en el lugar',
+    'En la Luna y Marte se piensa sacar agua del hielo y hacer muros y piezas con el suelo (regolito) para no subirlo todo desde la Tierra.',
+    'Construir con materiales del lugar, como el adobe o la tierra compactada, ahorra transporte y es una forma de construir barata y sostenible.'),
+  L('reparar_a_mano', 'Reparar siguiendo el procedimiento',
+    'En la estación cada arreglo sigue una lista de pasos escrita y probada en la Tierra: un paso fuera de orden puede ser peligroso.',
+    'Pilotos, médicos y técnicos usan listas de verificación para no olvidar pasos: está comprobado que evitan accidentes y errores.'),
   L('reciclaje_agua', 'Reciclaje de agua',
     'En la estación se recupera cerca del 98 % del agua, incluida la humedad del aire y la orina, porque subir agua cuesta una fortuna.',
     'Las mismas ideas de reutilización y tratamiento ayudan a ciudades y zonas con sequía a no depender solo de lluvia o ríos.'),
@@ -18,7 +24,7 @@ export const LESSONS = Object.fromEntries([
     'Sin gravedad los huesos y músculos se debilitan, así que se entrena unas 2 horas al día con máquinas especiales.',
     'Lo aprendido sobre pérdida ósea sirve para entender la osteoporosis y la recuperación de personas con poco movimiento.'),
   L('radiacion_protector', 'Radiación y protector solar',
-    'Fuera de la protección de la atmósfera la radiación se acumula, y por eso se vigila la dosis de cada persona.',
+    'Fuera de la protección de la atmósfera la radiación se acumula, y por eso se vigila la dosis de cada persona. Medidas reales: unos 0,5 mSv por día en la estación, 1,4 en la superficie de la Luna (sonda Chang\'E-4) y 0,64 en Marte (rover Curiosity). NASA pone un límite de 600 mSv en toda la carrera de un astronauta.',
     'En la Tierra el protector solar, la sombra y evitar el sol fuerte reducen el daño de la radiación ultravioleta en la piel.'),
   L('purificador_aire', 'Purificadores de aire',
     'Se retira el CO₂ que exhala la tripulación y se repone oxígeno, o todos se intoxicarían en cuarto cerrado.',

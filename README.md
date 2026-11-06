@@ -18,6 +18,16 @@ campaña Estación → Luna → Marte con árbol de mejoras, exploración por no
 
 Agencia ficticia. Inspirado en procedimientos y datos abiertos de NASA.
 
+## Lo que trajimos de los otros juegos del equipo
+
+Este juego junta las mejores ideas de tres prototipos del equipo:
+
+- **[V · Mission Control](https://github.com/alejondr3/v-)**: cooperativo **en línea** de 2 a 4 personas (cada una en su compu, con un código de sala) y **recorrer la base** caminando con A/D para **reparar a mano** con procedimientos técnicos (presión de cabina, banda S, bus eléctrico, plantas con hongos).
+- **[Los Tira Vida 02](https://github.com/alejondr3/Lostiravida2)**: **EVA de excavación** en vista lateral en la Luna y Marte (hielo → agua, hierro → piezas, rocas raras → ciencia, regolito → muro contra la radiación) y su **música generativa original** (CC0).
+- Datos de radiación con fuente: estación ~0,5 mSv/día, Luna ~1,4 (Chang'E-4), Marte ~0,64 (Curiosity), límite de carrera NASA 600 mSv.
+
+El cooperativo en línea usa PeerJS (WebRTC) y necesita internet; todo lo demás funciona también en `Jugar.html` sin conexión.
+
 ## Jugar
 
 **En línea:** https://neckhurtttt.github.io/Proyecto-Nasa/

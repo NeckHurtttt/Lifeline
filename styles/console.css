@@ -326,3 +326,31 @@ label.pick { background: rgba(255,255,255,.08); padding: .1rem .5rem; border-rad
 .score-part { display: grid; grid-template-columns: 1.6rem 1fr 3rem; gap: .4rem; align-items: center; margin: .25rem 0; }
 .score-part .w { font-size: .75rem; color: var(--amber); }
 .delta-up { color: var(--green); } .delta-down { color: var(--red, #ff5c5c); }
+
+/* ---------- recorrido de la base (reparación a mano) ---------- */
+.pasillo { display: flex; gap: 4px; overflow-x: auto; padding: .5rem 0; border-top: 2px solid var(--line); border-bottom: 2px solid var(--line); margin: .5rem 0; }
+.tramo { flex: 0 0 76px; border: 1px solid var(--line); padding: 4px; text-align: center; cursor: pointer; background: rgba(0,0,0,.35); }
+.tramo .bar { min-width: 0; height: 8px; }
+.tramo.aqui { border-color: var(--amber); box-shadow: 0 0 8px var(--amber); }
+.tramo.gastado .code { color: var(--amber); }
+.tramo.roto { border-color: var(--red); animation: latido 1.2s infinite; }
+.tramo.off { opacity: .5; }
+.tramo .astro { font-size: 1.4rem; line-height: 1.2; color: var(--amber); min-height: 1.7rem; }
+.consola-tarea { border: 2px solid var(--amber); padding: .6rem .8rem; margin-top: .6rem; background: rgba(0,0,0,.45); }
+.consola-tarea .lectura { font-size: 2rem; margin: .3rem 0; }
+.plantas { display: grid; grid-template-columns: repeat(6, 1fr); gap: 6px; }
+.planta { font-size: 1.4rem; padding: .5rem 0; }
+.planta.fuera { opacity: .35; }
+.pasos { margin: .3rem 0 .6rem 1.2rem; }
+
+/* ---------- EVA de excavación ---------- */
+.terreno { display: grid; gap: 1px; margin: .5rem 0; background: rgba(0,0,0,.5); padding: 2px; user-select: none; touch-action: manipulation; }
+.bloque { aspect-ratio: 1; display: flex; align-items: center; justify-content: center; font-size: clamp(.5rem, 1.6vw, 1rem); line-height: 1; color: var(--dim, #5f8f6f); }
+.bloque.b1 { background: rgba(77,255,136,.10); }
+.bloque.b2 { background: rgba(77,255,136,.22); color: var(--fg); }
+.bloque.b3 { color: #8fe8ff; background: rgba(77,255,136,.12); }
+.bloque.b4 { color: var(--amber); background: rgba(77,255,136,.12); }
+.bloque.b5 { color: #ffffff; background: rgba(77,255,136,.12); }
+.bloque.b6 { background: rgba(77,255,136,.35); }
+.bloque.alcance { outline: 1px dashed var(--amber); cursor: pointer; }
+.bloque.yo { color: var(--amber); font-weight: bold; animation: pulso 1s steps(2) infinite; }

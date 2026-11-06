@@ -9,6 +9,8 @@ import * as arbol from './screens/arbol.js';
 import { setMuted, isMuted, beep } from './audio.js';
 import { hideGuide, relang } from './guide.js';
 import { tr, getLang, setLang, retranslate } from '../i18n/i18n.js';
+import { music } from './music.js';
+import { initCoop, onCoopChange, coopInfo, coopScreen } from './coop.js';
 
 export const PLAYER_ROLES = {
   comandante: 'Comandante',
@@ -62,13 +64,15 @@ export function go(name, params = {}) {
   updateBar();
   const r = screens[name].render(root, app, go, params);
   if (typeof r === 'function') cleanup = r;
-  window.scrollTo(0, 0);
+  if (!params.keepScroll) window.scrollTo(0, 0);
+  if (!params.remote) coopScreen();
 }
 
 export function updateBar() {
   const info = document.getElementById('barra-info');
   const p = app.players.map((x) => `${x.name}: ${x.roles.map((r) => PLAYER_ROLES[r]).join('+')}`).join(' · ');
-  info.textContent = tr(`${app.mode.toUpperCase()} · ${app.difficulty} · ${p}`);
+  const c = coopInfo();
+  info.textContent = tr(`${c.role ? `EN LÍNEA ${c.code} · ` : ''}${app.mode.toUpperCase()} · ${app.difficulty} · ${p}`);
 }
 
 const mute = document.getElementById('silencio');
@@ -84,10 +88,41 @@ langBtn.addEventListener('click', () => {
   beep(760, 40);
 });
 langLabel(); muteLabel();
+const musicBtn = document.getElementById('musica');
+let musicOn = false;
+const musicLabel = () => { musicBtn.textContent = tr(musicOn ? 'MÚSICA: SÍ' : 'MÚSICA: NO'); };
+musicBtn.addEventListener('click', async () => {
+  musicOn = !musicOn;
+  if (musicOn) { await music.start(); music.muted = false; music.setVolume(0.18); } else music.suspend();
+  musicLabel();
+});
+musicLabel();
+/** Cambia el ánimo de la música según lo que pasa. */
+export function musicMood(mode) { if (musicOn && music.mode !== mode) music.modeTo(mode); }
 mute.addEventListener('click', () => {
   setMuted(!isMuted());
   muteLabel();
+  if (isMuted() && musicOn) { musicOn = false; music.suspend(); musicLabel(); }
   if (!isMuted()) beep(880, 60);
+});
+
+// Cooperativo en línea: al llegar un cambio de otra persona se vuelve a dibujar la pantalla.
+let redrawTimer = null; let redrawTo = null;
+initCoop(() => app, (screen) => {
+  if (screen) redrawTo = screen;
+  if (redrawTimer) return; // como mucho 4 redibujos por segundo
+  redrawTimer = setTimeout(() => {
+    redrawTimer = null;
+    const to = redrawTo; redrawTo = null;
+    if (!to && document.activeElement?.tagName === 'INPUT') return; // no borrar lo que alguien está escribiendo
+    const y = window.scrollY;
+    go(to ?? app.screen ?? 'title', { keepScroll: true, remote: true });
+    window.scrollTo(0, y);
+  }, 250);
+});
+onCoopChange((c) => {
+  if (c.players.length) app.players = makePlayers(Math.min(4, c.players.length), c.players.map((p) => p.name));
+  updateBar();
 });
 
 window.vdl = { app, go }; // útil para depurar desde la consola
