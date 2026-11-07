@@ -149,7 +149,7 @@ export function endOuting(state) {
   const v = bagValue(bag, d.wall);
   s.resources.water += v.water;
   s.resources.parts += v.parts;
-  s.resources.science += v.science;
+  s.science = (s.science ?? 0) + v.science;
   d.wall = v.wall;
   d.stock = (d.stock ?? 0) + v.stock;
   const log = [];

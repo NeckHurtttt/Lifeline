@@ -383,7 +383,7 @@ export function render(root, app, go) {
         return h('div', { class: `res-card ${low ? 'low' : ''}`, title: name },
           h('div', { class: 'res-ico code' }, RES_CODE[k]),
           h('div', {}, h('div', { class: 'res-name' }, name),
-            h('div', { class: 'res-val' }, days !== null ? (Number.isFinite(days) ? `${fmt(days)} días` : '♻️ se recicla') : `${fmt(r[k])}${k === 'battery' ? ` / ${r.batteryMax}` : ''}`),
+            h('div', { class: 'res-val' }, days !== null ? (Number.isFinite(days) ? `${fmt(days)} días` : '♻️ se recicla') : `${fmt(r[k])}${k === 'battery' ? ` / ${fmt(r.batteryMax)}` : ''}`),
             bar(frac, k === 'dataStored' ? { invert: true } : {})));
       })),
       h('div', { class: 'row', style: { marginTop: '.5rem' } },

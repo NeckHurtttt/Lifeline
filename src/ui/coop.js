@@ -10,7 +10,7 @@ const PREFIX = 'vdl-sala-';
 const ALPHA = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
 export const COOP_MAX = 4;
 // Versión del protocolo: si alguien entra con la página vieja (caché), se avisa que recargue.
-const COOP_VERSION = 4;
+const COOP_VERSION = 5;
 
 const coop = { base: null, role: null, code: '', name: '', peer: null, conns: [], hostConn: null, players: [], ver: 0, applying: false, status: '', listeners: new Set() };
 let hooks = { getApp: null, rerender: null };
@@ -33,7 +33,7 @@ const gotChat = (from, text) => chatFns.forEach((fn) => fn(from, text));
 export function sendChat(text) {
   if (!coop.role) return;
   const msg = { type: 'chat', from: coop.name, text: String(text).slice(0, 80) };
-  if (coop.role === 'host') broadcast(msg); else if (coop.hostConn?.open) coop.hostConn.send(msg);
+  if (coop.role === 'host') broadcast(msg); else if (coop.hostConn?.open) safeSend(coop.hostConn, msg);
   gotChat(coop.name, msg.text);
 }
 export function onDraft(fn) { draftFns.add(fn); return () => draftFns.delete(fn); }
@@ -45,12 +45,12 @@ export function shareDraft(key, value) {
   drafts[key] = value;
   const msg = { type: 'borrador', key, value };
   if (coop.role === 'host') broadcast(msg);
-  else if (coop.hostConn?.open) coop.hostConn.send(msg);
+  else if (coop.hostConn?.open) safeSend(coop.hostConn, msg);
 }
 /** Pide algo al anfitrión (lanzar, votar). En el anfitrión se cumple al tiro. */
 export function coopAction(name, data = null) {
   if (coop.role === 'host' || !coop.role) actionFns.forEach((fn) => fn(name, data, coop.name));
-  else if (coop.hostConn?.open) coop.hostConn.send({ type: 'accion', name, data });
+  else if (coop.hostConn?.open) safeSend(coop.hostConn, { type: 'accion', name, data });
 }
 export function onCoopChange(fn) { coop.listeners.add(fn); return () => coop.listeners.delete(fn); }
 const changed = () => coop.listeners.forEach((fn) => fn(coopInfo()));
@@ -89,7 +89,12 @@ function apply(msg) {
   hooks.rerender(msg.screen && msg.screen !== app.screen ? msg.screen : null);
 }
 
-function broadcast(msg, except = null) { for (const c of coop.conns) if (c !== except && c.open) { try { c.send(msg); } catch (e) { console.error(e); } } }
+// Todo viaja como texto JSON (igual que el guardado: Infinity/NaN no rompen el envío) por el canal binario de PeerJS,
+// que parte los mensajes grandes en trozos. (El canal 'json' de PeerJS no acepta mensajes de más de 16 KB:
+// el estado pasa ese tamaño hacia el día 50 y el invitado se quedaba congelado.)
+function safeSend(c, msg) { try { if (c?.open) c.send(JSON.stringify(msg)); } catch (e) { console.error(e); } }
+const unwire = (raw) => { if (typeof raw !== 'string') return raw; try { return JSON.parse(raw); } catch { return null; } };
+function broadcast(msg, except = null) { const wire = JSON.stringify(msg); for (const c of coop.conns) if (c !== except && c.open) { try { c.send(wire); } catch (e) { console.error(e); } } }
 
 // Cada guardado local (cualquier decisión) se comparte.
 onSave((state) => {
@@ -99,7 +104,7 @@ onSave((state) => {
     // Solo se manda lo que cambió desde el último estado recibido: el anfitrión lo junta con el suyo.
     const changes = coop.base ? diff(coop.base, state) : [[[], state]];
     coop.base = structuredClone(state);
-    if (changes.length) coop.hostConn.send({ type: 'cambio', changes });
+    if (changes.length) safeSend(coop.hostConn, { type: 'cambio', changes });
   }
 });
 
@@ -108,15 +113,12 @@ export function coopScreen() {
   if (coop.role === 'host' && !coop.applying) { coop.ver++; broadcast(snapshot()); }
 }
 
-// En JSON, igual que el guardado: el empaquetado binario de PeerJS falla con números como Infinity
-// y entonces el invitado dejaba de recibir el estado (se quedaba en el diseño).
 // Latido: a veces la conexión directa se corta sin avisar. Cada 5 s todos mandan una señal;
 // si pasan 15 s sin nada, el anfitrión da al invitado por caído y el invitado se reconecta solo.
 const BEAT_MS = 5000; const DEAD_MS = 15000;
 let beatTimer = null;
 function startBeat(tick) { clearInterval(beatTimer); beatTimer = setInterval(tick, BEAT_MS); }
 const seen = new WeakMap();
-const safeSend = (c, msg) => { try { if (c?.open) c.send(msg); } catch (e) { console.error(e); } };
 
 /** Crea una sala. Devuelve el código. */
 export async function hostRoom(name) {
@@ -138,7 +140,8 @@ export async function hostRoom(name) {
     });
     peer.on('connection', (conn) => {
       seen.set(conn, Date.now());
-      conn.on('data', (msg) => {
+      conn.on('data', (raw) => {
+        const msg = unwire(raw);
         seen.set(conn, Date.now());
         if (msg?.type === 'latido') return;
         if (msg?.type === 'hola') {
@@ -148,7 +151,7 @@ export async function hostRoom(name) {
           const same = coop.players.find((p) => p.name === nm && p.id !== peer.id);
           if (same && !same.away) { const old = coop.conns.find((c) => c.peer === same.id); coop.conns = coop.conns.filter((c) => c !== old); try { old?.close(); } catch { /* ya cerrada */ } same.away = true; same.id = null; }
           const seat = (same?.away ? same : null) ?? (coop.players.length >= COOP_MAX ? coop.players.find((p) => p.away) : null);
-          if (!seat && coop.players.length >= COOP_MAX) { conn.send({ type: 'llena' }); setTimeout(() => conn.close(), 300); return; }
+          if (!seat && coop.players.length >= COOP_MAX) { safeSend(conn, { type: 'llena' }); setTimeout(() => conn.close(), 300); return; }
           coop.conns.push(conn);
           if (seat) {
             if (seat.name !== nm) { for (let n = 2; coop.players.some((p) => p.name === nm); n++) nm = `${String(msg.name || 'Jugador').slice(0, 13)} ${n}`; }
@@ -159,7 +162,7 @@ export async function hostRoom(name) {
             coop.players.push({ id: conn.peer, name: nm });
           }
           if (msg.v !== COOP_VERSION) setStatus(`${nm} tiene una versión vieja del juego: que recargue la página con Ctrl+Shift+R (o borre la caché en el teléfono).`);
-          conn.send({ type: 'nombre', name: nm });
+          safeSend(conn, { type: 'nombre', name: nm });
           syncPlayers();
           coop.ver++; broadcast(snapshot());
         } else if (msg?.type === 'chat' && typeof msg.text === 'string') {
@@ -209,7 +212,7 @@ export async function joinRoom(rawCode, name) {
   leaveRoom();
   const peer = new Peer();
   await new Promise((res, rej) => { peer.on('open', res); peer.on('error', (e) => rej(new Error(`No se pudo conectar: ${e.type ?? e}`))); });
-  const conn = peer.connect(PREFIX + code.toLowerCase(), { reliable: true, serialization: 'json' });
+  const conn = peer.connect(PREFIX + code.toLowerCase(), { reliable: true });
   await new Promise((res, rej) => {
     const t = setTimeout(() => rej(new Error('La sala no responde. Revisa el código.')), 12000);
     conn.on('open', () => { clearTimeout(t); res(); });
@@ -231,7 +234,8 @@ export async function joinRoom(rawCode, name) {
     });
     retry();
   });
-  conn.on('data', (msg) => {
+  conn.on('data', (raw) => {
+    const msg = unwire(raw);
     last = Date.now();
     if (msg?.type === 'latido') return;
     if (msg?.type === 'estado') apply(msg);
@@ -241,7 +245,7 @@ export async function joinRoom(rawCode, name) {
     else if (msg?.type === 'llena') { setStatus('La sala está llena (máximo 4).'); leaveRoom(); }
   });
   conn.on('close', () => { if (coop.hostConn !== conn) return; clearInterval(beatTimer); setStatus('El anfitrión cerró la sala. La partida sigue en esta compu, sin conexión.'); coop.role = null; changed(); hooks.rerender(null); });
-  conn.send({ type: 'hola', name: coop.name, v: COOP_VERSION });
+  safeSend(conn, { type: 'hola', name: coop.name, v: COOP_VERSION });
   setStatus(`Conectado a la sala ${code}.`);
 }
 

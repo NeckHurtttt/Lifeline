@@ -164,3 +164,12 @@ test('regolito sobrante de Excavar: se guarda y paga parches, menos en equipos e
   assert.equal(r.state.dig.stock, 5 - REGOLITH_PATCH);
   assert.equal(r.state.resources.parts, 0);
 });
+
+test('excavación: las muestras raras suman ciencia de verdad (no NaN)', () => {
+  let s = startOuting(ensureTerrain(moon()), [moon().crew[0].id, moon().crew[1].id]).state;
+  s.dig.outing.bag.rara = 2;
+  const sci = s.science;
+  s = endOuting(s).state;
+  assert.equal(s.science, sci + 6);
+  assert.equal(s.resources.science, undefined);
+});
