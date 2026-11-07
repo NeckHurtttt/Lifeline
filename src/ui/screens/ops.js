@@ -422,7 +422,7 @@ export function render(root, app, go) {
     const lsOn = s.modules.some((m) => m.type === 'soporte_vital' && m.on);
     const chip = (ico, name, d, note) => {
       const cls = !Number.isFinite(d) ? 'ok' : d < 7 ? 'bad' : d < 20 ? 'warn' : 'ok';
-      return h('span', { class: `chip-res ${cls}`, title: `${name}: días que alcanza al ritmo de hoy` }, `${ico} ${name} ${Number.isFinite(d) ? `${fmt(d)} d` : note}`);
+      return h('span', { class: `chip-res ${cls}`, title: `${name}: días que alcanza al ritmo de hoy` }, `${ico} `, h('span', {}, name), ` ${Number.isFinite(d) ? `${fmt(d)} d` : ''}`, Number.isFinite(d) ? null : h('span', {}, note));
     };
     return h('div', { class: 'reservas', id: 'reservas' },
       chip('💧', 'Agua', left.water), chip('🍎', 'Comida', left.food), chip('🫁', 'O₂', left.o2, lsOn ? '♻️ del agua' : '—'),
@@ -446,7 +446,7 @@ export function render(root, app, go) {
         h('div', { class: 'row' }, ...Object.entries(CARGO_PLANS).map(([id, p]) => h('button', {
           class: (s.cargoPlan ?? 'equilibrada') === id ? 'sel' : '', 'data-carga': id, title: p.desc,
           onclick: () => { commit({ ...app.state, cargoPlan: id }); beep(820, 40); draw(); },
-        }, `${p.icon} ${p.name}`))),
+        }, `${p.icon} `, h('span', {}, p.name)))),
         h('div', { class: 'small dim' }, (CARGO_PLANS[s.cargoPlan] ?? CARGO_PLANS.equilibrada).desc)) : null,
       r.batteryBase ? h('div', { style: { marginTop: '.5rem' } },
         h('div', { class: 'small' }, `🔋 Salud de las baterías: ${Math.round(bh * 100)} % (pierden capacidad con cada carga y descarga)`), bar(bh, { warn: 0.8, danger: 0.65 }),

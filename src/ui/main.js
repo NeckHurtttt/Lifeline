@@ -204,7 +204,8 @@ const PHRASES = ['¡GO!', '¡Necesito piezas!', 'Falta energía ⚡', 'Hay que r
 let chatBar = null;
 onCoopChange((c) => {
   if (c.role && !chatBar) {
-    chatBar = h('div', { class: 'chat-bar', id: 'chat' }, ...PHRASES.map((p) => h('button', { onclick: () => sendChat(p) }, p)));
+    const list = h('div', { class: 'chat-list' }, ...PHRASES.map((p) => h('button', { onclick: () => { sendChat(p); chatBar.classList.remove('open'); } }, p)));
+    chatBar = h('div', { class: 'chat-bar', id: 'chat' }, h('button', { class: 'chat-toggle', title: 'Chat rápido', onclick: () => chatBar.classList.toggle('open') }, '💬'), list);
     document.body.append(chatBar);
   } else if (!c.role && chatBar) { chatBar.remove(); chatBar = null; }
 });

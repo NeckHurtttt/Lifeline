@@ -103,7 +103,12 @@ export function say(text, { mood = 'normal', target = null, buttons = [], quiet 
   }, 18);
   if (!quiet) beep(mood === 'alerta' ? 520 : 980, 40, 'sine', 0.03);
   box.classList.remove('pop'); void box.offsetWidth; box.classList.add('pop');
+  // Los consejos tranquilos se achican solos a los 9 s para no tapar la pantalla (pasar el mouse sobre Nova los muestra).
+  clearTimeout(restTimer);
+  box.classList.remove('resting');
+  if (quiet && !buttons.length && mood !== 'alerta') restTimer = setTimeout(() => box.classList.add('resting'), 9000);
 }
+let restTimer = null;
 
 export function hideGuide() {
   if (!box) return;

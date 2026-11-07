@@ -234,7 +234,8 @@ export function resolveResupply(state, rng) {
     const plan = CARGO_PLANS[s.cargoPlan] ?? CARGO_PLANS.equilibrada;
     const days = Math.round((every + SLIP_DAYS[s.difficulty]) * CARGO_SHARE[s.difficulty] * plan.food);
     s = applyEffects(s, {
-      food: days * n * NEEDS.food, water: days * n * NEEDS.water, o2: Math.min(days, 15) * n * NEEDS.o2, parts: plan.parts, meds: 5 * n,
+      // las cargas más espaciadas (Luna, Gateway) traen más repuestos
+      food: days * n * NEEDS.food, water: days * n * NEEDS.water, o2: Math.min(days, 15) * n * NEEDS.o2, parts: Math.round(plan.parts * Math.max(1, every / 60)), meds: 5 * n,
     });
     if (plan.science) s.science += plan.science;
     // La bodega tiene lugar limitado: lo que no cabe se queda en la nave de carga (que se desecha al irse).
@@ -248,7 +249,10 @@ export function resolveResupply(state, rng) {
     s.medsExpiry = s.day + 180;
     const delay = rng.int(0, SLIP_DAYS[s.difficulty]);
     s.nextResupply += every + delay;
-    log.push(`${ev.name}: ${ev.text.media} Carga ${plan.icon} ${plan.name.toLowerCase()}: comida y agua para ${days} días, ${plan.parts} piezas${plan.science ? `, experimentos (+${plan.science} ciencia)` : ''} y medicinas frescas.${delay ? ` La próxima se atrasa ${delay} días.` : ''}`);
+    const parts = Math.round(plan.parts * Math.max(1, every / 60));
+    const sci = plan.science ? `, experimentos (+${plan.science} ciencia)` : '';
+    const slip = delay ? ` La próxima se atrasa ${delay} días.` : '';
+    log.push(`${ev.name}: ${ev.text.media} Carga ${plan.icon} ${plan.name.toLowerCase()}: comida y agua para ${days} días, ${parts} piezas${sci} y medicinas frescas.${slip}`);
   }
   for (const t of log) addLog(s, t, boom ? 'evento' : 'bueno');
   return { state: s, log, event };

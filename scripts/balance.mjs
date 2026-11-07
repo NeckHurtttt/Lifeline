@@ -30,7 +30,9 @@ const solve = (p) => (p.kind === 'ajuste' ? p.target : p.kind === 'plantas' ? p.
 // que saca los bloques más valiosos cerca de la esclusa (estimación generosa: sin perder tiempo caminando).
 function expertDay(s) {
   for (let k = 0; k < 2; k++) {
-    const m = s.modules.filter((x) => x.health < 70).sort((a, b) => a.health - b.health)[0];
+    // como un jugador atento: primero lo vital (soporte vital, cabina, energía), después lo demás
+    const VITAL = { soporte_vital: 0, cabina: 1, reactor: 2, paneles: 2, pila_regenerativa: 2, baterias: 2, planta_combustible: 3 };
+    const m = s.modules.filter((x) => x.health < 70 && (x.type in VITAL || s.resources.parts > 20)).sort((a, b) => (VITAL[a.type] ?? 9) - (VITAL[b.type] ?? 9) || a.health - b.health)[0];
     if (!m || fieldRepairBlock(s, m.id)) break;
     s = applyFieldRepair(s, m.id, solve(repairPuzzle(s, m.id))).state;
   }
