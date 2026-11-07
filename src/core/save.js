@@ -8,7 +8,8 @@ export function onSave(fn) { listeners.add(fn); return () => listeners.delete(fn
 
 export function save(state, storage = globalThis.localStorage) {
   storage.setItem(KEY, JSON.stringify({ v: VERSION, state }));
-  for (const fn of listeners) fn(state);
+  // Un oyente que falla (p. ej. la conexión en línea rota) no debe frenar el juego.
+  for (const fn of listeners) { try { fn(state); } catch (e) { console.error(e); } }
 }
 
 export function load(storage = globalThis.localStorage) {

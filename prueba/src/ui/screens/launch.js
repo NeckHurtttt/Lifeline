@@ -288,6 +288,7 @@ export function render(root, app, go) {
     if (s.phase === 'ops' && mode === 'auto') setTimeout(() => !cancelled && go('ops'), 1200);
   }
 
-  run();
+  // Si algo falla a mitad del despegue, no se queda trabado: se avisa y se puede seguir.
+  run().catch((e) => { console.error(e); if (!cancelled) { try { say('Falla de la computadora de vuelo: seguimos con lo que hay.', 'evento'); } catch { /* sin radio */ } finish(); } });
   return () => { cancelled = true; hum(false); };
 }

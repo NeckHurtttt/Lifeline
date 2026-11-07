@@ -10,7 +10,7 @@ const PREFIX = 'vdl-sala-';
 const ALPHA = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
 export const COOP_MAX = 4;
 // Versión del protocolo: si alguien entra con la página vieja (caché), se avisa que recargue.
-const COOP_VERSION = 2;
+const COOP_VERSION = 3;
 
 const coop = { base: null, role: null, code: '', name: '', peer: null, conns: [], hostConn: null, players: [], ver: 0, applying: false, status: '', listeners: new Set() };
 let hooks = { getApp: null, rerender: null };
@@ -89,7 +89,7 @@ function apply(msg) {
   hooks.rerender(msg.screen && msg.screen !== app.screen ? msg.screen : null);
 }
 
-function broadcast(msg, except = null) { for (const c of coop.conns) if (c !== except && c.open) c.send(msg); }
+function broadcast(msg, except = null) { for (const c of coop.conns) if (c !== except && c.open) { try { c.send(msg); } catch (e) { console.error(e); } } }
 
 // Cada guardado local (cualquier decisión) se comparte.
 onSave((state) => {
@@ -108,6 +108,14 @@ export function coopScreen() {
   if (coop.role === 'host' && !coop.applying) { coop.ver++; broadcast(snapshot()); }
 }
 
+// Latido: a veces la conexión directa se corta sin avisar. Cada 5 s todos mandan una señal;
+// si pasan 15 s sin nada, el anfitrión da al invitado por caído y el invitado se reconecta solo.
+const BEAT_MS = 5000; const DEAD_MS = 15000;
+let beatTimer = null;
+function startBeat(tick) { clearInterval(beatTimer); beatTimer = setInterval(tick, BEAT_MS); }
+const seen = new WeakMap();
+const safeSend = (c, msg) => { try { if (c?.open) c.send(msg); } catch (e) { console.error(e); } };
+
 /** Crea una sala. Devuelve el código. */
 export async function hostRoom(name) {
   const Peer = await loadPeer();
@@ -119,8 +127,18 @@ export async function hostRoom(name) {
     const ok = await new Promise((res) => { peer.on('open', () => res(true)); peer.on('error', () => res(false)); });
     if (!ok) { peer.destroy(); continue; }
     Object.assign(coop, { role: 'host', code, peer, conns: [], players: [{ id: peer.id, name: coop.name }], ver: 0 });
+    startBeat(() => {
+      const now = Date.now();
+      for (const c of [...coop.conns]) {
+        if (now - (seen.get(c) ?? now) > DEAD_MS) { try { c.close(); } catch { /* ya cerrada */ } dropConn(c); }
+        else safeSend(c, { type: 'latido' });
+      }
+    });
     peer.on('connection', (conn) => {
+      seen.set(conn, Date.now());
       conn.on('data', (msg) => {
+        seen.set(conn, Date.now());
+        if (msg?.type === 'latido') return;
         if (msg?.type === 'hola') {
           let nm = String(msg.name || 'Jugador').trim().slice(0, 16) || 'Jugador';
           // Reconexión: si vuelve alguien que se cayó (mismo nombre), recupera su lugar y sus roles.
@@ -161,12 +179,7 @@ export async function hostRoom(name) {
         }
       });
       // Si alguien se cae, su lugar queda guardado (con sus roles) hasta que vuelva con el mismo nombre.
-      conn.on('close', () => {
-        coop.conns = coop.conns.filter((c) => c !== conn);
-        const p = coop.players.find((x) => x.id === conn.peer);
-        if (p) { p.away = true; p.id = null; setStatus(`${p.name} se desconectó: si vuelve a entrar con el mismo nombre recupera su lugar.`); }
-        syncPlayers(); broadcast(snapshot());
-      });
+      conn.on('close', () => dropConn(conn));
     });
     peer.on('disconnected', () => setStatus('Sin conexión con el directorio; la sala sigue para quien ya entró.'));
     setStatus(`Sala ${code} abierta. Comparte el código.`);
@@ -174,6 +187,14 @@ export async function hostRoom(name) {
     return code;
   }
   throw new Error('No se pudo abrir la sala. Prueba otra vez.');
+}
+
+function dropConn(conn) {
+  if (!coop.conns.includes(conn)) return;
+  coop.conns = coop.conns.filter((c) => c !== conn);
+  const p = coop.players.find((x) => x.id === conn.peer);
+  if (p) { p.away = true; p.id = null; setStatus(`${p.name} se desconectó: si vuelve a entrar con el mismo nombre recupera su lugar.`); }
+  syncPlayers(); broadcast(snapshot());
 }
 
 /** Entra a una sala con su código. */
@@ -191,21 +212,41 @@ export async function joinRoom(rawCode, name) {
     peer.on('error', (e) => { clearTimeout(t); rej(new Error(e.type === 'peer-unavailable' ? 'No existe una sala con ese código.' : `Error: ${e.type ?? e}`)); });
   });
   Object.assign(coop, { role: 'guest', code, peer, hostConn: conn, name: name || 'Jugador' });
+  let last = Date.now(); let rejoining = false;
+  startBeat(() => {
+    if (coop.hostConn !== conn || rejoining) return;
+    if (Date.now() - last <= DEAD_MS) { safeSend(conn, { type: 'latido' }); return; }
+    // Sin noticias del anfitrión: se vuelve a entrar con el mismo nombre (recupera su lugar).
+    rejoining = true;
+    setStatus('Se perdió la conexión con el anfitrión. Reconectando…');
+    const nm = coop.name;
+    const retry = () => joinRoom(code, nm).catch(() => {
+      if (coop.role) return; // el jugador entró a otra sala mientras tanto
+      setStatus('No se pudo reconectar todavía. Se vuelve a intentar…');
+      setTimeout(() => { if (!coop.role) retry(); }, BEAT_MS);
+    });
+    retry();
+  });
   conn.on('data', (msg) => {
+    last = Date.now();
+    if (msg?.type === 'latido') return;
     if (msg?.type === 'estado') apply(msg);
     else if (msg?.type === 'borrador') gotDraft(msg.key, msg.value);
     else if (msg?.type === 'chat') gotChat(msg.from, msg.text);
     else if (msg?.type === 'nombre') { coop.name = msg.name; changed(); }
     else if (msg?.type === 'llena') { setStatus('La sala está llena (máximo 4).'); leaveRoom(); }
   });
-  conn.on('close', () => { setStatus('El anfitrión cerró la sala. La partida sigue en esta compu, sin conexión.'); coop.role = null; changed(); hooks.rerender(null); });
+  conn.on('close', () => { if (coop.hostConn !== conn) return; clearInterval(beatTimer); setStatus('El anfitrión cerró la sala. La partida sigue en esta compu, sin conexión.'); coop.role = null; changed(); hooks.rerender(null); });
   conn.send({ type: 'hola', name: coop.name, v: COOP_VERSION });
   setStatus(`Conectado a la sala ${code}.`);
 }
 
 export function leaveRoom() {
-  try { coop.peer?.destroy(); } catch { /* ya cerrada */ }
+  clearInterval(beatTimer);
+  const old = coop.peer;
+  // Primero se limpia, para que el aviso de cierre de la conexión vieja no se tome como el anfitrión saliendo.
   Object.assign(coop, { role: null, code: '', peer: null, conns: [], hostConn: null, players: [], ver: 0 });
+  try { old?.destroy(); } catch { /* ya cerrada */ }
   for (const k of Object.keys(drafts)) delete drafts[k];
   changed();
 }
