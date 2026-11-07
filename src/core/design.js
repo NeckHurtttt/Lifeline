@@ -4,6 +4,7 @@ import { MODULES, INSTRUMENTS, LAUNCHERS, ORBITS, CARGO, DIFFICULTY, SCENARIOS, 
 import { ROLES } from '../data/crew.js';
 import { CONTINGENCY_DAYS } from './protocols.js';
 import { availableIn } from './surface.js';
+import { CREW_KW, SOLAR_EFFICIENCY } from './life.js';
 
 const f1 = (n) => n.toFixed(1);
 const suma = (lista, fn) => lista.reduce((s, e) => s + fn(e), 0);
@@ -27,9 +28,9 @@ export function computeDesign(design, scenarioId, difficulty, budgetMult = 1) {
   const cost = suma(mods, (m) => m.def.cost) + suma(instr, (i) => i.cost) + (launcher ? launcher.cost * (hasUpgrade(design, 'cohete_reutilizable') ? 0.75 : 1) : 0) + cargoCost;
   const capacity = launcher && orbit ? launcher.capacity * orbit.factor : 0;
   const solar = orbit ? orbit.solarFraction : 1;
-  const panelBoost = hasUpgrade(design, 'paneles_eficientes') ? 1.2 : 1;
+  const panelBoost = (hasUpgrade(design, 'paneles_eficientes') ? 1.2 : 1) * SOLAR_EFFICIENCY;
   const kwDe = (e, esModulo) => (esModulo && e.solar ? e.kw * solar * panelBoost : e.kw);
-  const powerNet = suma(mods, (m) => kwDe(m.def, true)) + suma(instr, (i) => i.kw);
+  const powerNet = suma(mods, (m) => kwDe(m.def, true)) + suma(instr, (i) => i.kw) - crew * CREW_KW;
   const energyPerDay = powerNet * 24;
   const sc = SCENARIOS[scenarioId] || SCENARIOS.estacion;
   const budget = diff.budget * budgetMult * (sc.budgetMult ?? 1);
@@ -54,6 +55,7 @@ export function computeDesign(design, scenarioId, difficulty, budgetMult = 1) {
     if (nightNeed > storage) warnings.push(`La noche dura ${orbit.nightDays} días sin sol: necesitas guardar ${f1(nightNeed)} kWh y tus baterías guardan ${f1(storage)}. Agrega pilas regenerativas o un reactor`);
     else if (dayCharge < nightNeed) warnings.push(`De día no sobra energía para cargar las baterías antes de la noche (${f1(dayCharge)} de ${f1(nightNeed)} kWh). Agrega paneles`);
   }
+  if (sc.resupplyEvery && design.cargoDays < sc.resupplyEvery + 30) warnings.push(`Poca reserva: las naves de carga llegan cada ${sc.resupplyEvery} días y a veces se atrasan o explotan. Lleva al menos ${sc.resupplyEvery + 30} días de comida`);
   if (mods.some((m) => m.placed.type === 'extractor_hielo') && orbit && !orbit.ice) warnings.push('El extractor de hielo no sirve aquí: en este lugar no hay hielo');
   for (const id of requeridos) {
     if (!mods.some((m) => m.placed.type === id)) errors.push(`Falta el módulo obligatorio: ${etiqueta(id)}`);

@@ -3,7 +3,9 @@ import { ORBITS, SCENARIOS } from '../data/catalog.js';
 
 export const siteOf = (state) => ORBITS[state.design.orbit];
 export const scenarioOf = (state) => SCENARIOS[state.scenarioId] ?? SCENARIOS.estacion;
-export const availableIn = (def, scenarioId) => !def?.scenarios || def.scenarios.includes(scenarioId);
+// El Gateway es una estación en órbita: le sirve casi todo lo de la estación (salvo lo marcado notGateway).
+export const availableIn = (def, scenarioId) => !def?.scenarios || def.scenarios.includes(scenarioId)
+  || (scenarioId === 'gateway' && def.scenarios.includes('estacion') && !def.notGateway);
 
 /** ¿Es de noche el día `day`? (el día 1 empieza al amanecer) */
 export function isNight(site, day) {

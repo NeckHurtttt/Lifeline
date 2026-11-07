@@ -47,14 +47,16 @@ test('reparacion sin piezas', () => {
   assert.ok(log.includes('Faltan piezas para reparar'));
 });
 
-test('cultivo sin invernadero no produce; con invernadero si', () => {
+test('cultivo cuida el huerto (crece por etapas); sin invernadero no hace nada', () => {
   const s = idle(mk());
   s.schedule[s.crew[0].id] = ['cultivo', 'sueño', 'sueño'];
   assert.equal(applyTasks(s, rng()).state.resources.food, s.resources.food);
   const g = idle(mk(['invernadero']));
   g.crew[0].stats.ciencia = 7; g.crew[0].role = 'cientifico';
   g.schedule[g.crew[0].id] = ['cultivo', 'sueño', 'sueño'];
-  assert.ok(Math.abs(applyTasks(g, rng()).state.resources.food - g.resources.food - 1.5) < 1e-9);
+  const after = applyTasks(g, rng()).state;
+  assert.equal(after.resources.food, g.resources.food);
+  assert.ok(after.garden.care > 0);
 });
 
 test('ejercicio, sueño y refugio en ctx', () => {

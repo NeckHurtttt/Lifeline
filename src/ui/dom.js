@@ -19,6 +19,7 @@ export function h(tag, attrs = {}, ...kids) {
     else if (k === 'style' && typeof v === 'object') Object.assign(el.style, v);
     else if (k === 'value') el.value = v;
     else if (v === true) el.setAttribute(k, '');
+    else if (k === 'placeholder') { el.__esPh = String(v); el.setAttribute(k, tr(String(v))); }
     else if (k === 'title') { el.__esTitle = String(v); el.__fmt = plain; el.setAttribute(k, plain(tr(String(v)))); }
     else el.setAttribute(k, v);
   }

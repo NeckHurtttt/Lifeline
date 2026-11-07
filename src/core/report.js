@@ -57,7 +57,7 @@ export function buildReport(state) {
   const success = state.outcome?.success ?? false;
   const science = Math.round(state.science);
   // Meta de ciencia según destino y duración (una misión bien llevada la alcanza; a ciegas, no).
-  const goalPerDay = { estacion: 8, luna: 9, marte: 7 }[state.scenarioId] ?? 8;
+  const goalPerDay = { estacion: 8, gateway: 9, luna: 9, marte: 7 }[state.scenarioId] ?? 8;
   const scienceGoal = Math.round(goalPerDay * (state.totalDays ?? 365));
   let medal = null;
   if (success) medal = survivors === total && science >= scienceGoal ? 'oro' : survivors >= total / 2 && science >= scienceGoal / 2 ? 'plata' : 'bronce';
@@ -109,6 +109,6 @@ export function buildReport(state) {
     resources: { min, end },
     causes: top.map((f) => f.cause),
     suggestions: top.map((f) => f.suggestion),
-    lessons: [...new Set(top.map((f) => f.lesson))],
+    lessons: [...new Set([...top.map((f) => f.lesson), ...(state.dig?.lastDay > 0 ? ['excavar_recursos'] : []), ...(state.fieldRepairs ? ['reparar_a_mano'] : [])])],
   };
 }

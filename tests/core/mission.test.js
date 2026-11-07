@@ -44,12 +44,12 @@ test('4 roles -> 4 tripulantes con nombres distintos y rasgos', () => {
 test('comida medio 90 días 4 tripulantes', () => {
   const m = mk();
   assert.ok(Math.abs(m.resources.food - 90 * 1.8 * 4 * 1.2) < 0.01);
-  assert.ok(Math.abs(m.resources.o2 - 90 * 0.84 * 4 * 1.2) < 0.01);
+  assert.ok(Math.abs(m.resources.o2 - 45 * 0.84 * 4 * 1.2) < 0.01); // tanques solo para emergencias
 });
 
-test('agua inicial con O2 desde agua y colchón de 500 L', () => {
+test('agua inicial: lo que no se recupera (7 %) más la que se vuelve O2, sin regalos', () => {
   const m = mk();
-  const esperado = (2.75 * 0.02 + 0.95) * 4 * 90 * 1.2 + 500;
+  const esperado = (3.5 * 0.07 + 0.95) * 4 * 90 * 1.2;
   assert.ok(Math.abs(m.resources.water - esperado) < 0.01);
 });
 

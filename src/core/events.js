@@ -1,15 +1,21 @@
 // Eventos, avisos, desastres y cadenas. Funciones puras: devuelven estado nuevo (structuredClone).
 import { hasUpgrade } from './campaign.js';
-import { DIFFICULTY, MODULES, SCENARIOS } from '../data/catalog.js';
+import { DIFFICULTY, MODULES, SCENARIOS, CARGO } from '../data/catalog.js';
 import { EVENTS } from '../data/events.js';
 import { skillCheck } from './skill.js';
 import { envMults, siteOf, availableIn } from './surface.js';
 import { inBlackout } from './mars.js';
+import { addFault } from './repairs.js';
 
 const SEVERITIES = ['leve', 'media', 'grave'];
 const POSITIVE_CHANCE = 0.06;
-const BOOM = { facil: 0.1, medio: 0.15, dificil: 0.2 };
-const NEEDS = { food: 1.8, water: 2.75 * 0.02 + 0.95, o2: 0.84 };
+// Fallas reales de naves de carga a la estación: ~5 % (CRS-7, Orb-3, Progress M-27M y MS-04 en ~70 vuelos).
+const BOOM = { facil: 0.04, medio: 0.07, dificil: 0.1 };
+// Parte del consumo que cubre cada nave de carga, y cuántos días se puede atrasar la siguiente.
+const CARGO_SHARE = { facil: 1.1, medio: 1, dificil: 1 };
+const SLIP_DAYS = { facil: 4, medio: 8, dificil: 15 };
+import { NEEDS } from './life.js';
+import { CARGO_PLANS } from './extras.js';
 const RESOURCE_KEYS = ['o2', 'water', 'food', 'meds', 'parts', 'fuel', 'battery'];
 const RESUPPLY_ONLY = new Set(['carga_a_tiempo', 'carga_explota']);
 const DEBRIS = new Set(['micrometeoritos', 'basura_tardia']);
@@ -127,6 +133,7 @@ export function applyEffects(state, effects) {
         if (!m) continue;
         m.health = clamp(m.health - n, 0, 100);
         if (m.health <= 0) m.on = false;
+        if (n > 0 && s.phase === 'ops') addFault(s, m);
       }
     } else if (k === 'moduleOff') {
       for (const [type, days] of Object.entries(v)) {
@@ -191,6 +198,11 @@ export function resolveEvent(state, eventId, severity, optionId, rng, prepared) 
   } else log.push(`Decisión: ${opt.label}.`);
   s = applyEffects(s, effects);
   s.pending = null;
+  // Consecuencias que llegan días después (decisiones encadenadas).
+  if (opt.later) {
+    s.delayed ??= [];
+    s.delayed.push({ day: s.day + opt.later.days, effects: opt.later.effects[sev] ?? opt.later.effects, text: opt.later.text });
+  }
   for (const c of ev.chain ?? []) {
     if (rng.chance(c.prob)) {
       launchEvent(s, c.eventId, rng);
@@ -203,24 +215,55 @@ export function resolveEvent(state, eventId, severity, optionId, rng, prepared) 
 }
 
 export function resolveResupply(state, rng) {
-  const boom = rng.chance(BOOM[state.difficulty]);
+  const forced = (state.forceBoom ?? 0) > 0;
+  const boom = forced || rng.chance(BOOM[state.difficulty]);
   const event = boom ? 'carga_explota' : 'carga_a_tiempo';
   const ev = EVENTS[event];
   let s = structuredClone(state);
   const log = [];
   if (boom) {
+    if (forced) s.forceBoom -= 1;
     s.nextResupply += 30;
     log.push(`${ev.name}: ${ev.text.media} Próximo intento en 30 días.`);
   } else {
     const n = s.crew.filter((c) => c.alive).length;
-    const days = Math.max(60, SCENARIOS[s.scenarioId].resupplyEvery || 60);
+    const every = SCENARIOS[s.scenarioId].resupplyEvery || 60;
+    // Como en la estación real: la nave de carga trae más o menos lo que se gasta en el periodo,
+    // pero los lanzamientos se atrasan y a veces explotan (2014-15 fallaron 3 seguidas). Hay que llevar reserva propia.
+    // Control de Misión carga para el periodo más el atraso máximo, como margen.
+    const plan = CARGO_PLANS[s.cargoPlan] ?? CARGO_PLANS.equilibrada;
+    const days = Math.round((every + SLIP_DAYS[s.difficulty]) * CARGO_SHARE[s.difficulty] * plan.food);
     s = applyEffects(s, {
-      food: days * n * NEEDS.food, water: days * n * NEEDS.water, o2: days * n * NEEDS.o2, parts: 20, meds: 5 * n,
+      // las cargas más espaciadas (Luna, Gateway) traen más repuestos
+      food: days * n * NEEDS.food, water: days * n * NEEDS.water, o2: Math.min(days, 15) * n * NEEDS.o2, parts: Math.round(plan.parts * (s.difficulty === 'dificil' ? 1 : Math.sqrt(Math.max(1, every / 60)))), meds: 5 * n,
     });
+    if (plan.science) s.science += plan.science;
+    // La bodega tiene lugar limitado: lo que no cabe se queda en la nave de carga (que se desecha al irse).
+    const storeDays = (CARGO.baseDays + s.modules.reduce((t, m) => t + (MODULES[m.type]?.cargoDays ?? 0), 0)) * (1 + DIFFICULTY[s.difficulty].reserveBonus);
+    let lost = 0;
+    for (const k of ['food', 'water']) {
+      const cap = storeDays * n * NEEDS[k];
+      if (s.resources[k] > cap) { lost = Math.max(lost, (s.resources[k] - cap) / (n * NEEDS[k])); s.resources[k] = cap; }
+    }
+    if (lost >= 1) log.push(`La bodega está llena: no cupieron ${Math.round(lost)} días de comida y agua. Más 📦 bodegas = más reserva.`);
     s.medsExpiry = s.day + 180;
-    s.nextResupply += SCENARIOS[s.scenarioId].resupplyEvery;
-    log.push(`${ev.name}: ${ev.text.media} Llegan ${days} días de comida, agua y O₂, 20 piezas y medicinas frescas.`);
+    const delay = rng.int(0, SLIP_DAYS[s.difficulty]);
+    s.nextResupply += every + delay;
+    const parts = Math.round(plan.parts * (s.difficulty === 'dificil' ? 1 : Math.sqrt(Math.max(1, every / 60))));
+    const sci = plan.science ? `, experimentos (+${plan.science} ciencia)` : '';
+    const slip = delay ? ` La próxima se atrasa ${delay} días.` : '';
+    log.push(`${ev.name}: ${ev.text.media} Carga ${plan.icon} ${plan.name.toLowerCase()}: comida y agua para ${days} días, ${parts} piezas${sci} y medicinas frescas.${slip}`);
   }
   for (const t of log) addLog(s, t, boom ? 'evento' : 'bueno');
   return { state: s, log, event };
+}
+
+/** Aplica las consecuencias atrasadas que vencen hoy. Puro. */
+export function tickDelayed(state) {
+  if (!state.delayed?.length) return state;
+  let s = structuredClone(state);
+  const due = s.delayed.filter((d) => d.day <= s.day);
+  s.delayed = s.delayed.filter((d) => d.day > s.day);
+  for (const d of due) { s = applyEffects(s, d.effects); addLog(s, `Consecuencia de una decisión anterior: ${d.text}`, 'evento'); }
+  return s;
 }

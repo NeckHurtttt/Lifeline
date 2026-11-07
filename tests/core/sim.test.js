@@ -46,7 +46,11 @@ test('todos mueren el mismo día: se detiene y la misión falla (Review Focus 2)
 });
 
 test('misión mínima con 365 días de carga en fácil llega a la reentrada', () => {
-  const s = autoplay(mk({ difficulty: 'facil', cargoDays: 365 }));
+  const m = mk({ difficulty: 'facil', cargoDays: 365 });
+  // sin mantenimiento el soporte vital se gasta y recicla peor el agua: alguien tiene que cuidarlo
+  m.schedule.c1 = ['mantenimiento', 'ejercicio', 'sueño'];
+  m.schedule.c2 = ['reparacion', 'ejercicio', 'sueño'];
+  const s = autoplay(m);
   assert.equal(s.phase, 'reentry');
   assert.equal(s.day, 365);
   assert.equal(s.history.length, 365);

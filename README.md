@@ -18,6 +18,31 @@ campaña Estación → Luna → Marte con árbol de mejoras, exploración por no
 
 Agencia ficticia. Inspirado en procedimientos y datos abiertos de NASA.
 
+## Lo que trajimos de los otros juegos del equipo
+
+Este juego junta las mejores ideas de tres prototipos del equipo:
+
+- **[V · Mission Control](https://github.com/alejondr3/v-)**: cooperativo **en línea** de 2 a 4 personas (cada una en su compu, con un código de sala) y **recorrer la base** caminando con A/D para **reparar a mano** con procedimientos técnicos (presión de cabina, banda S, bus eléctrico, plantas con hongos).
+- **[Los Tira Vida 02](https://github.com/alejondr3/Lostiravida2)**: **EVA de excavación** en vista lateral en la Luna y Marte (hielo → agua, hierro → piezas, rocas raras → ciencia, regolito → muro contra la radiación) y su **música generativa original** (CC0).
+- Datos de radiación con fuente: estación ~0,5 mSv/día, Luna ~1,4 (Chang'E-4), Marte ~0,64 (Curiosity), límite de carrera NASA 600 mSv.
+
+El cooperativo en línea usa PeerJS (WebRTC) y necesita internet; todo lo demás funciona también en `Jugar.html` sin conexión.
+
+## Herramientas, datos y uso de IA
+
+Space Apps pide documentar el software y los servicios de terceros. Este juego usa:
+
+| Qué | Para qué | Licencia / nota |
+|---|---|---|
+| [PeerJS](https://peerjs.com/) 1.5.4 (desde jsDelivr) | Cooperativo en línea (WebRTC) | MIT; solo se carga al crear o unirse a una sala |
+| [esbuild](https://esbuild.github.io/) (vía `npx`) | Empaquetar `Jugar.html` | MIT; solo en desarrollo |
+| API DONKI de NASA | Fechas reales de llamaradas solares (con respaldo de 2024 sin conexión) | Datos abiertos de NASA |
+| Fuente VT323 | Letra de consola | SIL Open Font License |
+| Música generativa de *Los Tira Vida 02* | Banda sonora | CC0 (del propio equipo) |
+| Claude (Anthropic) | Asistente de IA usado para programar y redactar con el equipo | Las decisiones de diseño y las pruebas son del equipo |
+
+Datos de radiación: Chang'E-4 LND (Luna), MSL/Curiosity RAD (Marte), NASA-STD-3001 (límite de carrera).
+
 ## Jugar
 
 **En línea:** https://neckhurtttt.github.io/Proyecto-Nasa/

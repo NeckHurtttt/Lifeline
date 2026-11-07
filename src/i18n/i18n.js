@@ -53,4 +53,5 @@ export function retranslate(root = document.body) {
   const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
   for (let n = walker.nextNode(); n; n = walker.nextNode()) if (n.__es !== undefined) n.nodeValue = n.__fmt(tr(n.__es));
   for (const el of root.querySelectorAll('[title]')) if (el.__esTitle !== undefined) el.title = el.__fmt(tr(el.__esTitle));
+  for (const el of root.querySelectorAll('[placeholder]')) if (el.__esPh !== undefined) el.placeholder = tr(el.__esPh);
 }

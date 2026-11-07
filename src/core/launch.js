@@ -36,10 +36,15 @@ const TO_MOON = [
 const TO_MARS = [
   { id: 'tmi', desc: 'Un encendido larguísimo saca la nave hacia Marte: empiezan 7 meses de viaje.', t: 9000, label: 'Encendido hacia Marte (TMI)', risk: 0.02, failure: 'El motor no enciende bien: no podemos ir a Marte' },
 ];
-const STEPS_BY_SCENARIO = { estacion: LAUNCH_STEPS, luna: [...BASE_STEPS, ...TO_MOON], marte: [...BASE_STEPS, ...TO_MARS] };
+const TO_GATEWAY = [
+  TO_MOON[0],
+  { id: 'nri', desc: 'Al llegar cerca de la Luna, un encendido deja la nave en la órbita halo del Gateway.', t: 400000, label: 'Entrada en la órbita halo (NRI)', risk: 0.01, failure: 'Encendido corto: se gasta combustible extra' },
+  { id: 'acople_gateway', desc: 'La nave se engancha al Gateway.', t: 450000, label: 'Acople con el Gateway', risk: 0.02, failure: 'Acople fallido: hay que reintentar' },
+];
+const STEPS_BY_SCENARIO = { estacion: LAUNCH_STEPS, gateway: [...BASE_STEPS, ...TO_GATEWAY], luna: [...BASE_STEPS, ...TO_MOON], marte: [...BASE_STEPS, ...TO_MARS] };
 /** Pasos del despegue según el destino. */
 export const launchSteps = (scenarioId) => STEPS_BY_SCENARIO[scenarioId] ?? LAUNCH_STEPS;
-const byId = Object.fromEntries([...LAUNCH_STEPS, ...TO_MOON, ...TO_MARS].map((s) => [s.id, s]));
+const byId = Object.fromEntries([...LAUNCH_STEPS, ...TO_MOON, ...TO_MARS, ...TO_GATEWAY.slice(1)].map((s) => [s.id, s]));
 
 // Criterios reales de clima de lanzamiento; probabilidad base por intento.
 const WEATHER = [

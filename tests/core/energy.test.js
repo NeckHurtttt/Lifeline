@@ -5,7 +5,7 @@ import { createMission } from '../../src/core/mission.js';
 
 const mod = (type, x, y) => ({ id: `${type}-${x}-${y}`, type, x, y });
 const design = (extra = []) => ({
-  modules: [mod('cabina', 0, 0), mod('soporte_vital', 1, 0), mod('paneles', 2, 0), mod('baterias', 3, 0), ...extra],
+  modules: [mod('cabina', 0, 0), mod('soporte_vital', 1, 0), mod('paneles', 2, 0), mod('paneles', 5, 0), mod('baterias', 3, 0), ...extra],
   instruments: ['camara_tierra'], launcher: 'condor1', orbit: 'leo_estacion',
   crewRoles: ['comandante', 'piloto', 'ingeniero', 'medico'], cargoDays: 90,
 });
@@ -15,7 +15,8 @@ test('balance positivo: la batería sube hasta batteryMax', () => {
   const s = mk();
   s.resources.battery = 10;
   const r = applyEnergy(s, { solarFactor: 1 });
-  assert.equal(r.state.resources.battery, 34); // 10 + (12*0.5*24 - 5*24) = 10 + 24
+  // 10 + (2 paneles * 12 * 0,5 sol * 0,9 - 5 kW módulos - 4 * 0,4 kW tripulación) * 24 = 10 + 100,8
+  assert.ok(Math.abs(r.state.resources.battery - Math.min(s.resources.batteryMax, 110.8)) < 1e-6);
   assert.deepEqual(r.shed, []);
   s.resources.battery = 50;
   assert.equal(applyEnergy(s, { solarFactor: 1 }).state.resources.battery, s.resources.batteryMax);
@@ -47,7 +48,7 @@ test('déficit total con batería vacía: soporte_vital es el último', () => {
 test('salud < 30 produce la mitad y setPriority es puro', () => {
   const s = mk();
   s.resources.battery = 0;
-  s.modules.find((m) => m.type === 'paneles').health = 20;
+  s.modules.filter((m) => m.type === 'paneles').forEach((m) => { m.health = 20; });
   assert.equal(applyEnergy(s, { solarFactor: 1 }).shed.length > 0, true);
   const p = s.modules[0];
   const n = setPriority(s, p.id, 3);

@@ -4,10 +4,27 @@ import { envMults } from './surface.js';
 
 const RATION = { completa: 1, media: 0.5, nada: 0 };
 const FOOD = 1.8;
-const WATER = 2.75;
+// Cifras de la NASA (Estación Espacial): ~3,5 L de agua por persona al día (beber, comida e higiene);
+// el sistema de recuperación de agua recupera ~93 % (98 % con el reciclador mejorado) si está sano.
+const WATER = 3.5;
 const O2 = 0.84;
 const O2_AS_WATER = 0.95;
-const RECYCLE_LOSS = 0.02;
+const RECOVERY = 0.93;
+const RECOVERY_UPGRADED = 0.98;
+/** Electricidad que gasta cada astronauta (computadoras, luces, cocina, ropa de ejercicio...), kW. */
+export const CREW_KW = 0.4;
+/** Pérdidas al cargar y descargar baterías y en los cables: los paneles rinden 90 %. */
+export const SOLAR_EFFICIENCY = 0.9;
+/** Gasto diario por persona con el soporte vital sano (agua = lo que no se recupera + la que se vuelve O₂). */
+export const NEEDS = { food: 1.8, water: WATER * (1 - RECOVERY) + O2_AS_WATER, waterNoLS: WATER, o2: O2 };
+/** Fracción del agua que se pierde al reciclar: sube si el soporte vital está dañado. */
+export function recycleLoss(s) {
+  const ls = s.modules.filter((m) => m.type === 'soporte_vital' && m.on);
+  const health = ls.length ? Math.max(...ls.map((m) => m.health ?? 100)) : 0;
+  const base = hasUpgrade(s, 'reciclador_99') ? RECOVERY_UPGRADED : RECOVERY;
+  // Sano (≥ 70 %) recicla normal; más dañado recicla cada vez peor (a 30 % pierde un tercio del agua).
+  return 1 - base * Math.min(1, 0.5 + health / 140);
+}
 const clamp = (v) => Math.max(0, Math.min(100, v));
 
 /**
@@ -22,23 +39,28 @@ export function applyDailyLife(state, ctx) {
   const r = s.resources;
   const deathAllowed = DIFFICULTY[s.difficulty].deathAllowed;
   const living = s.crew.filter((c) => c.alive);
-  const { boneMult, radMult } = envMults(s);
+  const env = envMults(s);
+  const boneMult = env.boneMult * (s.modules.some((m) => m.type === 'centrifuga' && m.on && m.health > 0) ? 0.5 : 1);
+  const radMult = env.radMult * (s.modules.some((m) => m.type === 'escudo_agua' && m.health > 0) ? 0.6 : 1);
 
   const ration = (c) => RATION[s.rations[c.id]] ?? 1;
   const foodMult = (c) => (c.traits.includes('gloton') ? 1.2 : 1) * (c.traits.includes('frugal') ? 0.8 : 1);
-  const foodNeed = living.reduce((t, c) => t + FOOD * ration(c) * foodMult(c), 0);
-  const waterNeed = living.reduce(
-    (t, c) => t + (ctx.lifeSupportOn ? WATER * ration(c) * RECYCLE_LOSS * (hasUpgrade(s, 'reciclador_99') ? 0.5 : 1) + O2_AS_WATER : WATER * ration(c)),
-    0,
-  );
+  const modOn = (t) => s.modules.some((m) => m.type === t && m.on && m.health > 0);
+  const foodNeed = living.reduce((t, c) => t + FOOD * ration(c) * foodMult(c), 0) * (modOn('impresora_comida') ? 0.9 : 1);
+  // Agua para beber, comer e higiene (lo que no se recupera) y aparte la que la electrólisis vuelve O₂.
+  const drinkNeed = living.reduce((t, c) => t + WATER * ration(c) * (ctx.lifeSupportOn ? recycleLoss(s) : 1), 0);
+  const electroNeed = ctx.lifeSupportOn ? living.length * O2_AS_WATER : 0;
+  // Como en la estación: si el agua escasea, primero se bebe; la electrólisis se frena y el O₂ sale de los tanques.
+  const electroWater = Math.min(electroNeed, Math.max(0, r.water - drinkNeed));
+  const waterNeed = drinkNeed + electroWater;
   let o2Need = ctx.lifeSupportOn ? 0 : living.length * O2;
-  if (ctx.lifeSupportOn && waterNeed > 0 && r.water < waterNeed) {
-    // el agua que falta para la electrólisis se cubre con el tanque de O₂
-    o2Need = living.length * O2 * (1 - r.water / waterNeed);
+  if (electroNeed > 0 && electroWater < electroNeed) {
+    o2Need = living.length * O2 * (1 - electroWater / electroNeed);
+    log.push('Poca agua: se frena la electrólisis y el oxígeno sale de los tanques.');
   }
 
   const foodShort = r.food < foodNeed;
-  const waterShort = r.water < waterNeed;
+  const waterShort = r.water < drinkNeed;
   const o2Short = r.o2 < o2Need;
   r.food = foodShort ? 0 : r.food - foodNeed;
   r.water = waterShort ? 0 : r.water - waterNeed;

@@ -6,6 +6,7 @@ import { restoreRng } from '../../core/rng.js';
 import { DIFFICULTY, SCENARIOS } from '../../data/catalog.js';
 import { save } from '../../core/save.js';
 import { PLAYER_ROLES } from '../main.js';
+import { inCoop, coopInfo, shareDraft, onAction } from '../coop.js';
 import { beep, alarm, radio, hum } from '../audio.js';
 import { say as nova } from '../guide.js';
 import { crewAvatar } from '../avatar.js';
@@ -30,6 +31,8 @@ const RADIO = {
   insercion: 'Inserción en órbita confirmada.',
   paneles: 'Despliegue de paneles solares.',
   acople_estacion: 'Captura suave… acople firme con la estación.',
+  nri: 'Encendido completo: estamos en la órbita halo lunar.',
+  acople_gateway: 'Captura suave… acople firme con el Gateway.',
   tli: 'Encendido de inyección translunar. Rumbo a la Luna.',
   loi: 'Llegando a la Luna. Encendido de frenado para la órbita lunar.',
   descenso: 'Inicia el descenso motorizado. Altitud y velocidad, bien.',
@@ -65,7 +68,7 @@ export function render(root, app, go) {
   let cancelled = false;
   const STEPS = launchSteps(s.scenarioId);
   const sc = SCENARIOS[s.scenarioId] ?? SCENARIOS.estacion;
-  const DEST_ICON = { estacion: '🛰️', luna: '🌕', marte: '🔴' }[s.scenarioId] ?? '🛰️';
+  const DEST_ICON = { estacion: '🛰️', gateway: '🌘', luna: '🌕', marte: '🔴' }[s.scenarioId] ?? '🛰️';
   let t = STEPS[0].t;
   let attempts = 0;
 
@@ -78,7 +81,7 @@ export function render(root, app, go) {
     radio: h('div', { class: 'log', id: 'radio', style: { maxHeight: '320px' } }),
     action: h('div', { id: 'accion', style: { marginTop: '.6rem' } }),
   };
-  els.sky = h('div', { class: 'sky' }, h('div', { class: 'planet' }), h('div', { class: 'station' }, art({ estacion: 'estacion', luna: 'luna', marte: 'marte' }[s.scenarioId])), h('div', { class: 'ground' }), h('div', { class: 'tower' }), els.rocket);
+  els.sky = h('div', { class: 'sky' }, h('div', { class: 'planet' }), h('div', { class: 'station' }, art({ estacion: 'estacion', gateway: 'estacion', luna: 'luna', marte: 'marte' }[s.scenarioId])), h('div', { class: 'ground' }), h('div', { class: 'tower' }), els.rocket);
   const MODE_TXT = { auto: 'automático: solo mira', pausas: 'con pausas: ustedes deciden el clima y el GO', manual: 'manual: ustedes deciden todo, ¡hasta los abortos!' };
   mount(root,
     h('h1', { style: { fontSize: '1.8rem' } }, '🚀 Despegue', h('span', { class: 'dim small' }, ` · ${MODE_TXT[mode]}`)),
@@ -89,7 +92,10 @@ export function render(root, app, go) {
       h('div', { class: 'panel c-cyan' }, h('h2', {}, '📻 Radio de Control'), els.radio)),
   );
 
-  const say = (text, cls = '') => { radioLog.unshift(h('div', { class: cls }, `[${clockText(t)}] ${text}`)); els.radio.replaceChildren(...radioLog.slice(0, 60)); radio(); };
+  const say = (text, cls = '') => {
+    radioLog.unshift(h('div', { class: cls }, `[${clockText(t)}] ${text}`)); els.radio.replaceChildren(...radioLog.slice(0, 60)); radio();
+    if (inCoop()) shareDraft('radio', radioLog.slice(0, 15).map((e) => [e.textContent, e.className]));
+  };
   const drawSteps = (now) => els.steps.replaceChildren(...STEPS.map((st) =>
     h('li', { class: `${status[st.id] ?? ''} ${st.id === now ? 'now' : ''}`, 'data-step': st.id }, `${clockText(st.t)}  ${st.label}`)));
   const drawTel = () => {
@@ -141,13 +147,33 @@ export function render(root, app, go) {
       const result = await ask((res) => {
         const box = h('div', { class: 'panel', id: 'gonogo' }, h('h3', {}, 'Sondeo Go/No-Go'));
         const pv = {};
-        const finish = () => res(pv);
+        const round = Date.now();
+        let offVote = null;
+        const finish = () => { offVote?.(); if (inCoop()) shareDraft('gonogo', null); res(pv); };
+        const btns = {};
+        const vote = (name, v) => {
+          if (!btns[name] || pv[name] || cancelled) return;
+          pv[name] = v; btns[name][v].classList.add('sel');
+          if (Object.keys(pv).length === players.length) finish();
+        };
         for (const p of players) {
-          const line = h('div', { class: 'vote-card' },
-            h('b', {}, p.name), h('span', { class: 'dim small' }, p.roles.map((r) => PLAYER_ROLES[r]).join('+')),
-            h('button', { 'data-vote': `${p.name}:go`, onclick: (e) => { pv[p.name] = 'go'; e.target.classList.add('sel'); if (Object.keys(pv).length === players.length) finish(); } }, 'GO'),
-            h('button', { class: 'danger', 'data-vote': `${p.name}:nogo`, onclick: (e) => { pv[p.name] = 'nogo'; e.target.classList.add('sel'); if (Object.keys(pv).length === players.length) finish(); } }, 'NO GO'));
-          box.append(line);
+          const remote = inCoop() && p.name !== coopInfo().name;
+          btns[p.name] = {
+            go: h('button', { 'data-vote': `${p.name}:go`, onclick: () => vote(p.name, 'go') }, 'GO'),
+            nogo: h('button', { class: 'danger', 'data-vote': `${p.name}:nogo`, onclick: () => vote(p.name, 'nogo') }, 'NO GO'),
+          };
+          box.append(h('div', { class: 'vote-card' },
+            h('b', {}, p.name), h('span', { class: 'dim small' }, p.roles.map((r) => PLAYER_ROLES[r]).join('+'), remote ? ' · vota desde su compu (30 s)' : ''),
+            btns[p.name].go, btns[p.name].nogo));
+        }
+        if (inCoop()) {
+          offVote = onAction((name, data, from) => { if (name === 'voto' && data?.round === round && (data.v === 'go' || data.v === 'nogo')) vote(from, data.v); });
+          shareDraft('gonogo', { round, players: players.map((p) => p.name) });
+          // Si alguien de otra compu no vota (se cayó o tiene la página vieja), a los 30 s cuenta como GO.
+          const timer = setTimeout(() => {
+            for (const p of players) if (!pv[p.name] && p.name !== coopInfo().name) { say(`${p.name} no respondió: cuenta como GO.`, 'aviso'); vote(p.name, 'go'); }
+          }, 30000);
+          const prevOff = offVote; offVote = () => { clearTimeout(timer); prevOff(); };
         }
         return box;
       });
@@ -204,7 +230,7 @@ export function render(root, app, go) {
       const step = STEPS[i];
       t = step.t; drawSteps(step.id); drawTel();
       say(RADIO[step.id]);
-      if (!['clima', 'hold_go_nogo'].includes(step.id)) nova(`${step.label}: ${step.desc}`, { quiet: true, mood: step.id === 'despegue' || step.id === 'insercion' ? 'feliz' : 'normal' });
+      if (!['clima', 'hold_go_nogo'].includes(step.id)) nova(/[!?.…]$/.test(step.label) ? `${step.label} ${step.desc}` : `${step.label}: ${step.desc}`, { quiet: true, mood: step.id === 'despegue' || step.id === 'insercion' ? 'feliz' : 'normal' });
       beep(step.t >= 0 ? 1000 : 700, 50);
       if (step.id === 'clima') await weather();
       if (step.id === 'hold_go_nogo') await goNoGo();
@@ -223,7 +249,7 @@ export function render(root, app, go) {
           await wait(speed);
           continue;
         }
-        if (step.id === 'acople_estacion') {
+        if (step.id === 'acople_estacion' || step.id === 'acople_gateway') {
           say('Segundo intento de acople…', 'aviso');
           s = { ...s }; status[step.id] = '';
           i -= 1; await wait(speed); continue;
@@ -245,7 +271,7 @@ export function render(root, app, go) {
     }
     els.sky.classList.add('dock');
     s = { ...s, phase: 'ops' };
-    const START = { estacion: 'Acople con la estación. Comienza la misión de 365 días.', luna: '¡Alunizaje! Comienza un año en la base lunar.', marte: 'Rumbo a Marte: empiezan 7 meses de viaje.' };
+    const START = { estacion: 'Acople con la estación. Comienza la misión de 365 días.', gateway: 'Acople con el Gateway. Un año en órbita lunar, lejos de casa.', luna: '¡Alunizaje! Comienza un año en la base lunar.', marte: 'Rumbo a Marte: empiezan 7 meses de viaje.' };
     s.log = [...s.log, { day: 0, text: START[s.scenarioId] ?? START.estacion, kind: 'bueno' }];
     finish();
   }

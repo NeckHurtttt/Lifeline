@@ -1,23 +1,27 @@
 // Bucle de simulación: avanza días y se detiene cuando hay algo que decidir.
 import { hasUpgrade } from './campaign.js';
 import { restoreRng } from './rng.js';
-import { rollEvents, tickAlerts, resolveResupply } from './events.js';
+import { rollEvents, tickAlerts, resolveResupply, tickDelayed } from './events.js';
+import { dustTick, dustFactor, batteryTick, autoRationTick, gardenTick } from './extras.js';
 import { offerMinis, progressMinis } from './minimissions.js';
 import { applyTasks, validateSchedule } from './tasks.js';
 import { applyEnergy } from './energy.js';
-import { applyDailyLife } from './life.js';
+import { applyDailyLife, NEEDS } from './life.js';
 import { expireMeds, exerciseRule } from './protocols.js';
 import { siteOf, scenarioOf, isNight, daysToNight } from './surface.js';
 import { MODULES } from '../data/catalog.js';
 import { progressExpedition } from './explore.js';
+import { tickFaults } from './repairs.js';
 import { legOf, phaseDue, marsSolarFactor, inBlackout, isMars, planOf } from './mars.js';
 
 export const NIGHT_WARN_DAYS = 2;
 /** Desgaste diario de cada módulo (sin mantenimiento la nave se va rompiendo). */
+/** Módulos que viajan embalados (solo se usan en la superficie). */
+const STOWED = new Set(['planta_combustible', 'invernadero', 'extractor_hielo', 'rover', 'rover_autonomo', 'modulo_aterrizaje', 'bodega', 'enfermeria']);
 export const WEAR = { facil: 0.2, medio: 0.3, dificil: 0.4 };
 
 const LOW_DAYS = 7;
-const NEED = { food: 1.8, water: 2.75 * 0.02 + 0.95, waterNoLS: 2.75, o2: 0.84 };
+const NEED = NEEDS;
 const RES_NAME = { food: 'comida', water: 'agua', o2: 'oxígeno' };
 
 const living = (s) => s.crew.filter((c) => c.alive);
@@ -65,6 +69,8 @@ export function advanceDay(state) {
   const aliveBefore = living(s).length;
 
   s = rollEvents(s, rng);
+  // Misiones históricas: eventos que pasan sí o sí ese día.
+  for (const sc of s.scripted ?? []) if (sc.day === s.day && !s.pending) s.pending = { eventId: sc.eventId, severity: sc.severity, prepared: [] };
   if (s.mode === 'demo') s = rollEvents(s, rng);
   for (const st of s.realStorms ?? []) {
     if (st.day !== s.day || s.alerts.some((a) => a.eventId === 'tormenta_solar')) continue;
@@ -76,6 +82,7 @@ export function advanceDay(state) {
 
   const t = applyTasks(s, rng);
   s = t.state; pushLog(s, t.log, 'labor');
+  pushLog(s, gardenTick(s), 'bueno');
   const p = progressMinis(s, rng);
   s = p.state; pushLog(s, p.log, 'mini');
   const expResult = progressExpedition(s);
@@ -89,15 +96,21 @@ export function advanceDay(state) {
 
   const site = siteOf(s);
   const sc = scenarioOf(s);
-  const wear = WEAR[s.difficulty] * (s.leg === 'superficie' && sc.id !== 'estacion' ? 1.25 : 1);
+  const wear = WEAR[s.difficulty] * (s.leg === 'superficie' && !sc.orbital ? 1.25 : 1);
+  const traveling = s.leg === 'ida' || s.leg === 'vuelta';
   for (const m of s.modules) {
     if (m.health <= 0) continue;
+    // En el viaje, lo que es para la superficie va embalado y no se gasta.
+    if (traveling && STOWED.has(m.type)) continue;
     m.health = Math.max(0, m.health - wear);
     if (m.health === 0) { m.on = false; pushLog(s, [`Se rompió por desgaste: ${MODULES[m.type].name}. Hace falta 🔧 Reparación.`], 'evento'); }
   }
+  pushLog(s, tickFaults(s), 'evento');
   const night = isNight(site, s.day);
-  const e = applyEnergy(s, { solarFactor: night ? 0 : marsSolarFactor(s, site), heatKw: night ? sc.nightHeatKw ?? 0 : 0 });
+  dustTick(s);
+  const e = applyEnergy(s, { solarFactor: night ? 0 : marsSolarFactor(s, site) * dustFactor(s), heatKw: night ? sc.nightHeatKw ?? 0 : 0 });
   s = e.state; pushLog(s, e.log, 'energia');
+  batteryTick(s);
   // Recursos del lugar: agua del hielo y combustible fabricado allí (ISRU).
   for (const m of s.modules) {
     if (!m.on || m.health <= 0) continue;
@@ -107,6 +120,8 @@ export function advanceDay(state) {
     if (def.fuelPerDay) s.resources.fuel += def.fuelPerDay * (m.health / 100) * (hasUpgrade(s, 'isru_mejorado') ? 1.5 : 1);
   }
 
+  s = tickDelayed(s);
+  pushLog(s, autoRationTick(s), 'aviso');
   const l = applyDailyLife(s, { ...t.ctx, lifeSupportOn: lsOn(s) });
   s = l.state; pushLog(s, l.log, 'vida');
   const proto = [];
@@ -170,10 +185,10 @@ export function advanceDay(state) {
   return { state: s, interrupt: null };
 }
 
-export function runUntilInterrupt(state, maxDays = 365) {
+export function runUntilInterrupt(state, maxDays = 365, plan = null) {
   let s = state;
   for (let i = 0; i < maxDays; i++) {
-    const r = advanceDay(s);
+    const r = advanceDay(plan ? plan(s) : s);
     s = r.state;
     if (r.interrupt) return r;
   }

@@ -17,11 +17,20 @@ import { acceptMini, previewMini, usesAutoRover } from '../../core/minimissions.
 import { setPriority } from '../../core/energy.js';
 import { restoreRng } from '../../core/rng.js';
 import { save } from '../../core/save.js';
-import { whoDecides } from '../main.js';
+import { whoDecides, musicMood } from '../main.js';
 import { alarm, beep } from '../audio.js';
 import { say } from '../guide.js';
 import { crewAvatar, moodOf, MOOD_TEXT } from '../avatar.js';
 import { evaGoNoGo, isWeekend, TRESERVE_SECONDS } from '../../core/protocols.js';
+import { walkPanel } from '../panels/walk.js';
+import { isGuest, mine } from '../coop.js';
+import { digPanel, digAvailable } from '../panels/dig.js';
+import { autoAssign } from '../../core/autoplan.js';
+import { CARGO_PLANS, cleanPanels, replaceBatteries, batteryHealth, gardenStage, BATTERY_PARTS, AUTO_RATION_DAYS } from '../../core/extras.js';
+import { inCoop, coopInfo, shareDraft, onDraft, allDrafts } from '../coop.js';
+
+// Modo niños: menos trabajos, energía en una barra y Nova reparte sola cada día.
+const KID_TASKS = new Set(['cultivo', 'produccion', 'reparacion', 'experimentos', 'medico', 'ejercicio', 'descanso']);
 
 // La noche (sueño o campamento) y la pre-respiración son automáticas: no se arrastran.
 const AUTO_TASKS = new Set(['sueño', 'campamento', 'prerespiracion']);
@@ -82,6 +91,10 @@ function chips(effects) {
 
 export function render(root, app, go) {
   let banner = null;
+  let keyFn = null;
+  const setKey = (fn) => { keyFn = fn; };
+  const onKey = (e) => { if (!document.querySelector('.modal-bg')) keyFn?.(e); };
+  document.addEventListener('keydown', onKey);
   let tab = app.opsTab ?? 'resumen';
   let shift = Math.min(app.opsShift ?? 0, 1);
   const pick = (t) => { tab = t; app.opsTab = t; beep(760, 30); draw(); window.scrollTo({ top: 0, behavior: 'smooth' }); };
@@ -89,7 +102,7 @@ export function render(root, app, go) {
   const commit = (state) => { app.state = state; save(state); };
   const firstName = (c) => c.name.split(' ')[0];
   const SC = SCENARIOS[app.state.scenarioId] ?? SCENARIOS.estacion;
-  const DEST = { estacion: '🛰️', luna: '🌙', marte: '🔴' }[SC.id] ?? '🛰️';
+  const DEST = { estacion: '🛰️', gateway: '🌘', luna: '🌙', marte: '🔴' }[SC.id] ?? '🛰️';
   const HOME = SC.home.charAt(0).toUpperCase() + SC.home.slice(1);
 
   function handle(interrupt) {
@@ -97,7 +110,7 @@ export function render(root, app, go) {
     if (!interrupt) { banner = { text: `📅 Día ${s.day}: todo tranquilo.`, cls: '' }; return; }
     const k = interrupt.kind;
     if (k === 'alerta') { const ev = EVENTS[interrupt.data.eventId]; banner = { text: `⚠️ AVISO: ${EVENT_ICON[ev.id] ?? ''} ${ev.name} en ${interrupt.data.etaDays} día(s).`, cls: '' }; alarm('aviso'); }
-    else if (k === 'evento') { alarm(interrupt.data.severity === 'grave' ? 'emergencia' : 'aviso'); banner = null; }
+    else if (k === 'evento') { banner = null; } // el sonido lo pone la ventana del evento, según la gravedad
     else if (k === 'mini') { banner = { text: `🎯 Nueva minimisión: ${MINI_ICON[interrupt.data.id] ?? ''} ${MINIMISSIONS[interrupt.data.id].name}.`, cls: '' }; beep(900, 120); }
     else if (k === 'muerte') { banner = { text: interrupt.data.join(' · '), cls: 'red' }; alarm('emergencia'); }
     else if (k === 'expedicion') { banner = { text: `🗺️ ${interrupt.data.text}`, cls: interrupt.data.ok ? '' : 'red' }; beep(interrupt.data.ok ? 1100 : 300, 150); }
@@ -112,6 +125,15 @@ export function render(root, app, go) {
     }
   }
 
+  const kids = () => !!app.kids;
+  const autoOn = () => kids() && app.autoPlan !== false && !isGuest();
+  function autoNow() { commit(autoAssign(app.state)); beep(1000, 60); banner = { text: '🪄 Nova repartió los trabajos según lo que falta.', cls: '' }; draw(); }
+  function autoBar() {
+    return h('div', { class: 'row', id: 'auto-reparto', style: { margin: '.3rem 0' } },
+      h('button', { class: 'big', onclick: autoNow }, '🪄 Reparto automático'),
+      kids() ? h('label', { class: 'small row' }, h('input', { type: 'checkbox', checked: app.autoPlan !== false, onchange: (e) => { app.autoPlan = e.target.checked; draw(); } }), 'Nova reparte sola cada día') : null);
+  }
+
   let clock = null;
   let speed = 0;
   function stopClock() { clearInterval(clock); clock = null; speed = 0; }
@@ -122,7 +144,7 @@ export function render(root, app, go) {
     clock = setInterval(() => {
       const st = app.state;
       if (st.pending || st.phase !== 'ops' || phaseDue(st) || document.querySelector('.modal-bg')) { stopClock(); draw(); return; }
-      const r = advanceDay(st);
+      const r = advanceDay(autoOn() ? autoAssign(st) : st);
       commit(r.state);
       if (r.interrupt) { stopClock(); handle(r.interrupt); }
       draw();
@@ -132,7 +154,8 @@ export function render(root, app, go) {
 
   function advance(all) {
     stopClock();
-    const r = all ? runUntilInterrupt(app.state) : advanceDay(app.state);
+    const plan = autoOn() ? autoAssign : null;
+    const r = all ? runUntilInterrupt(app.state, 365, plan) : advanceDay(plan ? plan(app.state) : app.state);
     commit(r.state);
     handle(r.interrupt);
     draw();
@@ -145,8 +168,9 @@ export function render(root, app, go) {
     const control = DIFFICULTY[s.difficulty].control;
     const rec = inBlackout(s) ? null : recommendedOption(p.eventId, s);
     let timer = null;
+    let offVotes = null;
     const choose = (optId, bad, viaHatch = null) => {
-      clearInterval(timer);
+      clearInterval(timer); offVotes?.();
       const rng = restoreRng(app.state.rng);
       const r = viaHatch === null ? resolveEvent(app.state, p.eventId, p.severity, optId, rng) : resolveHatches(app.state, viaHatch, rng);
       close();
@@ -177,6 +201,17 @@ export function render(root, app, go) {
       hatchLog,
       h('div', { class: 'small dim' }, 'También puedes elegir una de las opciones de abajo.')) : null;
     const who = whoDecides(app, roleFor(p.eventId));
+    // En línea: los demás pueden sugerir una opción; quien decide ve los votos.
+    const voteKey = `${s.day}-${p.eventId}`;
+    const paintVotes = () => {
+      const votes = Object.entries(allDrafts()).filter(([k, v]) => k.startsWith('voto:') && v?.key === voteKey);
+      for (const o of ev.options) {
+        const el = document.getElementById(`votos-${o.id}`);
+        if (!el) continue;
+        const names = votes.filter(([, v]) => v.opt === o.id).map(([k]) => k.slice(5));
+        el.textContent = names.length ? ` 🗳️ ${names.join(', ')}` : '';
+      }
+    };
     const close = modal(h('div', { id: 'evento' },
       h('div', { class: `big-ico code ${ev.kind === '+' ? '' : 'alerta'}` }, ev.kind === '+' ? 'BUENO' : ev.disaster ? 'EMERGENCIA' : 'ALERTA'),
       h('h2', { class: p.severity === 'grave' ? 'red' : ev.kind === '+' ? 'green' : 'amber' }, ev.name),
@@ -185,32 +220,37 @@ export function render(root, app, go) {
       p.prepared?.length ? h('p', { class: 'small green' }, '✔ Se prepararon antes: ayuda.') : null,
       ev.procedure ? h('p', { class: 'small' }, '📋 ', ev.procedure) : null,
       isMars(s) ? h('p', { class: 'small amber' }, inBlackout(s) ? '📵 Conjunción solar: Control de Misión no puede ayudar. Decide tu tripulación.' : `📡 Control de Misión responde con ${radioDelayMin(s)} min de retraso: la tripulación decide primero.`) : null,
-      ev.countdown ? h('div', { class: 'treserve' }, '⏱️ Tiempo de reserva: ', h('b', { id: 'treserve' }, `${left} s`), h('span', { class: 'small dim' }, ' — si llega a 0 sin decidir, la presión baja al mínimo.')) : null,
+      ev.countdown && !kids() ? h('div', { class: 'treserve' }, '⏱️ Tiempo de reserva: ', h('b', { id: 'treserve' }, `${left} s`), h('span', { class: 'small dim' }, ' — si llega a 0 sin decidir, la presión baja al mínimo.')) : null,
       hatchPanel,
       who ? h('p', { class: 'small' }, h('span', { class: 'tag' }, `decide ${who}`)) : null,
       h('div', {}, ...ev.options.filter((o) => !o.hidden).map((o) => {
         const pre = previewOption(s, p.eventId, o.id);
         const effects = pre && !pre.ok ? o.failEffects[p.severity] : o.effects[p.severity];
         return h('div', { class: `option ${control !== 'retraso' && o.id === rec ? 'sel' : ''}` },
-          h('button', { 'data-option': o.id, onclick: () => choose(o.id, pre && !pre.ok) }, o.label),
+          h('button', { 'data-option': o.id, disabled: !mine(who), title: mine(who) ? undefined : `Decide ${who}`, onclick: () => choose(o.id, pre && !pre.ok) }, o.label),
           control !== 'retraso' && o.id === rec ? h('span', { class: 'chip ok' }, '👍 recomendado') : null,
+          inCoop() && who && !mine(who) ? h('button', { class: 'small', 'data-sugerir': o.id, onclick: () => { shareDraft(`voto:${coopInfo().name}`, { key: voteKey, opt: o.id }); paintVotes(); beep(900, 40); } }, '🗳️ Sugerir esta') : null,
+          inCoop() ? h('span', { class: 'small amber', id: `votos-${o.id}` }) : null,
           pre ? h('div', { class: 'que-pasa', style: { width: '100%' } },
             pre.ok ? h('b', { class: 'green' }, `✔ Funciona: lo hace ${firstName(pre.who)}. `) : h('b', { class: 'red' }, `✖ No alcanza: ${firstName(pre.who)} no sabe lo suficiente. `),
-            `${pre.parts.map((x) => `${x.label} ${x.value >= 0 ? '+' : ''}${x.value}`).join(' · ')} = ${pre.total} de ${pre.need}`) : null,
+            kids() ? null : `${pre.parts.map((x) => `${x.label} ${x.value >= 0 ? '+' : ''}${x.value}`).join(' · ')} = ${pre.total} de ${pre.need}`) : null,
           h('div', { style: { width: '100%' } }, h('span', { class: 'small dim' }, 'Lo que pasa: '), ...chips(effects)));
       })),
     ), { grave: p.severity === 'grave' });
-    if (ev.countdown) {
+    if (inCoop()) { paintVotes(); offVotes = onDraft((k) => { if (!document.getElementById('evento')) offVotes?.(); else if (k.startsWith('voto:')) paintVotes(); }); }
+    // Sonido según la gravedad.
+    if (ev.kind === '+') beep(1100, 120, 'triangle'); else if (p.severity === 'grave') alarm('emergencia'); else if (p.severity === 'media') alarm('aviso'); else beep(620, 120, 'triangle');
+    if (ev.countdown && !kids()) {
       timer = setInterval(() => {
         left -= 1;
         const el = document.getElementById('treserve');
         if (!el) { clearInterval(timer); return; }
         el.textContent = `${left} s`;
         if (left <= 10) { el.classList.add('red'); beep(440, 60); }
-        if (left <= 0) choose('tarde', true);
+        if (left <= 0) { if (mine(who)) choose('tarde', true); else clearInterval(timer); }
       }, 1000);
     }
-    say(ev.countdown ? '¡Despresurización! Sigan el protocolo: decidan antes de que se acabe el tiempo de reserva. ⏱️' : `¡${ev.name}! Mira cada opción: abajo dice si funciona y qué pasa con cada una.`, { mood: ev.kind === '+' ? 'feliz' : 'alerta', target: '#evento' });
+    say(ev.countdown && kids() ? '¡Hay una fuga de aire! 🫧 Toca el módulo donde crees que está o elige la opción 👍 recomendada. Sin apuro.' : ev.countdown ? '¡Despresurización! Sigan el protocolo: decidan antes de que se acabe el tiempo de reserva. ⏱️' : `¡${ev.name}! Mira cada opción: abajo dice si funciona y qué pasa con cada una.`, { mood: ev.kind === '+' ? 'feliz' : 'alerta', target: '#evento' });
   }
 
   function phaseModal() {
@@ -336,7 +376,7 @@ export function render(root, app, go) {
     const max = { meds: 20 * n, parts: 30, fuel: 100, battery: r.batteryMax || 1, dataStored: 500 };
     return h('div', { class: 'panel c-blue', id: 'recursos' },
       h('h2', {}, '📦 Lo que tenemos'),
-      h('div', { class: 'res-grid' }, ...RES.map(([k, ico, name]) => {
+      h('div', { class: 'res-grid' }, ...RES.filter(([k]) => !kids() || ['o2', 'water', 'food', 'battery'].includes(k)).map(([k, ico, name]) => {
         const days = ['o2', 'water', 'food'].includes(k) ? left[k] : null;
         const frac = days !== null ? (Number.isFinite(days) ? days / 60 : 1) : r[k] / max[k];
         const low = k === 'dataStored' ? frac > 0.8 : frac < 0.15;
@@ -356,6 +396,12 @@ export function render(root, app, go) {
     const s = app.state;
     let gen = 0; let use = 0;
     for (const m of s.modules) { if (!m.on) continue; const kw = MODULES[m.type].kw; if (kw > 0) gen += kw; else use -= kw; }
+    if (kids()) {
+      const r0 = s.resources; const frac = r0.batteryMax ? r0.battery / r0.batteryMax : 1;
+      const [txt, cls] = gen >= use ? ['⚡ Sobra energía. ¡Todo bien!', 'green'] : frac > 0.3 ? ['🔋 Gastamos más de lo que hacemos: la batería baja.', 'amber'] : ['🪫 ¡Casi sin energía! Apaga lo que no uses (toca el módulo).', 'red'];
+      return h('div', { class: 'panel c-amber', id: 'energia' }, h('h2', {}, 'Energía'), h('div', { class: cls, style: { fontSize: '1.2rem' } }, txt),
+        h('div', { class: 'small' }, '🔋 Batería'), bar(frac));
+    }
     const rank = (m) => (m.type === 'soporte_vital' ? 2 : m.type === 'cabina' ? 1 : 0);
     const order = s.modules.filter((m) => m.on && MODULES[m.type].kw < 0).sort((a, b) => rank(a) - rank(b) || a.priority - b.priority);
     const r = s.resources;
@@ -370,13 +416,56 @@ export function render(root, app, go) {
       h('ol', { class: 'small orden' }, ...order.map((m) => h('li', {}, `${MOD_CODE[m.type]} ${MODULES[m.type].name}`))));
   }
 
+  /** Reservas siempre a la vista: días que alcanzan agua, comida y O₂ (verde, ámbar, rojo). */
+  function reservas() {
+    const s = app.state; const left = daysLeft(s);
+    const lsOn = s.modules.some((m) => m.type === 'soporte_vital' && m.on);
+    const chip = (ico, name, d, note) => {
+      const cls = !Number.isFinite(d) ? 'ok' : d < 7 ? 'bad' : d < 20 ? 'warn' : 'ok';
+      return h('span', { class: `chip-res ${cls}`, title: `${name}: días que alcanza al ritmo de hoy` }, `${ico} `, h('span', {}, name), ` ${Number.isFinite(d) ? `${fmt(d)} d` : ''}`, Number.isFinite(d) ? null : h('span', {}, note));
+    };
+    return h('div', { class: 'reservas', id: 'reservas' },
+      chip('💧', 'Agua', left.water), chip('🍎', 'Comida', left.food), chip('🫁', 'O₂', left.o2, lsOn ? '♻️ del agua' : '—'),
+      s.resources.batteryMax ? h('span', { class: `chip-res ${s.resources.battery / s.resources.batteryMax < 0.2 ? 'bad' : 'ok'}` }, `🔋 ${Math.round((s.resources.battery / s.resources.batteryMax) * 100)} %`) : null,
+      s.deadline ? h('span', { class: 'chip-res warn', id: 'reloj-contra' }, '⏱️ …') : null);
+  }
+
+  /** Decisiones de operación: racionamiento, nave de carga, baterías, polvo y huerto. */
+  function operaciones() {
+    const s = app.state; const r = s.resources;
+    const act = (res) => { if (res.error) { banner = { text: res.error, cls: 'red' }; beep(300, 80); } else { commit(res.state); beep(1000, 60); } draw(); };
+    const gh = s.modules.find((m) => m.type === 'invernadero');
+    const team = () => s.crew.filter((c) => c.alive && !c.evacuated && c.health >= 50 && c.fatigue < 70).sort((a, b) => a.fatigue - b.fatigue).slice(0, 2).map((c) => c.id);
+    const bh = batteryHealth(s);
+    return h('div', { class: 'panel c-cyan', id: 'operaciones' },
+      h('h2', {}, '🧰 Operaciones'),
+      h('label', { class: 'row small' }, h('input', { type: 'checkbox', id: 'auto-racion', checked: !!s.autoRation, onchange: (e) => { commit({ ...app.state, autoRation: e.target.checked }); draw(); } }),
+        `Racionamiento automático: media ración si quedan menos de ${AUTO_RATION_DAYS} días de comida o agua`),
+      SC.resupplyEvery ? h('div', { style: { marginTop: '.5rem' } },
+        h('div', { class: 'small' }, `📦 ¿Qué pedimos en la próxima nave de carga (día ${s.nextResupply})?`),
+        h('div', { class: 'row' }, ...Object.entries(CARGO_PLANS).map(([id, p]) => h('button', {
+          class: (s.cargoPlan ?? 'equilibrada') === id ? 'sel' : '', 'data-carga': id, title: p.desc,
+          onclick: () => { commit({ ...app.state, cargoPlan: id }); beep(820, 40); draw(); },
+        }, `${p.icon} `, h('span', {}, p.name)))),
+        h('div', { class: 'small dim' }, (CARGO_PLANS[s.cargoPlan] ?? CARGO_PLANS.equilibrada).desc)) : null,
+      r.batteryBase ? h('div', { style: { marginTop: '.5rem' } },
+        h('div', { class: 'small' }, `🔋 Salud de las baterías: ${Math.round(bh * 100)} % (pierden capacidad con cada carga y descarga)`), bar(bh, { warn: 0.8, danger: 0.65 }),
+        h('button', { class: 'small', id: 'cambiar-baterias', disabled: bh > 0.97, onclick: () => act(replaceBatteries(app.state)) }, `Cambiar celdas (${BATTERY_PARTS} piezas)`)) : null,
+      isMars(s) && s.leg === 'superficie' ? h('div', { style: { marginTop: '.5rem' } },
+        h('div', { class: 'small' }, `🟤 Polvo en los paneles: ${Math.round((s.dust ?? 0) * 100)} % menos energía`), bar(1 - (s.dust ?? 0), { warn: 0.8, danger: 0.6 }),
+        h('button', { class: 'small', id: 'limpiar-paneles', disabled: (s.dust ?? 0) < 0.01, onclick: () => act(cleanPanels(app.state, team())) }, '🧹 Salida al exterior para limpiar (2 tripulantes)')) : null,
+      gh ? h('div', { style: { marginTop: '.5rem' } },
+        h('div', { class: 'small' }, `🌱 Huerto: ${gardenStage(s.garden)} · ${Math.round(s.garden?.growth ?? 0)} % · cosechas: ${s.garden?.harvests ?? 0}`), bar((s.garden?.growth ?? 0) / 100),
+        h('div', { class: 'small dim' }, 'Crece solo con la luz, pero mucho más rápido si alguien hace 🌱 Cultivo. Al 100 % se cosechan 45 kg.')) : null);
+  }
+
   function ship() {
     const s = app.state;
     const cols = Math.max(...s.modules.map((m) => m.x)) + 1;
     const who = whoDecides(app, 'ingeniero');
     return h('div', { class: 'panel c-violet', id: 'estacion' },
       h('h2', {}, `${DEST} ${HOME} `, who ? h('span', { class: 'tag' }, `decide ${who}`) : null),
-      h('div', { class: 'help' }, 'Toca un módulo para prenderlo o apagarlo. El número es su turno para apagarse si falta electricidad (el más bajo, primero).'),
+      h('div', { class: 'help' }, kids() ? 'Toca un módulo para prenderlo o apagarlo. 🟢 prendido · ⚫ apagado.' : 'Toca un módulo para prenderlo o apagarlo. El número es su turno para apagarse si falta electricidad (el más bajo, primero).'),
       h('div', { class: 'ship', style: { gridTemplateColumns: `repeat(${cols}, 1fr)` } },
         ...s.modules.slice().sort((a, b) => a.y - b.y || a.x - b.x).map((m) => h('div', {
           class: `cell full ${m.on ? '' : 'off'} ${m.health < 40 ? 'roto' : ''}`, style: { gridColumn: m.x + 1, gridRow: m.y + 1 }, 'data-module': m.id,
@@ -391,7 +480,7 @@ export function render(root, app, go) {
         }, h('div', { class: 'ico code' }, MOD_CODE[m.type]), h('b', {}, MODULES[m.type].name),
         m.offDays ? h('div', { class: 'amber small' }, `⏸️ ${m.offDays} días`) : null,
         bar(m.health / 100), h('div', { class: 'row small' }, m.on ? '🟢' : '⚫',
-          h('input', { type: 'number', min: 1, max: 10, value: m.priority, style: { width: '3.4rem' }, title: 'Turno para apagarse', onchange: (e) => { commit(setPriority(app.state, m.id, Number(e.target.value))); } }))))),
+          kids() ? null : h('input', { type: 'number', min: 1, max: 10, value: m.priority, style: { width: '3.4rem' }, title: 'Turno para apagarse', onchange: (e) => { commit(setPriority(app.state, m.id, Number(e.target.value))); } }))))),
       s.design.instruments.length ? h('div', { class: 'small', style: { marginTop: '.4rem' } }, '🔬 ', s.design.instruments.map((i) => `${INSTRUMENTS[i].icon} ${INSTRUMENTS[i].name}`).join(' · ')) : null);
   }
 
@@ -433,7 +522,7 @@ export function render(root, app, go) {
       if (AUTO_TASKS.has(job)) { say('La pre-respiración se pone sola: arrastra a los astronautas a 👨‍🚀 Actividad extravehicular.', { mood: 'pensando', target: '[data-job="eva"]' }); return; }
       const need = TASKS[job].needsModule;
       if (need && !hasModule(need)) { say(`Para ${TASKS[job].name} hace falta el módulo ${MODULES[need].name}. Esa casilla está apagada.`, { mood: 'alerta' }); return; }
-      if (shown(app.state.schedule[crewId][shift]) !== job) setTurn(crewId, shift, job);
+      if (shown(app.state.schedule[crewId][shift]) !== job) { if (kids() && app.autoPlan !== false) { app.autoPlan = false; banner = { text: '✋ Ahora repartes tú. Toca 🪄 si quieres que Nova vuelva a repartir sola.', cls: '' }; } setTurn(crewId, shift, job); }
     };
     move(e);
     window.addEventListener('pointermove', move); window.addEventListener('pointerup', up); window.addEventListener('pointercancel', up);
@@ -469,7 +558,8 @@ export function render(root, app, go) {
         campers.length
           ? `🌙 Noche: duermen solos. ⛺ ${campers.join(' y ')} duerme${campers.length > 1 ? 'n' : ''} en la esclusa para la EVA de la mañana (así respiran oxígeno puro, como en la NASA).`
           : '🌙 Noche: todos duermen solos. Si alguien sale a EVA, la pre-respiración también se pone sola.'),
-      h('div', { class: 'job-grid' }, ...TASK_IDS.filter((job) => job !== 'prerespiracion' || here(job).length).map((job) => {
+      autoBar(),
+      h('div', { class: 'job-grid' }, ...TASK_IDS.filter((job) => (job !== 'prerespiracion' || here(job).length) && (!kids() || KID_TASKS.has(job) || here(job).length)).map((job) => {
         const need = TASKS[job].needsModule;
         const off = need && !hasModule(need);
         return h('div', { class: `job ${off ? 'off' : ''} ${job === 'sueño' ? 'sleep' : ''}`, 'data-job': job, title: off ? `Falta el módulo ${MODULES[need].name}` : TASK_DESC[job] },
@@ -488,7 +578,7 @@ export function render(root, app, go) {
     return h('div', { class: 'panel c-pink', id: 'tripulacion' },
       h('div', { class: 'row', style: { justifyContent: 'space-between' } },
         h('h2', {}, '🧑‍🚀 La tripulación'),
-        h('div', { class: 'row' },
+        kids() ? null : h('div', { class: 'row' },
           h('button', { onclick: () => { app.routine = structuredClone(app.state.schedule); banner = { text: '💾 Rutina guardada.', cls: '' }; draw(); } }, '💾 Guardar rutina'),
           h('button', { disabled: !app.routine, onclick: () => { const st = structuredClone(app.state); for (const id of Object.keys(st.schedule)) if (app.routine[id]) st.schedule[id] = [...app.routine[id]]; commit(st); draw(); } }, '🔁 Repetir rutina'))),
       jobBoard(),
@@ -502,21 +592,21 @@ export function render(root, app, go) {
               h('div', { class: 'name' }, c.name),
               h('div', { class: 'small' }, h('span', { class: 'pill role' }, ROLES[c.role]?.name ?? c.role)),
               h('div', { class: `estado ${mood === 'feliz' || mood === 'normal' ? 'green' : 'amber'}` }, MOOD_TEXT[mood]),
-              h('div', { class: 'small dim' }, Object.entries(c.stats).map(([k, v]) => `${STAT[k]}${v}`).join(' '), ' ',
+              kids() ? null : h('div', { class: 'small dim' }, Object.entries(c.stats).map(([k, v]) => `${STAT[k]}${v}`).join(' '), ' ',
                 ...c.traits.map((t) => h('span', { class: `chip ${TRAITS[t]?.positive ? 'ok' : 'bad'}`, title: TRAITS[t]?.desc }, TRAITS[t]?.name ?? t))))),
           c.alive ? [
             h('div', { class: 'stats' },
               ...statRow('❤️ Salud', c.health / 100, {}, fmt(c.health)),
               ...statRow('🥱 Cansancio', c.fatigue / 100, { invert: true }, fmt(c.fatigue)),
               ...statRow('😊 Ánimo', c.morale / 100, {}, fmt(c.morale)),
-              ...statRow('🦴 Huesos', c.bone / 100, { warn: 0.8, danger: 0.7 }, fmt(c.bone)),
-              ...statRow('☢️ Radiación', c.radiation / (RAD_LIMIT * 1.2), { invert: true, warn: 0.4, danger: 1 - 1 / 1.2, mark: 1 / 1.2 }, fmt(c.radiation))),
+              ...(kids() ? [] : statRow('🦴 Huesos', c.bone / 100, { warn: 0.8, danger: 0.7 }, fmt(c.bone))),
+              ...(kids() ? [] : statRow('☢️ Radiación', c.radiation / (RAD_LIMIT * 1.2), { invert: true, warn: 0.4, danger: 1 - 1 / 1.2, mark: 1 / 1.2 }, fmt(c.radiation)))),
             h('div', { class: 'turnos-ver' }, ...[0, 1, 2].map((turn) => {
               const t = shown(s.schedule[c.id]?.[turn]);
               return h('div', { class: `turno-chip ${turn === shift ? 'on' : ''}`, onclick: () => { if (turn > 1) return; shift = turn; app.opsShift = turn; draw(); } },
                 h('span', { class: 'small dim' }, TURNS[turn]), h('span', {}, `${TASK_ICON[t]} ${TASKS[t].name}`));
             })),
-            h('label', { class: 'small row', style: { marginTop: '.3rem' } }, 'Ración de comida',
+            kids() ? null : h('label', { class: 'small row', style: { marginTop: '.3rem' } }, 'Ración de comida',
               h('select', { 'data-ration': c.id, onchange: (e) => setRation(c.id, e.target.value) },
                 ...Object.entries(RATIONS).map(([r, t]) => h('option', { value: r, selected: s.rations[c.id] === r }, t)))),
           ] : null);
@@ -545,7 +635,7 @@ export function render(root, app, go) {
 
   function minis() {
     const s = app.state;
-    const offers = s.minis.filter((m) => m.status === 'oferta');
+    const offers = s.minis.filter((m) => m.status === 'oferta' && (!kids() || MINIMISSIONS[m.id].mandatory));
     const active = s.minis.filter((m) => m.status === 'activa');
     const busy = new Set(active.flatMap((m) => m.crewIds));
     return h('div', { class: 'panel c-green', id: 'minis' },
@@ -616,16 +706,18 @@ export function render(root, app, go) {
     const tired = living().find((c) => c.fatigue >= 70);
     if (tired) return [`${firstName(tired)} está muy cansado. Dale un turno de 🛋️ Descanso.`, 'pensando', `[data-crew="${tired.id}"]`, 'tripulacion'];
     const broken = s.modules.find((m) => m.health < 40);
-    if (broken) return [`El módulo ${MODULES[broken.type].name} está muy dañado. Pon a alguien en 🔧 Reparación.`, 'alerta', `[data-module="${broken.id}"]`, 'estacion'];
+    if (broken && kids()) return [`El módulo ${MODULES[broken.type].name} está muy dañado. Pon a alguien en 🔧 Reparación (o toca 🪄).`, 'alerta', '[data-job="reparacion"]', 'tripulacion'];
+    if (broken) return [`El módulo ${MODULES[broken.type].name} está muy dañado. Pon a alguien en 🔧 Reparación o repáralo a mano en Recorrido.`, 'alerta', `[data-tramo="${broken.id}"]`, 'recorrido'];
     const weakBone = living().find((c) => c.bone < 85);
     if (weakBone) return [`Los huesos de ${firstName(weakBone)} se debilitan sin gravedad. Dale 🏃 Ejercicio.`, 'pensando', `[data-crew="${weakBone.id}"]`, 'tripulacion'];
-    const offer = s.minis.find((m) => m.status === 'oferta');
+    const offer = s.minis.find((m) => m.status === 'oferta' && (!kids() || MINIMISSIONS[m.id].mandatory));
     if (offer) return [`Hay una minimisión: ${MINIMISSIONS[offer.id].name}. Elige quién va y mira si le alcanza.`, 'pensando', '#minis', 'misiones'];
-    if (s.resources.dataStored > 300) return ['Se están juntando muchos datos. Pon a alguien en 📞 Comunicación para mandarlos.', 'pensando', '#recursos', 'resumen'];
+    if (s.resources.dataStored > 300 && !kids()) return ['Se están juntando muchos datos. Pon a alguien en 📞 Comunicación para mandarlos.', 'pensando', '#recursos', 'resumen'];
     const site = siteOf(s);
     if (site?.nightDays && isNight(site, s.day + 1) && s.resources.battery < s.resources.batteryMax * 0.3) return ['Es de noche y queda poca batería. En la pestaña de la base apaga lo que no sea vital (toca el módulo). El soporte vital y la cabina se apagan al final.', 'alerta', '#estacion', 'estacion'];
     if (s.day === 0 && SC.id === 'marte') return ['¡Empieza el viaje a Marte! Son 210 días sin gravedad: 🏃 ejercicio diario para los huesos y 🛡️ refugio en las tormentas solares. Arrastra a cada uno a su trabajo y toca ▶ AVANZAR.', 'feliz', '#avanzar', null];
-    if (s.day === 0 && SC.id !== 'estacion') return [`¡Bienvenidos a ${SC.home}! Aquí hay gravedad baja y más radiación. ${site?.nightDays ? `Ojo: cada tanto llega la noche de ${site.nightDays} días.` : ''} Arrastra a cada astronauta a su trabajo y toca ▶ AVANZAR.`, 'feliz', '#avanzar', null];
+    if (s.day === 0 && !SC.orbital) return [`¡Bienvenidos a ${SC.home}! Aquí hay gravedad baja y más radiación. ${site?.nightDays ? `Ojo: cada tanto llega la noche de ${site.nightDays} días.` : ''} Arrastra a cada astronauta a su trabajo y toca ▶ AVANZAR.`, 'feliz', '#avanzar', null];
+    if (kids() && s.day === 0) return ['¡Hola! 🧒 Yo, Nova, reparto los trabajos cada día. Tú mira los avisos, prende o apaga módulos y toca ▶ AVANZAR. Si quieres mandar tú, arrastra las caritas.', 'feliz', '#avanzar', null];
     if (s.day === 0) return ['¡Bienvenidos a la estación! En la pestaña 🧑‍🚀 Tripulación eliges qué hace cada astronauta. Cuando estés listo, toca ▶ AVANZAR.', 'feliz', '#avanzar', null];
     return ['Sin novedades. Avanza y te llamo si pasa algo.', 'feliz', '#avanzar', null];
   }
@@ -704,24 +796,45 @@ export function render(root, app, go) {
         crewAvatar(c, { size: 64 }), h('div', {}, h('b', {}, firstName(c))), h('div', { class: 'small dim' }, MOOD_TEXT[moodOf(c)])))));
   }
 
+  // Práctica guiada: Nova muestra cada parte de la pantalla, paso a paso.
+  const PRACTICE = [
+    ['#reservas', 'Estas son tus reservas: cuántos días alcanzan el agua, la comida y el aire. Verde está bien, amarillo es cuidado y rojo es peligro.'],
+    ['[data-tab="tripulacion"]', 'En 🧑‍🚀 Tripulación repartes los trabajos de la mañana y la tarde arrastrando a cada astronauta. La noche es para dormir.'],
+    ['[data-tab="estacion"]', 'En 🛰️ Estación ves los módulos, la energía y 🧰 Operaciones: racionamiento, qué pedir en la nave de carga y las baterías.'],
+    ['[data-tab="misiones"]', 'En ⚠️ Avisos llegan los peligros con tiempo para prepararse, y las minimisiones que dan ciencia.'],
+    ['#avanzar', 'Con ▶ AVANZAR pasan los días hasta que haya algo que decidir. Cuando pase algo, lee las opciones: abajo dice si funciona.'],
+    [null, '¡Listo! Ya sabes lo básico. Si una palabra no la entiendes, toca 📖 arriba para ver el glosario. ¡Buena misión!'],
+  ];
+  function practiceStep() {
+    const [target, text] = PRACTICE[app.practice] ?? PRACTICE.at(-1);
+    const last = app.practice >= PRACTICE.length - 1;
+    say(`🎓 ${app.practice + 1}/${PRACTICE.length}. ${text}`, { mood: last ? 'feliz' : 'normal', target, buttons: [{ label: last ? 'Terminar' : 'Siguiente ▶', onclick: () => { app.practice = last ? null : app.practice + 1; draw(); } }] });
+  }
+
   function draw() {
+    keyFn = null;
+    if (autoOn() && app.autoDay !== app.state.day && !app.state.pending) { app.autoDay = app.state.day; commit(autoAssign(app.state)); }
     const s = app.state;
+    musicMood(s.pending && EVENTS[s.pending.eventId]?.kind !== '+' ? 'danger' : s.dig?.outing ? 'surface' : 'orbit');
     const sched = validateSchedule(Object.fromEntries(Object.entries(s.schedule).filter(([id]) => s.crew.find((c) => c.id === id)?.alive)))
       .map((e) => { const id = e.split(' ')[0]; const c = s.crew.find((x) => x.id === id); return c ? e.replace(id, c.name) : e; });
     const blocked = sched.length > 0 || !!s.pending || s.phase !== 'ops' || !!phaseDue(s);
     const pct = Math.min(100, (s.day / s.totalDays) * 100);
+    if (kids() && ['recorrido', 'excavar', 'mapa', 'diario'].includes(tab)) tab = 'resumen';
     mount(root,
       h('div', { class: 'day-head' },
         h('div', {},
           h('h1', { style: { fontSize: '2rem', margin: 0 }, id: 'dia' }, `📅 DÍA ${s.day} de ${s.totalDays}`),
           dayNight(),
           marsLeg(),
-          isWeekend(s.day + 1) ? h('div', { class: 'small amber' }, '🗓️ Mañana es fin de semana: día ligero. Descanso y llamadas a casa dan más ánimo; trabajar lo baja un poco.') : null,
-          h('div', { class: 'trip' }, h('div', { class: 'trip-fill', style: { width: `${pct}%` } }), h('span', { class: 'trip-ship', style: { left: `${pct}%` } }, '▲'), h('span', { class: 'trip-end small' }, 'FIN'))),
+          isWeekend(s.day + 1) && !kids() ? h('div', { class: 'small amber' }, '🗓️ Mañana es fin de semana: día ligero. Descanso y llamadas a casa dan más ánimo; trabajar lo baja un poco.') : null,
+          h('div', { class: 'trip' }, h('div', { class: 'trip-fill', style: { width: `${pct}%` } }), h('span', { class: 'trip-ship', style: { left: `${pct}%` } }, '▲'), h('span', { class: 'trip-end small' }, 'FIN')),
+          reservas()),
+        isGuest() ? h('div', { class: 'small amber', id: 'tiempo-anfitrion' }, 'EN LÍNEA: el anfitrión avanza el tiempo. Tú puedes asignar trabajos, reparar, excavar y decidir lo de tu rol.') :
         h('div', { class: 'row' },
-          h('div', { class: 'velocidad', id: 'velocidad' }, h('span', { class: 'small dim' }, 'TIEMPO'),
+          kids() ? null : h('div', { class: 'velocidad', id: 'velocidad' }, h('span', { class: 'small dim' }, 'TIEMPO'),
             ...[[0, '||'], [1, '1×'], [4, '4×'], [12, '12×']].map(([v, t]) => h('button', { class: speed === v ? 'sel' : '', disabled: blocked && v > 0, 'data-speed': v, onclick: () => play(v) }, t))),
-          h('button', { id: 'avanzar1', disabled: blocked, onclick: () => advance(false) }, '⏭️ 1 día'),
+          kids() ? null : h('button', { id: 'avanzar1', disabled: blocked, onclick: () => advance(false) }, '⏭️ 1 día'),
           h('button', { id: 'avanzar', class: 'big', disabled: blocked, onclick: () => advance(true) }, '▶ AVANZAR'),
           s.phase === 'reentry' ? h('button', { id: 'reentrada', class: 'big warn', onclick: () => go('reentry') }, '🌍 INICIAR REENTRADA') : null,
           s.pending ? h('button', { class: 'warn', onclick: eventModal }, '⚠️ Ver problema') : null)),
@@ -730,27 +843,45 @@ export function render(root, app, go) {
       tabs([
         { id: 'resumen', label: '🏠 Resumen', color: 'c-blue', badge: ['food', 'water', 'o2'].some((k) => daysLeft(s)[k] < 10) ? '!' : 0 },
         { id: 'tripulacion', label: '🧑‍🚀 Tripulación', color: 'c-pink', badge: sched.length + living().filter((c) => c.health < 50 || c.fatigue >= 70).length },
-        { id: 'estacion', label: SC.id === 'estacion' ? '🛰️ Estación' : `${DEST} Base`, color: 'c-violet', badge: s.modules.filter((m) => m.health < 40 || !m.on).length },
+        { id: 'estacion', label: SC.orbital ? `${SC.id === 'gateway' ? '🌘' : '🛰️'} Estación` : `${DEST} Base`, color: 'c-violet', badge: s.modules.filter((m) => m.health < 40 || !m.on).length },
         { id: 'misiones', label: '⚠️ Avisos y misiones', color: 'c-amber', badge: s.alerts.length + s.minis.filter((m) => m.status === 'oferta').length },
-        ...(canExplore(s) || s.map ? [{ id: 'mapa', label: '🗺️ Exploración', color: 'c-green', badge: s.expedition ? 0 : (s.map ?? []).filter((n) => n.known && !n.done).length }] : []),
-        { id: 'diario', label: '📖 Diario', color: 'c-cyan' },
+        ...(kids() ? [] : [{ id: 'recorrido', label: 'Recorrido', color: 'c-violet', badge: s.modules.filter((m) => m.health <= 0).length }]),
+        ...(digAvailable(s) && !kids() ? [{ id: 'excavar', label: 'Excavar', color: 'c-green', badge: s.dig?.outing ? '!' : 0 }] : []),
+        ...((canExplore(s) || s.map) && !kids() ? [{ id: 'mapa', label: '🗺️ Exploración', color: 'c-green', badge: s.expedition ? 0 : (s.map ?? []).filter((n) => n.known && !n.done).length }] : []),
+        ...(kids() ? [] : [{ id: 'diario', label: '📖 Diario', color: 'c-cyan' }]),
       ], tab, pick),
       tab === 'resumen' ? h('div', { class: 'grid2' }, h('div', {}, resources()), h('div', {}, monitor(), alerts())) : null,
       tab === 'tripulacion' ? crewCards() : null,
-      tab === 'estacion' ? h('div', { class: 'grid-base' }, ship(), energyPanel()) : null,
+      tab === 'estacion' ? h('div', { class: 'grid-base' }, ship(), h('div', {}, energyPanel(), kids() ? null : operaciones())) : null,
       tab === 'misiones' ? h('div', { class: 'grid2' }, alerts(), minis()) : null,
       tab === 'diario' ? logPanel() : null,
       tab === 'mapa' ? explorePanel() : null,
+      tab === 'recorrido' ? walkPanel(app, commit, draw, setKey) : null,
+      tab === 'excavar' && digAvailable(s) ? digPanel(app, commit, draw, setKey) : null,
     );
     if (phaseDue(s) && s.phase === 'ops') { if (!document.getElementById('fase')) phaseModal(); }
     else if (s.pending && !document.getElementById('evento')) eventModal();
+    else if (!s.pending && app.practice != null) practiceStep();
     else if (!s.pending) {
       const [t, mood, target, where] = coach(sched);
+      if ((tab === 'recorrido' || tab === 'excavar') && mood !== 'alerta') return; // ahí Nova no tapa los controles
       const elsewhere = where && where !== tab;
       say(elsewhere ? `${t} (Toca la pestaña señalada.)` : t, { mood, target: elsewhere ? `[data-tab="${where}"]` : target, quiet: true });
     }
   }
 
   draw();
-  return () => { stopClock(); clearInterval(monitorTimer); document.querySelectorAll('.modal-bg').forEach((e) => e.remove()); };
+  // Contrarreloj: la misión termina cuando se acaba el tiempo real; gana el equipo con más puntaje.
+  const contra = setInterval(() => {
+    const s = app.state;
+    if (!s?.deadline || s.phase !== 'ops' || isGuest()) return;
+    const left = Math.max(0, s.deadline - Date.now());
+    const el = document.getElementById('reloj-contra');
+    if (el) el.textContent = `⏱️ ${Math.floor(left / 60000)}:${String(Math.floor(left / 1000) % 60).padStart(2, '0')}`;
+    if (left > 0) return;
+    stopClock();
+    commit({ ...s, pending: null, phase: 'report', outcome: { success: s.crew.some((c) => c.alive && !c.evacuated), reason: '⏱️ Se acabó el tiempo del contrarreloj. Comparen el puntaje: gana el más alto.' } });
+    handle({ kind: 'fin' }); draw();
+  }, 1000);
+  return () => { clearInterval(contra); stopClock(); clearInterval(monitorTimer); document.removeEventListener('keydown', onKey); document.querySelectorAll('.modal-bg').forEach((e) => e.remove()); };
 }

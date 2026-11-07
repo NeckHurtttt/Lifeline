@@ -13,7 +13,7 @@ export const EDL_FUEL = 30;
 export const EDL_CHECK = { stat: 'fuerza', dc: 12 };
 export const CONJUNCTION = { start: 400, end: 414, warn: 395 }; // ~2 semanas sin radio con la Tierra
 export const TRANSIT_SUN = 0.7; // sol medio en el viaje (relativo a la Tierra)
-const NEEDS = { food: 1.8, water: 2.75 * 0.02 + 0.95, o2: 0.84 };
+import { NEEDS } from './life.js';
 
 export const isMars = (s) => s.scenarioId === 'marte';
 
@@ -106,9 +106,9 @@ export function resolvePhase(state, phase) {
     // La carga enviada dos años antes espera en la superficie.
     const days = planOf(s).surface * 0.85;
     s.resources.food += NEEDS.food * n * days;
-    s.resources.water += NEEDS.water * n * days;
+    s.resources.water += NEEDS.water * n * planOf(s).surface; // el agua alcanza para todo el año
     s.resources.o2 += NEEDS.o2 * n * days;
-    s.resources.parts += 25;
+    s.resources.parts += 50; // repuestos para un año sin naves de carga
     s.resources.meds += 5 * n;
     s.medsExpiry = s.day + 180;
     log.push('La nave de carga enviada antes los espera: comida, agua y O₂ para casi todo el año, piezas y medicinas.');
@@ -129,6 +129,7 @@ export function resolvePhase(state, phase) {
     s.resources.food += NEEDS.food * n * days;
     s.resources.water += NEEDS.water * n * days;
     s.resources.o2 += NEEDS.o2 * n * days;
+    s.resources.parts += 15;
     log.push('¡Despegue desde Marte! La nave de regreso tiene comida para el viaje. Rumbo a casa: 7 meses.');
     s.flags.ascended = true;
     s.leg = 'vuelta';

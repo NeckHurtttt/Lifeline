@@ -11,6 +11,7 @@ import { OBJECTIVES, SCORE_PARTS, criticalResources } from '../../data/objective
 import { createMission } from '../../core/mission.js';
 import { fetchFlares, flaresToStorms } from '../../core/realdata.js';
 import { whoDecides } from '../main.js';
+import { inCoop, isGuest, mine, coopInfo, getDraft, shareDraft, onDraft, onAction, coopAction } from '../coop.js';
 import { beep } from '../audio.js';
 import { say } from '../guide.js';
 import { crewAvatar } from '../avatar.js';
@@ -32,10 +33,18 @@ const ROLE_DESC = {
 const SUGGESTED_BY = {
   estacion: () => ({
     modules: [mod('cabina', 0, 0), mod('soporte_vital', 1, 0), mod('paneles', 2, 0), mod('paneles', 3, 0),
+      mod('paneles', 4, 0),
       mod('baterias', 0, 1), mod('laboratorio', 1, 1), mod('antena', 2, 1), mod('refugio', 3, 1)],
     instruments: ['camara_tierra', 'espectrometro'],
     launcher: 'condorH', orbit: 'leo_estacion',
     crewRoles: ['comandante', 'ingeniero', 'medico', 'cientifico'], cargoDays: 90,
+  }),
+  gateway: () => ({
+    modules: [mod('cabina', 0, 0), mod('soporte_vital', 1, 0), mod('paneles', 2, 0), mod('paneles', 3, 0),
+      mod('baterias', 0, 1), mod('laboratorio', 1, 1), mod('antena', 2, 1), mod('refugio', 3, 1), mod('bodega', 4, 1), mod('bodega', 5, 1)],
+    instruments: ['dosimetro', 'espectrometro'],
+    launcher: 'titan', orbit: 'nrho',
+    crewRoles: ['comandante', 'ingeniero', 'medico', 'cientifico'], cargoDays: 210,
   }),
   luna: () => ({
     modules: [mod('cabina', 0, 0), mod('soporte_vital', 1, 0), mod('modulo_aterrizaje', 2, 0), mod('paneles', 3, 0), mod('paneles', 4, 0),
@@ -47,7 +56,7 @@ const SUGGESTED_BY = {
   marte: () => ({
     modules: [mod('cabina', 0, 0), mod('soporte_vital', 1, 0), mod('modulo_aterrizaje', 2, 0), mod('planta_combustible', 3, 0), mod('paneles', 4, 0), mod('paneles', 5, 0),
       mod('reactor', 0, 1), mod('pila_regenerativa', 1, 1), mod('laboratorio', 2, 1), mod('invernadero', 3, 1), mod('bodega', 4, 1), mod('bodega', 5, 1),
-      mod('refugio', 0, 2), mod('enfermeria', 1, 2), mod('bodega', 2, 2), mod('antena', 3, 2)],
+      mod('refugio', 0, 2), mod('enfermeria', 1, 2), mod('bodega', 2, 2), mod('antena', 3, 2), mod('paneles', 4, 2)],
     instruments: ['buscador_vida', 'analizador_rocas'],
     launcher: 'titan', orbit: 'marte_jezero',
     crewRoles: ['comandante', 'piloto', 'ingeniero', 'medico'], cargoDays: 240,
@@ -56,7 +65,7 @@ const SUGGESTED_BY = {
 export const SUGGESTED = (scn = 'estacion') => (SUGGESTED_BY[scn] ?? SUGGESTED_BY.estacion)();
 
 const EMPTY = (scn = 'estacion') => ({
-  modules: [mod('cabina', 0, 0), mod('soporte_vital', 1, 0), ...(scn === 'estacion' ? [] : [mod('modulo_aterrizaje', 2, 0)])], instruments: [],
+  modules: [mod('cabina', 0, 0), mod('soporte_vital', 1, 0), ...(SCENARIOS[scn]?.orbital ? [] : [mod('modulo_aterrizaje', 2, 0)])], instruments: [],
   launcher: scn === 'estacion' ? 'condor1' : 'titan', orbit: SCENARIOS[scn]?.orbit ?? 'leo_estacion',
   crewRoles: ['comandante', 'piloto', 'ingeniero'], cargoDays: scn === 'marte' ? 240 : scn === 'luna' ? 150 : 90,
 });
@@ -86,7 +95,7 @@ function coach(d, r) {
   if (!has('cabina')) return ['Falta la 🛏️ CABINA: es la casa de los astronautas. Tócala en la lista y luego toca un cuadro vacío de la nave.', 'alerta', '[data-mod="cabina"]'];
   if (!has('soporte_vital')) return ['Falta el 🫁 SOPORTE VITAL: sin él no hay aire. Tócalo y ponlo en la nave.', 'alerta', '[data-mod="soporte_vital"]'];
   const scnOf = ORBITS[d.orbit]?.scenario ?? 'estacion';
-  if (scnOf !== 'estacion' && !has('modulo_aterrizaje')) return ['Falta el 🛬 MÓDULO DE ATERRIZAJE: sin él no se puede bajar al suelo ni volver a subir.', 'alerta', '[data-mod="modulo_aterrizaje"]'];
+  if (!SCENARIOS[scnOf]?.orbital && !has('modulo_aterrizaje')) return ['Falta el 🛬 MÓDULO DE ATERRIZAJE: sin él no se puede bajar al suelo ni volver a subir.', 'alerta', '[data-mod="modulo_aterrizaje"]'];
   if (scnOf === 'marte' && !has('planta_combustible')) return ['Falta la ⛽ PLANTA DE COMBUSTIBLE: en Marte hay que fabricar el combustible para volver, con el aire de allá.', 'alerta', '[data-mod="planta_combustible"]'];
   const noSirve = r.errors.find((e) => /No sirve/.test(e));
   if (noSirve) return [`${noSirve}. Quítalo de la nave (clic derecho).`, 'alerta', '#nave'];
@@ -118,17 +127,24 @@ export function render(root, app, go, params = {}) {
   const scn = app.scenario ?? 'estacion';
   const sc = SCENARIOS[scn];
   const prev = app.lastScenario === scn ? app.lastDesign : null;
-  const d = structuredClone(params.design ?? prev ?? (app.mode === 'demo' ? SUGGESTED(scn) : EMPTY(scn)));
+  const d = structuredClone(params.design ?? prev ?? (app.mode === 'demo' || app.kids ? SUGGESTED(scn) : EMPTY(scn)));
   for (const m of d.modules) { delete m.health; delete m.on; delete m.priority; delete m.offDays; }
   let selected = 'paneles';
   let launching = false;
   let explain = null; // texto de Nova al elegir algo
   let tab = app.designTab ?? 'nave';
-  if (app.mode === 'demo') app.objective ??= 'ciencia';
+  if (app.mode === 'demo' || app.kids) app.objective ??= 'ciencia';
   d.upgrades = app.mode === 'campana' ? loadCampaign().upgrades : [];
   d.hires ??= {};
   d.interviews ??= {};
   d.crewSeed ??= Math.floor(Math.random() * 2 ** 31);
+  // En línea todos ven y arman la misma nave: cada uno cambia la parte de su rol.
+  const start = isGuest() ? getDraft('diseno') : null;
+  if (start) { Object.assign(d, structuredClone(start.d)); app.objective = start.o; }
+  const can = (role) => mine(whoDecides(app, role));
+  const snapOf = () => JSON.stringify({ d, o: app.objective });
+  let sent = start ? snapOf() : null;
+  let first = isGuest();
   // Entrevista opcional: cada puesto ya trae a alguien asignado (sin conocerlo). Entrevistar permite elegir mejor.
   const autoHire = () => {
     for (const ro of d.crewRoles) {
@@ -204,6 +220,8 @@ export function render(root, app, go, params = {}) {
     state.players = app.players.length;
     state.realStorms = pickStorms(f.flares, app.difficulty);
     state.flareSource = f.source;
+    if (app.contrarreloj) state.deadline = Date.now() + app.contrarreloj * 60000;
+    if (app.historica) { state.historica = app.historica.id; state.scripted = app.historica.scripted ?? []; state.forceBoom = app.historica.forceBoom ?? 0; }
     app.lastDesign = structuredClone(d);
     app.lastScenario = scn;
     app.lastSeed = seed;
@@ -213,6 +231,12 @@ export function render(root, app, go, params = {}) {
 
   const draw = () => {
     autoHire();
+    if (inCoop()) {
+      const snap = snapOf();
+      if (snap !== sent) { if (!first) shareDraft('diseno', JSON.parse(snap)); sent = snap; }
+      first = false;
+    }
+    const myRoles = inCoop() ? app.players.find((p) => p.name === coopInfo().name)?.roles ?? [] : [];
     const r = computeDesign(d, scn, app.difficulty, budgetMult);
     const ok = canLaunch(r) && !!app.objective;
     const crit = criticalResources(app.objective, scn);
@@ -221,7 +245,7 @@ export function render(root, app, go, params = {}) {
       const def = m && MODULES[m.type];
       return h('div', {
         class: `cell ${m ? 'full' : ''}`, 'data-x': x, 'data-y': y, title: m ? `${def.name}. Clic derecho para quitar.` : `Clic para poner: ${MODULES[selected].name}`,
-        onclick: () => place(x, y), oncontextmenu: (e) => { e.preventDefault(); if (m) remove(x, y); },
+        onclick: () => { if (can('ingeniero')) place(x, y); }, oncontextmenu: (e) => { e.preventDefault(); if (m && can('ingeniero')) remove(x, y); },
       }, m ? [h('div', { class: 'ico code' }, MOD_CODE[m.type]), h('b', {}, def.name), h('div', { class: 'dim small' }, def.kw > 0 ? `⚡ da ${def.kw}` : def.kw < 0 ? `⚡ usa ${-def.kw}` : '')] : h('span', { class: 'muted', style: { fontSize: '1.4rem' } }, '+'));
     };
     const row = (label, frac, text, lesson, opts, key) => h('div', { class: `res ${crit.has(key) ? 'critico' : ''}`, title: crit.has(key) ? 'Recurso crítico para tu objetivo y destino' : null },
@@ -231,16 +255,24 @@ export function render(root, app, go, params = {}) {
     const instrSlots = d.modules.filter((m) => m.type === 'laboratorio').length * 3;
     mount(root,
       h('div', { class: 'row', style: { justifyContent: 'space-between' } },
-        h('h1', { style: { fontSize: '1.8rem' } }, `🛠️ Arma tu ${scn === 'estacion' ? 'nave' : 'base'} · ${sc.icon} ${sc.short}`),
+        h('h1', { style: { fontSize: '1.8rem' } }, `🛠️ Arma tu ${sc.orbital ? 'nave' : 'base'} · ${sc.icon} ${sc.short}`),
         d.upgrades.length ? h('span', { class: 'small', title: d.upgrades.map((u) => UPGRADES[u].name).join(', ') }, `🌳 Mejoras: ${d.upgrades.map((u) => UPGRADES[u].icon).join(' ')}`) : null,
         h('div', { class: 'row' },
-          h('button', { onclick: () => { Object.assign(d, SUGGESTED(scn)); explain = null; draw(); say('Te puse un diseño que funciona. ¡Puedes cambiarlo como quieras!', { mood: 'feliz' }); } }, '✨ Usar una nave de ejemplo'),
+          h('button', { disabled: !can('ingeniero'), onclick: () => { Object.assign(d, SUGGESTED(scn)); explain = null; draw(); say('Te puse un diseño que funciona. ¡Puedes cambiarlo como quieras!', { mood: 'feliz' }); } }, '✨ Usar una nave de ejemplo'),
           h('button', { onclick: () => go('title') }, '🏠 Menú'))),
+      inCoop() && app.players.length > 1 ? h('div', { class: 'panel c-cyan', id: 'mi-parte' },
+        h('b', {}, 'EN LÍNEA: todos arman la misma nave. '),
+        h('span', {}, `Tú (${coopInfo().name}) decides: `,
+          [myRoles.includes('comandante') && 'objetivo, cohete, destino y LANZAR', myRoles.includes('ingeniero') && 'piezas de la nave',
+            myRoles.includes('cientifico') && 'instrumentos de ciencia', myRoles.includes('comunicaciones') && 'astronautas y comida'].filter(Boolean).join(' · ') || 'nada aquí; mira y aconseja')) : null,
+      app.kids ? h('div', { class: 'panel c-green', id: 'objetivo' },
+        h('h2', {}, '🧒 Tu nave ya está lista'),
+        h('div', { class: 'help', style: { fontSize: '1.1rem' } }, 'Nova la armó para ti. Si quieres, cambia piezas: toca una pieza y luego un cuadro. Cuando estés listo, toca 🚀 LANZAR.')) :
       h('div', { class: `panel c-green ${app.objective ? '' : 'senalado'}`, id: 'objetivo' },
         h('h2', {}, '0. Objetivo de la misión ', who('comandante')),
         h('div', { class: 'help' }, 'Primero decidan qué quieren lograr: cambia qué cuenta más en el puntaje y qué recursos son críticos (★).'),
         h('div', { class: 'row' }, ...Object.values(OBJECTIVES).map((o) => h('button', {
-          class: app.objective === o.id ? 'sel' : '', 'data-objetivo': o.id, title: o.desc,
+          class: app.objective === o.id ? 'sel' : '', 'data-objetivo': o.id, title: o.desc, disabled: !can('comandante'),
           onclick: () => { app.objective = o.id; explain = `${o.icon} ${o.name}: ${o.tip}`; say(explain, { mood: 'pensando', target: '#tablero' }); beep(820, 40); draw(); },
         }, `${o.icon} ${o.name}`))),
         app.objective ? h('div', { class: 'small', style: { marginTop: '.4rem' } },
@@ -248,13 +280,13 @@ export function render(root, app, go, params = {}) {
           h('div', { class: 'dim' }, 'Cuenta más: ', Object.entries(OBJECTIVES[app.objective].weights).filter(([, w]) => w >= 2).map(([k]) => `${SCORE_PARTS[k].icon} ${SCORE_PARTS[k].name}`).join(', '))) : null),
       h('div', { class: 'design-layout' },
         h('div', {},
-          tabs([
+          app.kids ? null : tabs([
             { id: 'nave', label: 'Nave', color: 'c-blue', badge: r.errors.some((e) => /módulo|energía|casilla|cuadrícula/i.test(e)) ? '!' : 0 },
             { id: 'ciencia', label: 'Ciencia', color: 'c-green', badge: r.errors.some((e) => /instrumentos/i.test(e)) ? '!' : 0 },
             { id: 'cohete', label: 'Cohete y destino', color: 'c-pink', badge: r.errors.some((e) => /pesa/i.test(e)) ? '!' : 0 },
             { id: 'astronautas', label: 'Astronautas y comida', color: 'c-cyan', badge: r.errors.some((e) => /tripulantes|Carga/i.test(e)) ? '!' : 0 },
           ], tab, (t) => { tab = t; app.designTab = t; explain = null; beep(760, 30); draw(); }),
-          tab === 'nave' ? h('div', { class: 'grid2 nave-tab' },
+          tab === 'nave' || app.kids ? h('div', { class: 'grid2 nave-tab' },
           h('div', { class: 'panel c-violet' },
             h('h2', {}, '1. Elige una pieza ', who('ingeniero')),
             h('div', { class: 'help' }, 'Toca una pieza y luego un cuadro de tu nave.'),
@@ -263,43 +295,43 @@ export function render(root, app, go, params = {}) {
                 selected = m.id; explain = m.id; draw();
                 say(`${m.icon} ${m.name}: ${m.desc} Pesa ${m.mass} t y cuesta ${m.cost} millones.`, { quiet: true, target: '#nave' });
               } }, h('span', { class: 'code' }, MOD_CODE[m.id]), ` ${m.name}`, sc.requiredModules.includes(m.id) ? h('span', { class: 'amber small' }, ' (obligatorio)') : null,
-              h('div', { class: 'dim small' }, `${m.mass} t · ${m.kw > 0 ? '+' : ''}${m.kw} kW · 💰${m.cost}`)))))),
+              app.kids ? null : h('div', { class: 'dim small' }, `${m.mass} t · ${m.kw > 0 ? '+' : ''}${m.kw} kW · 💰${m.cost}`)))))),
           h('div', { class: 'panel c-blue' },
             h('h2', {}, '2. Tu nave ', who('ingeniero')),
             h('div', { class: 'ship', id: 'nave', style: { gridTemplateColumns: `repeat(${GRID.cols}, 1fr)` } },
               ...Array.from({ length: GRID.rows }, (_, y) => Array.from({ length: GRID.cols }, (_, x) => cell(x, y)))),
             h('div', { class: 'help', style: { marginTop: '.3rem' } }, 'Clic derecho sobre una pieza para quitarla.'))) : null,
-          tab === 'ciencia' ? h('div', { class: 'panel c-green', id: 'instrumentos' },
+          tab === 'ciencia' && !app.kids ? h('div', { class: 'panel c-green', id: 'instrumentos' },
             h('h2', {}, '3. Instrumentos de ciencia ', who('cientifico')),
             h('div', { class: 'help' }, `Van dentro del 🔬 laboratorio: usas ${d.instruments.length} de ${instrSlots} lugares.`),
             ...Object.values(INSTRUMENTS).filter((i) => availableIn(i, scn)).map((i) => h('label', { class: 'row small', style: { margin: '.25rem 0' }, title: i.desc },
-              h('input', { type: 'checkbox', 'data-ins': i.id, checked: d.instruments.includes(i.id), onchange: (e) => {
+              h('input', { type: 'checkbox', 'data-ins': i.id, disabled: !can('cientifico'), checked: d.instruments.includes(i.id), onchange: (e) => {
                 d.instruments = e.target.checked ? [...d.instruments, i.id] : d.instruments.filter((x) => x !== i.id);
                 explain = i.id; draw(); say(`${i.icon} ${i.name}: ${i.desc} Da ${i.sciencePerDay} de ciencia por día.`, { quiet: true });
               } }),
               `${i.icon} ${i.name}`, h('span', { class: 'dim' }, `🧪${i.sciencePerDay} · 💰${i.cost}`)))) : null,
-          tab === 'cohete' ? h('div', { class: 'panel c-pink', id: 'cohetes' },
+          tab === 'cohete' && !app.kids ? h('div', { class: 'panel c-pink', id: 'cohetes' },
             h('h2', {}, '4. Cohete ', who('comandante')),
             ...Object.values(LAUNCHERS).map((l) => h('label', { class: 'row small', style: { margin: '.2rem 0' } },
-              h('input', { type: 'radio', name: 'cohete', 'data-launcher': l.id, checked: d.launcher === l.id, onchange: () => {
+              h('input', { type: 'radio', name: 'cohete', 'data-launcher': l.id, disabled: !can('comandante'), checked: d.launcher === l.id, onchange: () => {
                 d.launcher = l.id; explain = l.id; draw();
                 say(`${l.name}: ${l.desc} Sube ${l.capacity} t y funciona bien ${Math.round(l.reliability * 100)} de cada 100 veces.`, { quiet: true });
               } }),
               h('b', {}, l.name), h('span', { class: 'dim' }, `${l.capacity} t · 💰${l.cost} · ${Math.round(l.reliability * 100)} % seguro`))),
-            h('h2', { style: { marginTop: '.6rem' } }, scn === 'estacion' ? '5. ¿A dónde? (órbita) ' : '5. ¿Dónde aterrizar? ', who('comandante')),
+            h('h2', { style: { marginTop: '.6rem' } }, sc.orbital ? '5. ¿A dónde? (órbita) ' : '5. ¿Dónde aterrizar? ', who('comandante')),
             ...Object.values(ORBITS).filter((o) => o.scenario === scn).map((o) => h('label', { class: 'row small', style: { margin: '.2rem 0' }, title: o.desc },
-              h('input', { type: 'radio', name: 'orbita', 'data-orbit': o.id, checked: d.orbit === o.id, onchange: () => { d.orbit = o.id; explain = o.id; draw(); say(`${o.icon} ${o.name}: ${o.desc}`, { quiet: true }); } }),
+              h('input', { type: 'radio', name: 'orbita', 'data-orbit': o.id, disabled: !can('comandante'), checked: d.orbit === o.id, onchange: () => { d.orbit = o.id; explain = o.id; draw(); say(`${o.icon} ${o.name}: ${o.desc}`, { quiet: true }); } }),
               `${o.icon} ${o.name}`, h('span', { class: 'dim' }, o.nightDays ? ` · noche de ${o.nightDays} días${o.ice ? ' · hielo' : ''}` : o.ice ? ' · hielo' : ''))),
             h('div', { class: 'help' }, ORBITS[d.orbit]?.desc ?? '')) : null,
-          tab === 'astronautas' ? h('div', { class: 'panel c-cyan', id: 'tripulantes' },
-            h('h2', {}, '6. Comida y astronautas ', who('comandante')),
+          tab === 'astronautas' && !app.kids ? h('div', { class: 'panel c-cyan', id: 'tripulantes' },
+            h('h2', {}, '6. Comida y astronautas ', who('comunicaciones')),
             h('div', { class: 'row small' }, '🍎 Comida para',
-              h('input', { type: 'range', id: 'carga', min: 30, max: scn === 'marte' ? 400 : 365, step: 5, value: d.cargoDays, oninput: (e) => { d.cargoDays = Number(e.target.value); draw(); } }),
+              h('input', { type: 'range', id: 'carga', disabled: !can('comunicaciones'), min: 30, max: scn === 'marte' ? 400 : 365, step: 5, value: d.cargoDays, oninput: (e) => { d.cargoDays = Number(e.target.value); draw(); } }),
               h('b', {}, `${d.cargoDays} días`)),
             h('div', { class: 'help' }, sc.resupplyEvery ? `📦 Cada ${sc.resupplyEvery} días llega una nave con más comida… si no explota.` : '📦 A Marte no llega ninguna nave de carga: lleva comida para el viaje de ida (210 días) y algo de reserva. Allá te espera la carga enviada antes, y la nave de regreso trae comida para volver.'),
             h('div', { class: 'capsule', style: { margin: '.4rem 0' } }, ...d.crewRoles.map((role, i) => crewAvatar({ name: `${role}-${i}`, role, alive: true, health: 100, morale: 80, fatigue: 0, radiation: 0, hunger: 0, thirst: 0 }, { size: 52 }))),
             h('div', { class: 'row small' }, ...Object.values(ROLES).map((ro) =>
-              h('button', { class: d.crewRoles.includes(ro.id) ? 'sel' : '', 'data-role': ro.id, title: ROLE_DESC[ro.id], onclick: () => {
+              h('button', { class: d.crewRoles.includes(ro.id) ? 'sel' : '', 'data-role': ro.id, disabled: !can('comunicaciones'), title: ROLE_DESC[ro.id], onclick: () => {
                 const adding = !d.crewRoles.includes(ro.id);
                 d.crewRoles = adding ? [...d.crewRoles, ro.id] : d.crewRoles.filter((x) => x !== ro.id);
                 explain = ro.id; draw();
@@ -317,7 +349,7 @@ export function render(root, app, go, params = {}) {
                   h('div', {}, `${ROLE_ICON[ro]} ${ROLES[ro].name}`),
                   c ? h('div', { class: 'name' }, c.name) : h('div', { class: 'small amber' }, 'Sin contratar'),
                   c ? h('div', { class: 'small dim' }, c.auto ? 'Asignado por la agencia: no sabes cómo es.' : Object.entries(known.stats).map(([k, v]) => `${STAT_ICON[k]}${v}`).join(' ') || 'No le preguntaste nada.') : null,
-                  h('button', { class: 'small', 'data-hire': ro, onclick: () => interview(ro) }, c?.auto ? 'Entrevistar (opcional)' : 'Cambiar')));
+                  h('button', { class: 'small', 'data-hire': ro, disabled: !can('comunicaciones'), onclick: () => interview(ro) }, c?.auto ? 'Entrevistar (opcional)' : 'Cambiar')));
             }))) : null),
         h('div', {},
           h('div', { class: 'panel c-amber', id: 'tablero' },
@@ -325,23 +357,36 @@ export function render(root, app, go, params = {}) {
             row('🏋️ Peso', r.capacity ? r.mass / r.capacity : 1, `${fmt(r.mass, 1)} de ${fmt(r.capacity, 1)} t`, null, { invert: true, warn: 0.15, danger: 0.0001 }, 'peso'),
             row('💰 Dinero', r.cost / r.budget, `${fmt(r.cost)} de ${fmt(r.budget)}`, null, { invert: true, warn: 0.1, danger: 0.0001 }, 'dinero'),
             row('⚡ Electricidad', Math.max(0, Math.min(1, 0.5 + r.energyPerDay / 400)), r.energyPerDay >= 0 ? `sobran ${fmt(r.energyPerDay)}` : `faltan ${fmt(-r.energyPerDay)}`, 'paneles_solares', { warn: 0.55, danger: 0.5 }, 'energia'),
-            row('📶 Datos', r.downlinkPerDay ? r.dataPerDay / r.downlinkPerDay : (r.dataPerDay ? 2 : 0), `junta ${fmt(r.dataPerDay)}, manda ${fmt(r.downlinkPerDay)}`, 'satelites_clima', { invert: true, warn: 0.2, danger: 0.0001 }, 'datos'),
-            row('🧪 Ciencia', Math.min(1, r.sciencePerDay / 20), `${fmt(r.sciencePerDay)} por día`, null, { warn: 0, danger: 0 }, 'ciencia'),
-            ORBITS[d.orbit]?.nightDays ? row('🌑 Noche', r.nightNeed ? Math.min(1, r.storage / r.nightNeed) : 1, `guarda ${fmt(r.storage)} de ${fmt(r.nightNeed)} kWh`, 'baterias', { warn: 0.999, danger: 0.6 }, 'noche') : null,
-            row('🍎 Comida', d.cargoDays / Math.max(1, r.cargoMax), `${d.cargoDays} de ${r.cargoMax} días`, 'racionamiento', { invert: true, warn: 0, danger: 0 }, 'comida'),
+            app.kids ? null : row('📶 Datos', r.downlinkPerDay ? r.dataPerDay / r.downlinkPerDay : (r.dataPerDay ? 2 : 0), `junta ${fmt(r.dataPerDay)}, manda ${fmt(r.downlinkPerDay)}`, 'satelites_clima', { invert: true, warn: 0.2, danger: 0.0001 }, 'datos'),
+            app.kids ? null : row('🧪 Ciencia', Math.min(1, r.sciencePerDay / 20), `${fmt(r.sciencePerDay)} por día`, null, { warn: 0, danger: 0 }, 'ciencia'),
+            !app.kids && ORBITS[d.orbit]?.nightDays ? row('🌑 Noche', r.nightNeed ? Math.min(1, r.storage / r.nightNeed) : 1, `guarda ${fmt(r.storage)} de ${fmt(r.nightNeed)} kWh`, 'baterias', { warn: 0.999, danger: 0.6 }, 'noche') : null,
+            app.kids ? null : row('🍎 Comida', d.cargoDays / Math.max(1, r.cargoMax), `${d.cargoDays} de ${r.cargoMax} días`, 'racionamiento', { invert: true, warn: 0, danger: 0 }, 'comida'),
             h('ul', { class: 'plain', id: 'errores' },
               ...r.errors.map((e) => h('li', { class: 'red' }, '❌ ', e)),
-              ...r.warnings.map((w) => h('li', { class: 'amber' }, '⚠️ ', w))),
+              ...(app.kids ? [] : r.warnings.map((w) => h('li', { class: 'amber' }, '⚠️ ', w)))),
             h('div', { style: { textAlign: 'center', marginTop: '.6rem' } },
-              h('button', { class: 'big', id: 'lanzar', disabled: !ok || launching, onclick: launch }, launching ? '☀️ MIRANDO EL CLIMA ESPACIAL…' : '🚀 LANZAR'),
+              h('button', { class: 'big', id: 'lanzar', disabled: !ok || launching || !can('comandante'), onclick: () => (isGuest() ? coopAction('lanzar') : launch()) }, launching ? '☀️ MIRANDO EL CLIMA ESPACIAL…' : '🚀 LANZAR'),
               ' ', who('comandante'))))),
     );
     if (!explain) {
       const [text, mood, target] = app.objective ? coach(d, r) : ['Primero, el objetivo: ¿qué quiere lograr el equipo? Elijan uno arriba, en el paso 0. Cambia qué cuenta más en el puntaje.', 'pensando', '#objetivo'];
       const where = TAB_OF(target);
+      if (app.kids && !ok && where && where !== 'nave') { say('Algo no cuadra en la nave. Toca ✨ Usar una nave de ejemplo y vuelve a la nave lista.', { mood: 'pensando', quiet: true }); return; }
+      if (app.kids && ok) { say('¡La nave puede volar! Toca 🚀 LANZAR cuando quieras.', { mood: 'feliz', target: '#lanzar', quiet: true }); return; }
       const elsewhere = where && where !== tab;
       say(elsewhere ? `${text} (Toca la pestaña señalada.)` : text, { mood, target: elsewhere ? `[data-tab="${where}"]` : target, quiet: true });
     }
   };
   draw();
+  if (!inCoop()) return undefined;
+  const offDraft = onDraft((k, v) => {
+    if (k !== 'diseno' || !v || launching) return;
+    for (const key of Object.keys(d)) delete d[key];
+    Object.assign(d, structuredClone(v.d));
+    app.objective = v.o;
+    sent = snapOf();
+    draw();
+  });
+  const offAction = onAction((name) => { if (name === 'lanzar' && !isGuest()) launch(); });
+  return () => { offDraft(); offAction(); };
 }
