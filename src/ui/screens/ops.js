@@ -389,7 +389,7 @@ export function render(root, app, go) {
       h('div', { class: 'row', style: { marginTop: '.5rem' } },
         h('span', { class: 'pill violet' }, `🧪 Ciencia ${fmt(s.science)}`),
         h('span', { class: 'pill amber' }, `⭐ Fama ${fmt(s.reputation)}`),
-        h('span', { class: 'pill blue' }, `📦 Próxima carga: día ${s.nextResupply}`)));
+        s.nextResupply != null && s.nextResupply < 1e8 ? h('span', { class: 'pill blue' }, `📦 Próxima carga: día ${s.nextResupply}`) : null));
   }
 
   function energyPanel() {

@@ -156,6 +156,7 @@ mute.addEventListener('click', () => {
 
 // Cooperativo en línea: al llegar un cambio de otra persona se vuelve a dibujar la pantalla.
 let redrawTimer = null; let redrawTo = null;
+const LIVE = ['launch', 'reentry'];
 initCoop(() => app, (screen) => {
   if (screen) redrawTo = screen;
   if (redrawTimer) return; // como mucho 4 redibujos por segundo
@@ -163,6 +164,8 @@ initCoop(() => app, (screen) => {
     redrawTimer = null;
     const to = redrawTo; redrawTo = null;
     if (!to && document.activeElement?.tagName === 'INPUT') return; // no borrar lo que alguien está escribiendo
+    // El despegue y la reentrada del anfitrión corren en vivo: redibujarlos los reiniciaría.
+    if (!to && !isGuest() && LIVE.includes(app.screen)) return;
     const y = window.scrollY;
     go(to ?? app.screen ?? 'title', { keepScroll: true, remote: true });
     window.scrollTo(0, y);

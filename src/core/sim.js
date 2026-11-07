@@ -129,7 +129,8 @@ export function advanceDay(state) {
   exerciseRule(s, t.ctx.exercised, proto);
   pushLog(s, proto, 'aviso');
 
-  if (s.day >= s.nextResupply && living(s).length) s = resolveResupply(s, rng).state;
+  // nextResupply null = partida vieja de Marte guardada con Infinity (que JSON vuelve null): sin carga.
+  if (s.nextResupply != null && s.day >= s.nextResupply && living(s).length) s = resolveResupply(s, rng).state;
 
   const r = s.resources;
   s.history.push({ day: s.day, o2: r.o2, water: r.water, food: r.food, battery: r.battery });

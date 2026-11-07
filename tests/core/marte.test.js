@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { computeDesign } from '../../src/core/design.js';
-import { createMission } from '../../src/core/mission.js';
+import { createMission, NO_RESUPPLY } from '../../src/core/mission.js';
 import { advanceDay, runUntilInterrupt } from '../../src/core/sim.js';
 import { legOf, phaseDue, resolvePhase, previewPhase, inBlackout, radioDelayMin, ASCENT_FUEL, LANDING_DAY, ASCENT_DAY, CONJUNCTION } from '../../src/core/mars.js';
 import { envMults } from '../../src/core/surface.js';
@@ -28,7 +28,8 @@ test('el diseño de ejemplo de Marte es válido y exige la planta de combustible
 test('785 días: ida, superficie y vuelta; sin cargas', () => {
   const s = mk();
   assert.equal(s.totalDays, 785);
-  assert.equal(s.nextResupply, Infinity);
+  assert.equal(s.nextResupply, NO_RESUPPLY);
+  assert.ok(Number.isFinite(s.nextResupply), "debe sobrevivir a JSON y al envío en línea");
   assert.equal(legOf(s, 100), 'ida');
   s.flags = { landed: true };
   assert.equal(legOf(s, 300), 'superficie');

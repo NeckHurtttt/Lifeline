@@ -10,7 +10,7 @@ const PREFIX = 'vdl-sala-';
 const ALPHA = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
 export const COOP_MAX = 4;
 // Versión del protocolo: si alguien entra con la página vieja (caché), se avisa que recargue.
-const COOP_VERSION = 3;
+const COOP_VERSION = 4;
 
 const coop = { base: null, role: null, code: '', name: '', peer: null, conns: [], hostConn: null, players: [], ver: 0, applying: false, status: '', listeners: new Set() };
 let hooks = { getApp: null, rerender: null };
@@ -73,7 +73,7 @@ export const normalizeCode = (v) => String(v).toUpperCase().replace(/[^A-Z0-9]/g
 
 function snapshot() {
   const app = hooks.getApp();
-  return { type: 'estado', ver: coop.ver, screen: app.screen, state: app.state, meta: { difficulty: app.difficulty, mode: app.mode, objective: app.objective }, players: coop.players, drafts };
+  return { type: 'estado', ver: coop.ver, screen: app.screen, state: app.state, meta: { difficulty: app.difficulty, mode: app.mode, objective: app.objective, scenario: app.scenario, kids: app.kids, contrarreloj: app.contrarreloj, budgetMult: app.budgetMult, reto: app.reto }, players: coop.players, drafts };
 }
 
 function apply(msg) {
@@ -108,6 +108,8 @@ export function coopScreen() {
   if (coop.role === 'host' && !coop.applying) { coop.ver++; broadcast(snapshot()); }
 }
 
+// En JSON, igual que el guardado: el empaquetado binario de PeerJS falla con números como Infinity
+// y entonces el invitado dejaba de recibir el estado (se quedaba en el diseño).
 // Latido: a veces la conexión directa se corta sin avisar. Cada 5 s todos mandan una señal;
 // si pasan 15 s sin nada, el anfitrión da al invitado por caído y el invitado se reconecta solo.
 const BEAT_MS = 5000; const DEAD_MS = 15000;
@@ -171,6 +173,8 @@ export async function hostRoom(name) {
           const from = coop.players.find((p) => p.id === conn.peer)?.name;
           if (from) actionFns.forEach((fn) => fn(msg.name, msg.data, from));
         } else if (msg?.type === 'cambio' && Array.isArray(msg.changes) && hooks.getApp().state) {
+          // Durante el despegue o la reentrada manda el anfitrión: un cambio viejo del invitado se ignora y se le reenvía el estado.
+          if (['launch', 'reentry'].includes(hooks.getApp().screen)) { safeSend(conn, snapshot()); return; }
           let next;
           try { next = patch(hooks.getApp().state, msg.changes.filter((c) => Array.isArray(c?.[0]) && c[0].length)); } catch { return; }
           coop.ver++;
@@ -205,7 +209,7 @@ export async function joinRoom(rawCode, name) {
   leaveRoom();
   const peer = new Peer();
   await new Promise((res, rej) => { peer.on('open', res); peer.on('error', (e) => rej(new Error(`No se pudo conectar: ${e.type ?? e}`))); });
-  const conn = peer.connect(PREFIX + code.toLowerCase(), { reliable: true });
+  const conn = peer.connect(PREFIX + code.toLowerCase(), { reliable: true, serialization: 'json' });
   await new Promise((res, rej) => {
     const t = setTimeout(() => rej(new Error('La sala no responde. Revisa el código.')), 12000);
     conn.on('open', () => { clearTimeout(t); res(); });

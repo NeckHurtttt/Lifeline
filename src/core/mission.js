@@ -57,6 +57,9 @@ export function generateCrew(roles, rng) {
 /** Plazos cortos del modo demo (unos 10 minutos de juego). */
 export const DEMO_DAYS = { estacion: 60, luna: 56, marte: { transit: 30, surface: 60 } };
 
+/** Día "nunca" para la próxima carga (Marte). Número normal, no Infinity: Infinity se pierde al guardar y al mandarlo en línea. */
+export const NO_RESUPPLY = 1e9;
+
 export function createMission({ design, scenarioId, difficulty, seed, demo = false }) {
   const rng = createRng(seed);
   const crew = generateCrew(design.crewRoles, rng);
@@ -96,6 +99,6 @@ export function createMission({ design, scenarioId, difficulty, seed, demo = fal
       battery: batteryMax, batteryMax, dataStored: 0,
     },
     alerts: [], pending: null, history: [], minis: [], science: 0, reputation: 50,
-    nextResupply: sc.resupplyEvery || Infinity, medsExpiry: 180, log: [], outcome: null,
+    nextResupply: sc.resupplyEvery || NO_RESUPPLY, medsExpiry: 180, log: [], outcome: null,
   };
 }
