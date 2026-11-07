@@ -106,7 +106,7 @@ export function resolvePhase(state, phase) {
     // La carga enviada dos años antes espera en la superficie.
     const days = planOf(s).surface * 0.85;
     s.resources.food += NEEDS.food * n * days;
-    s.resources.water += NEEDS.water * n * days;
+    s.resources.water += NEEDS.water * n * planOf(s).surface; // el agua alcanza para todo el año
     s.resources.o2 += NEEDS.o2 * n * days;
     s.resources.parts += 50; // repuestos para un año sin naves de carga
     s.resources.meds += 5 * n;
