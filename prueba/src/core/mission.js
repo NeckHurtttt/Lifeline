@@ -90,9 +90,9 @@ export function createMission({ design, scenarioId, difficulty, seed, demo = fal
     resources: {
       // Tanques de O₂ solo para emergencias (~45 días): el aire de cada día sale del agua con el soporte vital.
       o2: NEEDS.o2 * n * Math.min(days, 45) * (1 + DIFFICULTY[difficulty].reserveBonus),
-      water: NEEDS.water * mult,
+      water: NEEDS.water * mult * (sc.travelDays ? 1.15 : 1), // viaje largo sin cargas: 15 % de agua de reserva
       food: NEEDS.food * mult,
-      meds: 20 * n, parts: 30 + (hasUpgrade(design, 'impresion_3d') ? 15 : 0), fuel: 100,
+      meds: 20 * n, parts: 30 + (sc.travelDays ? 40 : 0) + (hasUpgrade(design, 'impresion_3d') ? 15 : 0), /* a Marte no llegan cargas: más repuestos */ fuel: 100,
       battery: batteryMax, batteryMax, dataStored: 0,
     },
     alerts: [], pending: null, history: [], minis: [], science: 0, reputation: 50,

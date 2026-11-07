@@ -230,7 +230,7 @@ export function render(root, app, go) {
       const step = STEPS[i];
       t = step.t; drawSteps(step.id); drawTel();
       say(RADIO[step.id]);
-      if (!['clima', 'hold_go_nogo'].includes(step.id)) nova(`${step.label}: ${step.desc}`, { quiet: true, mood: step.id === 'despegue' || step.id === 'insercion' ? 'feliz' : 'normal' });
+      if (!['clima', 'hold_go_nogo'].includes(step.id)) nova(/[!?.…]$/.test(step.label) ? `${step.label} ${step.desc}` : `${step.label}: ${step.desc}`, { quiet: true, mood: step.id === 'despegue' || step.id === 'insercion' ? 'feliz' : 'normal' });
       beep(step.t >= 0 ? 1000 : 700, 50);
       if (step.id === 'clima') await weather();
       if (step.id === 'hold_go_nogo') await goNoGo();

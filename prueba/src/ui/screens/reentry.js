@@ -58,7 +58,7 @@ export function render(root, app, go) {
       const cap = document.getElementById('capsula');
       if (cap) cap.style.bottom = `${200 - (i / (REENTRY_STEPS.length - 1)) * 180}px`;
       if (i >= 4) document.getElementById('cielo')?.classList.remove('space');
-      nova(`${step.label}: ${step.desc}`, { quiet: true, mood: step.id === 'escudo_termico' ? 'alerta' : step.id === 'recuperacion' ? 'feliz' : 'normal' });
+      nova(/[!?.…]$/.test(step.label) ? `${step.label} ${step.desc}` : `${step.label}: ${step.desc}`, { quiet: true, mood: step.id === 'escudo_termico' ? 'alerta' : step.id === 'recuperacion' ? 'feliz' : 'normal' });
       let choice;
       // Antes de encender los motores para volver, cada jugador (cada rol) dice si está listo.
       if (i === 0 && app.players.length > 1) {

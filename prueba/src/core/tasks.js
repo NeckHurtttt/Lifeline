@@ -45,6 +45,7 @@ export function normalizeSchedule(turns = []) {
   if (t === 'prerespiracion' || t === 'campamento') t = 'descanso';
   return [m, t, m === 'eva' ? 'campamento' : 'sueño'];
 }
+const VITAL_REPAIR = new Set(['soporte_vital', 'cabina', 'paneles', 'baterias', 'reactor', 'pila_regenerativa']);
 const WORK = new Set(['mantenimiento', 'reparacion', 'experimentos', 'trabajo', 'cultivo', 'produccion']);
 const EXTERNAL = new Set(['paneles', 'antena']);
 const MAX_DATA = 500;
@@ -115,8 +116,12 @@ export function applyTasks(state, rng) {
         // Revisa toda la nave: frena el desgaste de cada módulo que aún funciona.
         for (const m of s.modules) if (m.health > 0 && m.health < 100) m.health = clamp(m.health + 0.6 * eff);
       } else if (t === 'reparacion') {
-        const m = worst(s.modules.filter((x) => x.health < 100));
-        if (m) {
+        // Primero lo que mantiene viva a la tripulación (soporte vital, cabina, energía); después lo demás.
+        const vital = s.modules.filter((x) => VITAL_REPAIR.has(x.type) && x.health < 80);
+        // Solo se gastan piezas en lo que de verdad está dañado (< 85 %); el desgaste chico lo cubre el mantenimiento.
+        const m = worst(vital.length ? vital : s.modules.filter((x) => x.health < 85));
+        if (!m) { for (const x of s.modules) if (x.health > 0 && x.health < 100) x.health = clamp(x.health + 0.6 * eff); }
+        else {
           if (r.parts < 2) log.push('Faltan piezas para reparar');
           else {
             r.parts -= 2;

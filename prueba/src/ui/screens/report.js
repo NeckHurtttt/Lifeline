@@ -214,7 +214,7 @@ export function render(root, app, go) {
     h('div', { class: 'grid2' },
       quizPanel(s.seed + s.day, s.mode === 'campana'),
       h('div', { class: 'panel c-amber', id: 'logros' }, h('h2', {}, '🏅 Logros'),
-        nuevos.length ? h('div', { class: 'green' }, `¡Nuevo${nuevos.length > 1 ? 's' : ''}: ${nuevos.map((a) => `${a.icon} ${a.name}`).join(', ')}!`) : h('div', { class: 'small dim' }, 'Esta vez no hubo logros nuevos.'),
+        nuevos.length ? h('div', { class: 'green' }, `¡Logros nuevos: ${nuevos.map((a) => `${a.icon} ${a.name}`).join(', ')}!`) : h('div', { class: 'small dim' }, 'Esta vez no hubo logros nuevos.'),
         h('div', {}, ...ACHIEVEMENTS.map((a) => h('span', { class: `logro ${got[a.id] ? '' : 'no'}`, title: `${a.desc}${got[a.id] ? ` (ganado el ${got[a.id]})` : ''}` }, `${a.icon} ${a.name}`))),
         h('div', { style: { marginTop: '.5rem' } }, h('button', { id: 'diario', onclick: () => diary(s, rep) }, '📄 Diario del comandante (imprimir o PDF)')))),
     records ? h('div', { class: 'panel c-violet', id: 'records' }, h('h2', {}, '🏁 Récords de este reto en esta compu'),

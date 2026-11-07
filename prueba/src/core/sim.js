@@ -16,6 +16,8 @@ import { legOf, phaseDue, marsSolarFactor, inBlackout, isMars, planOf } from './
 
 export const NIGHT_WARN_DAYS = 2;
 /** Desgaste diario de cada módulo (sin mantenimiento la nave se va rompiendo). */
+/** Módulos que viajan embalados (solo se usan en la superficie). */
+const STOWED = new Set(['planta_combustible', 'invernadero', 'extractor_hielo', 'rover', 'rover_autonomo', 'modulo_aterrizaje', 'bodega', 'enfermeria']);
 export const WEAR = { facil: 0.2, medio: 0.3, dificil: 0.4 };
 
 const LOW_DAYS = 7;
@@ -95,8 +97,11 @@ export function advanceDay(state) {
   const site = siteOf(s);
   const sc = scenarioOf(s);
   const wear = WEAR[s.difficulty] * (s.leg === 'superficie' && !sc.orbital ? 1.25 : 1);
+  const traveling = s.leg === 'ida' || s.leg === 'vuelta';
   for (const m of s.modules) {
     if (m.health <= 0) continue;
+    // En el viaje, lo que es para la superficie va embalado y no se gasta.
+    if (traveling && STOWED.has(m.type)) continue;
     m.health = Math.max(0, m.health - wear);
     if (m.health === 0) { m.on = false; pushLog(s, [`Se rompió por desgaste: ${MODULES[m.type].name}. Hace falta 🔧 Reparación.`], 'evento'); }
   }
