@@ -17,7 +17,7 @@ import { acceptMini, previewMini, usesAutoRover } from '../../core/minimissions.
 import { setPriority } from '../../core/energy.js';
 import { restoreRng } from '../../core/rng.js';
 import { save } from '../../core/save.js';
-import { whoDecides, musicMood } from '../main.js';
+import { whoDecides, musicMood, musicUrgency } from '../main.js';
 import { alarm, beep, hiss, hissHit, spark, clunk, squeak, zap } from '../audio.js';
 import { say, hideGuide } from '../guide.js';
 import { crewAvatar, moodOf, MOOD_TEXT } from '../avatar.js';
@@ -28,7 +28,7 @@ import { digPanel, digAvailable } from '../panels/dig.js';
 import { autoAssign } from '../../core/autoplan.js';
 import { CARGO_PLANS, cleanPanels, replaceBatteries, batteryHealth, gardenStage, BATTERY_PARTS, AUTO_RATION_DAYS } from '../../core/extras.js';
 import { inCoop, coopInfo, shareDraft, onDraft, allDrafts } from '../coop.js';
-import { FLASH_TYPES, CABLE_COLORS, closeDoor, resolveFlash, modName, allDone, stepDone, flashLeft, leakReading, probeLeak, turnValve, connectCable, pressProtocol, protocolOrder } from '../../core/flash.js';
+import { placeOf, FLASH_TYPES, CABLE_COLORS, closeDoor, resolveFlash, modName, allDone, stepDone, flashLeft, leakReading, probeLeak, turnValve, connectCable, pressProtocol, protocolOrder } from '../../core/flash.js';
 
 // Modo niños: menos trabajos, energía en una barra y Nova reparte sola cada día.
 const KID_TASKS = new Set(['cultivo', 'produccion', 'reparacion', 'experimentos', 'medico', 'ejercicio', 'descanso']);
@@ -349,6 +349,7 @@ export function render(root, app, go) {
       bar.style.width = `${(l / f.seconds) * 100}%`;
       document.getElementById('flash-seg').textContent = `${Math.ceil(l)} s`;
       bar.classList.toggle('roja', l <= 3);
+      musicUrgency(1 - l / f.seconds);
       document.querySelectorAll('.flash-door').forEach((b, i) => { if (!f.closed?.[f.doors[i]] && canClose(i)) b.disabled = false; });
       if (!isGuest() && (l <= 0 || allDone(app.state.flash))) finish();
       if (isGuest() && !app.state.flash) { flashOff(); flashClose(); hiss(false); document.body.classList.remove('alarma-roja'); }
@@ -1016,7 +1017,7 @@ export function render(root, app, go) {
     keyFn = null;
     if (autoOn() && app.autoDay !== app.state.day && !app.state.pending) { app.autoDay = app.state.day; commit(autoAssign(app.state)); }
     const s = app.state;
-    musicMood(s.flash ? 'phonk' : s.pending && EVENTS[s.pending.eventId]?.kind !== '+' ? 'danger' : s.dig?.outing ? 'surface' : 'orbit');
+    musicMood(s.flash ? 'tension' : s.pending && EVENTS[s.pending.eventId]?.kind !== '+' ? 'danger' : s.dig?.outing || placeOf(s) === 'suelo' ? 'surface' : 'orbit');
     const sched = validateSchedule(Object.fromEntries(Object.entries(s.schedule).filter(([id]) => s.crew.find((c) => c.id === id)?.alive)))
       .map((e) => { const id = e.split(' ')[0]; const c = s.crew.find((x) => x.id === id); return c ? e.replace(id, c.name) : e; });
     const blocked = sched.length > 0 || !!s.pending || !!s.flash || s.phase !== 'ops' || !!phaseDue(s);

@@ -16,6 +16,7 @@ import { QUIZ } from '../../data/quiz.js';
 import { modal } from '../dom.js';
 import { NEEDS } from '../../core/life.js';
 import { HISTORICA } from '../../data/historicas.js';
+import { musicMood } from '../main.js';
 
 // v2: puntaje de 0 a 1000 por categorías (el ranking viejo usaba otra escala).
 const RANK_KEY = 'vdl.ranking.v2';
@@ -123,6 +124,7 @@ export function render(root, app, go) {
   const s = app.state;
   const rep = buildReport(s);
   clearSave();
+  musicMood(rep.success ? 'victory' : 'danger');
 
   const id = `${s.seed}-${s.day}-${rep.score}`;
   let ranking = readRanking();

@@ -65,7 +65,7 @@ export function hiss(on) {
   if (!on) { try { hissNode?.src.stop(); } catch { /* ya parado */ } hissNode = null; return; }
   const a = ac(); if (!a || hissNode) return;
   const src = a.createBufferSource(); const f = a.createBiquadFilter(); const g = a.createGain();
-  src.buffer = noise(a, 2); src.loop = true; f.type = 'highpass'; f.frequency.value = 3500; g.gain.value = 0.035;
+  src.buffer = noise(a, 2); src.loop = true; f.type = 'highpass'; f.frequency.value = 3500; g.gain.value = 0.014;
   src.connect(f).connect(g).connect(a.destination); src.start();
   hissNode = { src };
 }

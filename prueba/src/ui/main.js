@@ -147,6 +147,8 @@ window.addEventListener('keydown', musicFirstTouch, true);
 musicLabel();
 /** Cambia el ánimo de la música según lo que pasa. */
 export function musicMood(mode) { if (musicOn && music.mode !== mode) music.modeTo(mode); }
+/** Qué tan urgente está el evento relámpago (0-1): acelera el tema de tensión. */
+export function musicUrgency(u) { if (musicOn) music.setUrgency(u); }
 mute.addEventListener('click', () => {
   setMuted(!isMuted());
   muteLabel();
