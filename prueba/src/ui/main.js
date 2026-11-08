@@ -130,7 +130,7 @@ const musicBtn = document.getElementById('musica');
 // Si el jugador la apaga, se recuerda.
 let musicOn = (() => { try { return localStorage.getItem('vdl-musica') !== 'no'; } catch { return true; } })();
 const musicLabel = () => { musicBtn.textContent = tr(musicOn ? 'MÚSICA: SÍ' : 'MÚSICA: NO'); };
-const musicPlay = async () => { await music.start(); music.muted = false; music.setVolume(0.18); };
+const musicPlay = async () => { await music.start(); music.muted = false; music.setVolume(0.75); };
 musicBtn.addEventListener('click', async () => {
   musicOn = !musicOn;
   try { localStorage.setItem('vdl-musica', musicOn ? 'si' : 'no'); } catch {}

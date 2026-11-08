@@ -1,10 +1,10 @@
 // Música generativa original del juego "Los Tira Vida 02" del equipo (CC0, dominio público). Sin grabaciones.
 // Se activa con el botón MÚSICA. Modos: 'orbit' tranquilo, 'danger' en emergencias, 'victory' al cumplir la misión.
 export class Soundtrack {
-  constructor(){this.ctx=null;this.master=null;this.volume=.22;this.muted=false;this.mode='orbit';this.beat=0;this.next=0;this.timer=null;}
+  constructor(){this.ctx=null;this.master=null;this.volume=.75;this.muted=false;this.mode='orbit';this.beat=0;this.next=0;this.timer=null;}
   async start(){
     try{
-      if(!this.ctx){this.ctx=new (window.AudioContext||window.webkitAudioContext)();this.master=this.ctx.createGain();this.master.gain.value=this.volume;this.master.connect(this.ctx.destination);}
+      if(!this.ctx){this.ctx=new (window.AudioContext||window.webkitAudioContext)();this.master=this.ctx.createGain();this.master.gain.value=this.volume;const comp=this.ctx.createDynamicsCompressor();comp.threshold.value=-14;comp.ratio.value=4;this.master.connect(comp).connect(this.ctx.destination);}
       await this.ctx.resume();
       if(!this.timer){this.next=this.ctx.currentTime+.1;this.timer=setInterval(()=>this.schedule(),80);}
       return true;
