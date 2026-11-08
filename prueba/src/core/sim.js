@@ -1,5 +1,6 @@
 // Bucle de simulación: avanza días y se detiene cuando hay algo que decidir.
 import { hasUpgrade } from './campaign.js';
+import { rollFlash } from './flash.js';
 import { restoreRng } from './rng.js';
 import { rollEvents, tickAlerts, resolveResupply, tickDelayed } from './events.js';
 import { dustTick, dustFactor, batteryTick, autoRationTick, gardenTick } from './extras.js';
@@ -41,7 +42,10 @@ export function daysLeft(state) {
 
 export function checkEnd(state) {
   const back = state.crew.filter((c) => c.alive && !c.evacuated).length;
-  if (back === 0) return { success: false, reason: state.outcome?.reason ?? 'Toda la tripulación se perdió' };
+  if (back === 0) {
+    const safe = state.crew.every((c) => c.evacuated || c.alive);
+    return { success: false, reason: state.outcome?.reason ?? (safe ? 'Toda la tripulación tuvo que volver antes a la Tierra por salud: nadie se perdió' : 'Toda la tripulación se perdió') };
+  }
   if (state.outcome && !state.outcome.success) return state.outcome;
   return null;
 }
@@ -53,6 +57,7 @@ export function checkEnd(state) {
 export function advanceDay(state) {
   if (state.outcome || state.phase !== 'ops') return { state, interrupt: { kind: 'fin', data: state.outcome } };
   if (state.pending) return { state, interrupt: { kind: 'evento', data: state.pending } };
+  if (state.flash) return { state, interrupt: { kind: 'flash', data: state.flash } };
   const due = phaseDue(state);
   if (due) return { state, interrupt: { kind: 'fase', data: { phase: due } } };
   const bad = validateSchedule(Object.fromEntries(Object.entries(state.schedule)
@@ -149,6 +154,8 @@ export function advanceDay(state) {
     return { state: s, interrupt: { kind: 'fin', data: null } };
   }
   if (s.pending) return { state: s, interrupt: { kind: 'evento', data: s.pending } };
+  s = rollFlash(s);
+  if (s.flash) return { state: s, interrupt: { kind: 'flash', data: s.flash } };
   if (s.alerts.length > alertsBefore) return { state: s, interrupt: { kind: 'alerta', data: s.alerts.at(-1) } };
   const offers = s.minis.filter((m) => m.status === 'oferta');
   if (offers.length > offersBefore) return { state: s, interrupt: { kind: 'mini', data: offers.at(-1) } };

@@ -62,7 +62,19 @@ const SUGGESTED_BY = {
     crewRoles: ['comandante', 'piloto', 'ingeniero', 'medico'], cargoDays: 240,
   }),
 };
-export const SUGGESTED = (scn = 'estacion') => (SUGGESTED_BY[scn] ?? SUGGESTED_BY.estacion)();
+// Si con la dificultad elegida no alcanza el dinero, se quitan extras (robot, segundo instrumento, antena) hasta que alcance.
+const TRIM = [(d) => { d.modules = d.modules.filter((m) => m.type !== 'rover_autonomo'); }, (d) => { d.instruments = d.instruments.slice(0, 1); },
+  (d) => { d.modules = d.modules.filter((m) => m.type !== 'antena'); }];
+export const SUGGESTED = (scn = 'estacion', dif = null) => {
+  const d = (SUGGESTED_BY[scn] ?? SUGGESTED_BY.estacion)();
+  if (!dif) return d;
+  for (const cut of TRIM) {
+    const r = computeDesign(d, scn, dif);
+    if (r.cost <= r.budget) break;
+    cut(d);
+  }
+  return d;
+};
 
 const EMPTY = (scn = 'estacion') => ({
   modules: [mod('cabina', 0, 0), mod('soporte_vital', 1, 0), ...(SCENARIOS[scn]?.orbital ? [] : [mod('modulo_aterrizaje', 2, 0)])], instruments: [],
@@ -127,7 +139,7 @@ export function render(root, app, go, params = {}) {
   const scn = app.scenario ?? 'estacion';
   const sc = SCENARIOS[scn];
   const prev = app.lastScenario === scn ? app.lastDesign : null;
-  const d = structuredClone(params.design ?? prev ?? (app.mode === 'demo' || app.kids ? SUGGESTED(scn) : EMPTY(scn)));
+  const d = structuredClone(params.design ?? prev ?? (app.mode === 'demo' || app.kids ? SUGGESTED(scn, app.difficulty) : EMPTY(scn)));
   for (const m of d.modules) { delete m.health; delete m.on; delete m.priority; delete m.offDays; }
   let selected = 'paneles';
   let launching = false;
@@ -220,6 +232,9 @@ export function render(root, app, go, params = {}) {
     state.players = app.players.length;
     state.realStorms = pickStorms(f.flares, app.difficulty);
     state.flareSource = f.source;
+    state.kids = !!app.kids;
+    // ?relampago en la dirección: muchos eventos relámpago (para mostrar el juego o probarlo).
+    if (new URLSearchParams(location.search).has('relampago')) state.flashBoost = 15;
     if (app.contrarreloj) state.deadline = Date.now() + app.contrarreloj * 60000;
     if (app.historica) { state.historica = app.historica.id; state.scripted = app.historica.scripted ?? []; state.forceBoom = app.historica.forceBoom ?? 0; }
     app.lastDesign = structuredClone(d);
@@ -258,7 +273,7 @@ export function render(root, app, go, params = {}) {
         h('h1', { style: { fontSize: '1.8rem' } }, `🛠️ Arma tu ${sc.orbital ? 'nave' : 'base'} · ${sc.icon} ${sc.short}`),
         d.upgrades.length ? h('span', { class: 'small', title: d.upgrades.map((u) => UPGRADES[u].name).join(', ') }, `🌳 Mejoras: ${d.upgrades.map((u) => UPGRADES[u].icon).join(' ')}`) : null,
         h('div', { class: 'row' },
-          h('button', { disabled: !can('ingeniero'), onclick: () => { Object.assign(d, SUGGESTED(scn)); explain = null; draw(); say('Te puse un diseño que funciona. ¡Puedes cambiarlo como quieras!', { mood: 'feliz' }); } }, '✨ Usar una nave de ejemplo'),
+          h('button', { disabled: !can('ingeniero'), onclick: () => { Object.assign(d, SUGGESTED(scn, app.difficulty)); explain = null; draw(); say('Te puse un diseño que funciona. ¡Puedes cambiarlo como quieras!', { mood: 'feliz' }); } }, '✨ Usar una nave de ejemplo'),
           h('button', { onclick: () => go('title') }, '🏠 Menú'))),
       inCoop() && app.players.length > 1 ? h('div', { class: 'panel c-cyan', id: 'mi-parte' },
         h('b', {}, 'EN LÍNEA: todos arman la misma nave. '),

@@ -19,7 +19,7 @@ import { restoreRng } from '../../core/rng.js';
 import { save } from '../../core/save.js';
 import { whoDecides, musicMood } from '../main.js';
 import { alarm, beep } from '../audio.js';
-import { say } from '../guide.js';
+import { say, hideGuide } from '../guide.js';
 import { crewAvatar, moodOf, MOOD_TEXT } from '../avatar.js';
 import { evaGoNoGo, isWeekend, TRESERVE_SECONDS } from '../../core/protocols.js';
 import { walkPanel } from '../panels/walk.js';
@@ -28,6 +28,7 @@ import { digPanel, digAvailable } from '../panels/dig.js';
 import { autoAssign } from '../../core/autoplan.js';
 import { CARGO_PLANS, cleanPanels, replaceBatteries, batteryHealth, gardenStage, BATTERY_PARTS, AUTO_RATION_DAYS } from '../../core/extras.js';
 import { inCoop, coopInfo, shareDraft, onDraft, allDrafts } from '../coop.js';
+import { FLASH_TYPES, closeDoor, resolveFlash, allClosed, modName } from '../../core/flash.js';
 
 // Modo niños: menos trabajos, energía en una barra y Nova reparte sola cada día.
 const KID_TASKS = new Set(['cultivo', 'produccion', 'reparacion', 'experimentos', 'medico', 'ejercicio', 'descanso']);
@@ -110,7 +111,7 @@ export function render(root, app, go) {
     if (!interrupt) { banner = { text: `📅 Día ${s.day}: todo tranquilo.`, cls: '' }; return; }
     const k = interrupt.kind;
     if (k === 'alerta') { const ev = EVENTS[interrupt.data.eventId]; banner = { text: `⚠️ AVISO: ${EVENT_ICON[ev.id] ?? ''} ${ev.name} en ${interrupt.data.etaDays} día(s).`, cls: '' }; alarm('aviso'); }
-    else if (k === 'evento') { banner = null; } // el sonido lo pone la ventana del evento, según la gravedad
+    else if (k === 'evento' || k === 'flash') { banner = null; } // el sonido lo pone la ventana del evento, según la gravedad
     else if (k === 'mini') { banner = { text: `🎯 Nueva minimisión: ${MINI_ICON[interrupt.data.id] ?? ''} ${MINIMISSIONS[interrupt.data.id].name}.`, cls: '' }; beep(900, 120); }
     else if (k === 'muerte') { banner = { text: interrupt.data.join(' · '), cls: 'red' }; alarm('emergencia'); }
     else if (k === 'expedicion') { banner = { text: `🗺️ ${interrupt.data.text}`, cls: interrupt.data.ok ? '' : 'red' }; beep(interrupt.data.ok ? 1100 : 300, 150); }
@@ -143,7 +144,7 @@ export function render(root, app, go) {
     speed = sp;
     clock = setInterval(() => {
       const st = app.state;
-      if (st.pending || st.phase !== 'ops' || phaseDue(st) || document.querySelector('.modal-bg')) { stopClock(); draw(); return; }
+      if (st.pending || st.flash || st.phase !== 'ops' || phaseDue(st) || document.querySelector('.modal-bg')) { stopClock(); draw(); return; }
       const r = advanceDay(autoOn() ? autoAssign(st) : st);
       commit(r.state);
       if (r.interrupt) { stopClock(); handle(r.interrupt); }
@@ -159,6 +160,96 @@ export function render(root, app, go) {
     commit(r.state);
     handle(r.interrupt);
     draw();
+  }
+
+  // Evento relámpago: hay que cerrar las escotillas del módulo afectado antes de que se acabe el tiempo.
+  // Todo se calcula desde app.state.flash (con la hora límite adentro), así se puede redibujar cuando llega
+  // un cambio de otro jugador sin perder la cuenta. Solo el anfitrión (o quien juega solo) cierra el evento.
+  let flashTimer = null; let flashKey = null; let flashAlarm = '';
+  const flashOff = () => { clearInterval(flashTimer); if (flashKey) document.removeEventListener('keydown', flashKey); flashKey = null; };
+  function flashModal() {
+    const s = app.state;
+    const f = s.flash;
+    document.getElementById('relampago')?.closest('.modal-bg')?.remove();
+    flashOff();
+    if (!f.deadline && !isGuest()) { commit({ ...s, flash: { ...f, deadline: Date.now() + f.seconds * 1000 } }); return flashModal(); }
+    const T = FLASH_TYPES[f.type];
+    const target = s.modules.find((m) => m.id === f.target);
+    if (!target) { if (!isGuest()) { commit({ ...s, flash: null }); draw(); } return; }
+    const names = inCoop() ? coopInfo().players.filter((p) => !p.away).map((p) => p.name) : app.players.map((p) => p.name);
+    const owner = (i) => (names.length > 1 ? names[i % names.length] : null);
+    const left = () => (f.deadline ? Math.max(0, (f.deadline - Date.now()) / 1000) : f.seconds);
+    const canClose = (i) => !inCoop() || mine(owner(i)) || left() <= f.seconds / 2;
+    const finish = () => {
+      flashOff();
+      if (!app.state.flash) return;
+      const r = resolveFlash(app.state);
+      close();
+      commit(r.state);
+      banner = { text: r.log.join(' '), cls: r.success ? '' : 'red' };
+      if (r.success) beep(1200, 160, 'triangle'); else alarm('emergencia');
+      if (app.state.phase === 'report') handle({ kind: 'fin' });
+      draw();
+    };
+    const shut = (id) => {
+      if (!app.state.flash || app.state.flash.closed?.[id]) return;
+      commit(closeDoor(app.state, id));
+      beep(300, 70, 'square'); beep(180, 120, 'square');
+      if (allClosed(app.state.flash) && !isGuest()) finish(); else { close(); flashModal(); }
+    };
+    // Cuadrícula doble: módulos en las casillas impares y escotillas entre ellos.
+    const xs = s.modules.map((m) => m.x); const ys = s.modules.map((m) => m.y);
+    const x0 = Math.min(...xs); const y0 = Math.min(...ys);
+    const W = Math.max(...xs) - x0 + 1; const H = Math.max(...ys) - y0 + 1;
+    const cols = Array.from({ length: 2 * W - 1 }, (_, i) => (i % 2 ? '1.6rem' : 'minmax(2.6rem, 4.2rem)')).join(' ');
+    const rows = Array.from({ length: 2 * H - 1 }, (_, i) => (i % 2 ? '1.6rem' : '3rem')).join(' ');
+    const near = new Set(f.doors.flatMap((d) => d.split('|')));
+    const cells = s.modules.map((m) => h('div', {
+      class: `flash-mod ${m.id === f.target ? 'golpe' : near.has(m.id) ? 'vecino' : ''}`,
+      style: { gridColumn: 2 * (m.x - x0) + 1, gridRow: 2 * (m.y - y0) + 1 },
+    }, m.id === f.target ? `${T.icon} ${MOD_CODE[m.type]}` : MOD_CODE[m.type]));
+    const doors = f.doors.map((d, i) => {
+      const [a, b] = d.split('|').map((id) => s.modules.find((m) => m.id === id));
+      const horiz = a.y === b.y;
+      const col = horiz ? 2 * (Math.min(a.x, b.x) - x0) + 2 : 2 * (a.x - x0) + 1;
+      const row = horiz ? 2 * (a.y - y0) + 1 : 2 * (Math.min(a.y, b.y) - y0) + 2;
+      const done = !!f.closed?.[d];
+      const who = owner(i);
+      return h('button', {
+        class: `flash-door ${done ? 'cerrada' : ''} ${horiz ? 'v' : 'h'}`, 'data-door': d, 'data-key': i + 1,
+        disabled: done || !canClose(i), title: who ? `Cierra ${who}` : 'Cerrar escotilla',
+        style: { gridColumn: col, gridRow: row }, onclick: () => shut(d),
+      }, done ? '■' : String(i + 1));
+    });
+    const close = modal(h('div', { id: 'relampago' },
+      h('div', { class: 'big-ico code alerta' }, '⚡ EVENTO RELÁMPAGO'),
+      h('h2', { class: 'red' }, `${T.icon} ${T.name}`),
+      h('p', { style: { fontSize: '1.1rem' } }, T.text(modName(target))),
+      h('div', { class: 'flash-tiempo' }, h('div', { class: 'flash-barra', id: 'flash-barra' }), h('b', { id: 'flash-seg' }, `${Math.ceil(left())} s`)),
+      h('div', { class: 'flash-grid', style: { gridTemplateColumns: cols, gridTemplateRows: rows } }, ...cells, ...doors),
+      h('p', { class: 'small' }, `🚪 Toca cada escotilla (o su número en el teclado) para cerrarla. Cerradas: ${Object.keys(f.closed ?? {}).length} de ${f.doors.length}.`),
+      names.length > 1 ? h('div', { class: 'small' }, ...f.doors.map((d, i) => h('span', { class: `chip ${f.closed?.[d] ? 'ok' : ''}` }, `${i + 1}: ${owner(i)}`)),
+        inCoop() ? h('div', { class: 'small amber' }, 'Cada uno cierra las suyas. A la mitad del tiempo, cualquiera puede ayudar.') : null) : null,
+      T.alwaysLost ? h('p', { class: 'small amber' }, 'Este módulo ya no se salva: lo importante es proteger al resto.') : null,
+      s.kids && !T.alwaysLost ? h('p', { class: 'small green' }, '🧒 Si no alcanzas, el módulo solo se rompe y se puede reparar.') : null,
+    ), { grave: true });
+    const tick = () => {
+      const l = left();
+      const bar = document.getElementById('flash-barra');
+      if (!bar) { flashOff(); return; }
+      bar.style.width = `${(l / f.seconds) * 100}%`;
+      document.getElementById('flash-seg').textContent = `${Math.ceil(l)} s`;
+      if (l <= 3) bar.classList.add('roja');
+      document.querySelectorAll('.flash-door').forEach((b, i) => { if (!f.closed?.[f.doors[i]] && canClose(i)) b.disabled = false; });
+      if (!isGuest() && (l <= 0 || allClosed(app.state.flash))) finish();
+    };
+    setKey(null);
+    flashKey = (e) => { const n = Number(e.key); if (n >= 1 && n <= f.doors.length && canClose(n - 1)) { e.preventDefault(); shut(f.doors[n - 1]); } };
+    document.addEventListener('keydown', flashKey);
+    flashTimer = setInterval(tick, 200);
+    tick();
+    const tag = `${f.day}-${f.target}`;
+    if (flashAlarm !== tag) { flashAlarm = tag; alarm('emergencia'); hideGuide(); }
   }
 
   function eventModal() {
@@ -815,10 +906,10 @@ export function render(root, app, go) {
     keyFn = null;
     if (autoOn() && app.autoDay !== app.state.day && !app.state.pending) { app.autoDay = app.state.day; commit(autoAssign(app.state)); }
     const s = app.state;
-    musicMood(s.pending && EVENTS[s.pending.eventId]?.kind !== '+' ? 'danger' : s.dig?.outing ? 'surface' : 'orbit');
+    musicMood(s.flash ? 'phonk' : s.pending && EVENTS[s.pending.eventId]?.kind !== '+' ? 'danger' : s.dig?.outing ? 'surface' : 'orbit');
     const sched = validateSchedule(Object.fromEntries(Object.entries(s.schedule).filter(([id]) => s.crew.find((c) => c.id === id)?.alive)))
       .map((e) => { const id = e.split(' ')[0]; const c = s.crew.find((x) => x.id === id); return c ? e.replace(id, c.name) : e; });
-    const blocked = sched.length > 0 || !!s.pending || s.phase !== 'ops' || !!phaseDue(s);
+    const blocked = sched.length > 0 || !!s.pending || !!s.flash || s.phase !== 'ops' || !!phaseDue(s);
     const pct = Math.min(100, (s.day / s.totalDays) * 100);
     if (kids() && ['recorrido', 'excavar', 'mapa', 'diario'].includes(tab)) tab = 'resumen';
     mount(root,
@@ -860,6 +951,7 @@ export function render(root, app, go) {
       tab === 'excavar' && digAvailable(s) ? digPanel(app, commit, draw, setKey) : null,
     );
     if (phaseDue(s) && s.phase === 'ops') { if (!document.getElementById('fase')) phaseModal(); }
+    else if (s.flash) flashModal();
     else if (s.pending && !document.getElementById('evento')) eventModal();
     else if (!s.pending && app.practice != null) practiceStep();
     else if (!s.pending) {

@@ -179,7 +179,7 @@ export function render(root, app, go) {
         h('h2', {}, '📊 Resumen'),
         h('table', {},
           ...[['Puntaje', rep.score], ['Días', rep.daysSurvived], ['Sobrevivientes', `${rep.survivors} / ${s.crew.length}`], ['Ciencia', rep.science],
-            ['Dificultad', s.difficulty], ['Clima espacial', s.flareSource === 'donki' ? 'NASA DONKI en vivo' : 'registro DONKI 2024 (respaldo)']]
+            ['Dificultad', s.difficulty], ...(s.lostModules?.length ? [['Módulos perdidos', s.lostModules.map((l) => `${MODULES[l.type]?.name ?? l.type} (día ${l.day})`).join(', ')]] : []), ['Clima espacial', s.flareSource === 'donki' ? 'NASA DONKI en vivo' : 'registro DONKI 2024 (respaldo)']]
             .map(([k, v]) => h('tr', {}, h('td', { class: 'dim' }, k), h('td', {}, String(v))))),
         h('h3', { style: { marginTop: '.6rem' } }, 'Tripulación'),
         h('ul', { class: 'plain small' }, ...s.crew.map((c) => h('li', { class: c.alive ? '' : 'red' },

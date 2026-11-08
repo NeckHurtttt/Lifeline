@@ -1,4 +1,5 @@
 import { test } from 'node:test';
+import { closeDoor, resolveFlash } from '../../src/core/flash.js';
 import assert from 'node:assert/strict';
 import { autoAssign, needs } from '../../src/core/autoplan.js';
 import { createMission } from '../../src/core/mission.js';
@@ -41,6 +42,7 @@ test('reparto automático: con poca agua, alguien produce agua', () => {
 test('reparto automático: una misión fácil jugada solo con él llega al final', () => {
   let s = mk();
   for (let i = 0; i < 3000 && s.phase === 'ops'; i++) {
+    if (s.flash) { for (const d of s.flash.doors) s = closeDoor(s, d); s = resolveFlash(s).state; continue; }
     if (s.pending) { s = resolveEvent(s, s.pending.eventId, s.pending.severity, recommendedOption(s.pending.eventId), { int: () => 5, chance: () => false, next: () => 0.5 }).state; continue; }
     s = runUntilInterrupt(s, 365, autoAssign).state;
   }

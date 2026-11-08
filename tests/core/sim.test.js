@@ -1,4 +1,5 @@
 import { test } from 'node:test';
+import { closeDoor, resolveFlash } from '../../src/core/flash.js';
 import assert from 'node:assert/strict';
 import { advanceDay, runUntilInterrupt, checkEnd } from '../../src/core/sim.js';
 import { resolveEvent, recommendedOption } from '../../src/core/events.js';
@@ -20,6 +21,7 @@ const mk = ({ difficulty = 'medio', cargoDays = 90, seed = 1, extra = [] } = {})
 // Avanza resolviendo todo con la opción recomendada, hasta fin o reentrada.
 function autoplay(s) {
   for (let i = 0; i < 2000 && s.phase === 'ops'; i++) {
+    if (s.flash) { for (const d of s.flash.doors) s = closeDoor(s, d); s = resolveFlash(s).state; continue; }
     if (s.pending) { s = resolveEvent(s, s.pending.eventId, s.pending.severity, recommendedOption(s.pending.eventId), { int: () => 5, chance: () => false, next: () => 0.5 }).state; continue; }
     s = runUntilInterrupt(s).state;
   }
@@ -120,4 +122,12 @@ test('valor científico: la meta da 70 y superarla en 50 % da 100', () => {
   assert.equal(sci(goal), 70);
   assert.equal(sci(goal * 1.5), 100);
   assert.equal(sci(goal / 2), 35);
+});
+
+test('si todos vuelven antes por salud, el informe no dice que se perdieron', () => {
+  const s = mk({ difficulty: 'facil' });
+  for (const c of s.crew) { c.evacuated = true; c.alive = false; }
+  const end = checkEnd(s);
+  assert.equal(end.success, false);
+  assert.match(end.reason, /nadie se perdió/);
 });

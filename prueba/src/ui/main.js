@@ -162,7 +162,9 @@ initCoop(() => app, (screen) => {
   if (redrawTimer) return; // como mucho 4 redibujos por segundo
   redrawTimer = setTimeout(() => {
     redrawTimer = null;
-    const to = redrawTo; redrawTo = null;
+    let to = redrawTo; redrawTo = null;
+    // Si una decisión de otro jugador terminó la misión (evacuación, etc.), todos pasan al informe.
+    if (!to && app.screen === 'ops' && app.state?.phase === 'report') to = 'report';
     if (!to && document.activeElement?.tagName === 'INPUT') return; // no borrar lo que alguien está escribiendo
     // El despegue y la reentrada del anfitrión corren en vivo: redibujarlos los reiniciaría.
     if (!to && !isGuest() && LIVE.includes(app.screen)) return;

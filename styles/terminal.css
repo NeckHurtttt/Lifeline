@@ -292,3 +292,19 @@ body.daltonico .bar.red > i { background-color: var(--red); }
 .chat-bar .chat-list { display: none; flex-wrap: wrap; gap: .25rem; background: var(--panel); border: 1px solid var(--line); padding: .3rem; max-width: 18rem; }
 .chat-bar.open .chat-list { display: flex; }
 .chat-bar .chat-toggle { font-size: 1.1rem; padding: .2rem .5rem; }
+
+/* Evento relámpago: cerrar escotillas contra reloj */
+#relampago h2 { clear: both; }
+.modal:has(#relampago) { animation: none; } /* sin animación: cada segundo cuenta */
+.flash-tiempo { position: relative; height: 1.6rem; border: 2px solid var(--red); margin: .5rem 0; background: #120404; }
+.flash-barra { height: 100%; width: 100%; background: var(--amber); transition: width .2s linear; }
+.flash-barra.roja { background: var(--red); animation: latido .4s infinite; }
+.flash-tiempo b { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; color: #fff; text-shadow: 0 0 4px #000; }
+.flash-grid { display: grid; justify-content: center; align-items: stretch; margin: .6rem auto; gap: 0; max-width: 100%; overflow-x: auto; }
+.flash-mod { border: 1px solid var(--fg-dim, #2a7a45); display: flex; align-items: center; justify-content: center; font-size: .8rem; opacity: .55; }
+.flash-mod.vecino { opacity: 1; border-color: var(--fg); }
+.flash-mod.golpe { opacity: 1; border: 2px solid var(--red); color: var(--red); background: rgba(255, 75, 75, .15); animation: latido .5s infinite; }
+.flash-door { min-width: 0; min-height: 0; padding: 0; margin: .15rem; font-size: .85rem; font-weight: bold; border: 2px solid var(--amber); color: var(--amber); background: #1a1200; }
+.flash-door:not(:disabled) { animation: latido .7s infinite; cursor: pointer; }
+.flash-door.cerrada { border-color: var(--fg); color: var(--fg); background: #06301a; animation: none; }
+@media (max-width: 600px) { .flash-grid { transform-origin: top center; } .flash-mod { font-size: .65rem; } }

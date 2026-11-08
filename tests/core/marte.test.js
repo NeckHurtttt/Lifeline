@@ -99,6 +99,7 @@ test('una misión completa a Marte con la base de ejemplo es posible', () => {
     s = r.state;
     if (r.interrupt?.kind === 'fase') s = resolvePhase(s, r.interrupt.data.phase).state;
     if (s.pending) s = { ...s, pending: null };
+    if (s.flash) s = { ...s, flash: null };
     s.minis = s.minis.map((m) => (m.status === 'oferta' ? { ...m, status: 'vencida' } : m));
   }
   assert.ok(s.crew.some((x) => x.alive && !x.evacuated), `fin día ${s.day}: ${s.outcome?.reason} combustible ${s.resources.fuel}`);
@@ -115,6 +116,7 @@ test('modo demo: Marte en 120 días con las mismas fases', () => {
     s = r.state;
     if (r.interrupt?.kind === 'fase') { fases.push([r.interrupt.data.phase, s.day]); s = resolvePhase(s, r.interrupt.data.phase).state; }
     if (s.pending) s = { ...s, pending: null };
+    if (s.flash) s = { ...s, flash: null };
     s.minis = s.minis.map((m) => (m.status === 'oferta' ? { ...m, status: 'vencida' } : m));
   }
   assert.deepEqual(fases, [['edl', 30], ['ascenso', 90]]);
