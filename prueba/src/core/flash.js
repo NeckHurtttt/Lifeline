@@ -1,86 +1,19 @@
-// Eventos relámpago: emergencias de pocos segundos en tiempo real. Cada una tiene 1 o 2 pasos, y cada paso es un
-// minijuego distinto: cerrar escotillas, encontrar la fuga, girar válvulas, conectar cables o seguir el protocolo.
+// Eventos relámpago: emergencias de pocos segundos en tiempo real. Cada una junta minijuegos:
+// escotillas, fuga, válvulas, cables, protocolo, código de memoria, reparto de energía y "en el momento justo".
+// Todo se complica con la dificultad (más piezas, menos tiempo, trampas) y en difícil se suma un paso extra.
 // Puro y determinista: el azar sale de un hash de la semilla y el día, así no cambia el resto de la partida.
 import { MODULES, SCENARIOS } from '../data/catalog.js';
+import { FLASH_TYPES, PROTOCOLS, CABLE_COLORS, CABLE_SYSTEMS, POWER_SYSTEMS } from '../data/flashes.js';
+
+export { FLASH_TYPES, PROTOCOLS, CABLE_COLORS, CABLE_SYSTEMS, POWER_SYSTEMS };
 
 /** Módulos que nunca se pierden: sin ellos no hay misión. */
 export const CRITICAL = new Set(['cabina', 'soporte_vital', 'modulo_aterrizaje', 'planta_combustible']);
 
-/** Protocolos reales resumidos (orden de la NASA/ISS). */
-export const PROTOCOLS = {
-  fuego: ['Ponerse las máscaras de oxígeno', 'Apagar la ventilación', 'Cortar la energía del módulo', 'Usar el extintor de CO₂', 'Medir el aire con el sensor'],
-  amoniaco: ['Ponerse las máscaras de oxígeno', 'Ir al segmento seguro', 'Aislar el circuito de refrigeración', 'Encender los filtros de aire', 'Medir amoníaco con el sensor'],
-  corto: ['Abrir el disyuntor', 'Buscar humo o chispas', 'Cambiar a la batería de respaldo', 'Avisar a Control de Misión', 'Rearmar el disyuntor'],
-  polvo: ['Volver todos a la esclusa', 'Sellar la esclusa', 'Retraer los paneles solares', 'Cambiar a baterías', 'Apagar lo que no hace falta'],
-};
-
-/** Sistemas a los que van los cables (para el esquema de conexiones). */
-export const CABLE_COLORS = ['rojo', 'azul', 'amarillo', 'verde', 'blanco'];
-export const CABLE_SYSTEMS = ['Soporte vital', 'Radio', 'Laboratorio', 'Baterías', 'Calefacción'];
-
-export const FLASH_TYPES = {
-  meteorito: {
-    icon: '☄️', name: 'Impacto de micrometeorito', where: 'todo', steps: ['doors', 'leak'], hiss: true,
-    text: (mod) => `¡Un micrometeorito perforó ${mod}! El aire se escapa: cierren sus escotillas y encuentren el agujero para parcharlo.`,
-    ok: (mod) => `Escotillas cerradas y agujero parchado: ${mod} quedó dañado, pero el resto de la nave está a salvo.`,
-    partial: (mod) => `Se aisló a medias: ${mod} quedó muy dañado y se perdió algo de aire.`,
-    fail: (mod) => `No alcanzó el tiempo: se perdió ${mod} y la tripulación respiró aire muy fino.`,
-    okDamage: 35, failCrew: 10, failO2: 30, neighborDamage: 0,
-  },
-  incendio: {
-    icon: '🔥', name: 'Fuego a bordo', where: 'todo', steps: ['protocol:fuego', 'doors'],
-    text: (mod) => `¡Fuego en ${mod}! Sigan el protocolo de incendio y cierren las escotillas para ahogarlo sin oxígeno.`,
-    ok: (mod) => `El fuego se apagó: ${mod} quedó chamuscado pero se puede reparar.`,
-    partial: (mod) => `El fuego se apagó tarde: ${mod} quedó casi destruido y hubo humo en la cabina.`,
-    fail: (mod) => `El fuego se comió ${mod} y el humo dañó los módulos de al lado.`,
-    okDamage: 30, failCrew: 8, failO2: 0, neighborDamage: 25,
-  },
-  escombros: {
-    icon: '💥', name: 'Choque con basura espacial', where: 'espacio', steps: ['doors', 'cables'], hiss: true,
-    text: (mod) => `¡Un pedazo de basura espacial golpeó ${mod} y cortó sus cables! Cierren sus escotillas y vuelvan a conectar cada cable a su sistema.`,
-    ok: (mod) => `Escotillas cerradas y cables reconectados: ${mod} quedó muy golpeado, pero sigue en su lugar.`,
-    partial: (mod) => `Se perdió ${mod}, pero lo que alcanzaron a hacer salvó al resto de la nave.`,
-    fail: (mod) => `Se perdió ${mod} y, con las escotillas abiertas, la tripulación se golpeó y los vecinos se dañaron.`,
-    partialLost: true, okDamage: 55, failCrew: 15, failO2: 40, neighborDamage: 30,
-  },
-  amoniaco: {
-    icon: '🧪', name: 'Fuga de amoníaco', where: 'espacio', steps: ['valves', 'protocol:amoniaco'],
-    text: (mod) => `¡Alarma de amoníaco en ${mod}! El refrigerante es tóxico: giren las válvulas hasta cerrarlo y sigan el protocolo.`,
-    ok: (mod) => `Válvulas cerradas: el amoníaco quedó afuera y ${mod} solo necesita una revisión.`,
-    partial: (mod) => `Se cerró tarde: ${mod} quedó contaminado y la tripulación tosió un rato.`,
-    fail: (mod) => `El amoníaco llenó ${mod}: hubo que abandonarlo y la tripulación se intoxicó.`,
-    okDamage: 20, failCrew: 14, failO2: 10, neighborDamage: 10,
-  },
-  cortocircuito: {
-    icon: '🔌', name: 'Cortocircuito', where: 'todo', steps: ['protocol:corto', 'cables'],
-    text: (mod) => `¡Cortocircuito en ${mod}! Corten la energía según el protocolo y reconecten los cables a su sistema.`,
-    ok: (mod) => `Energía restablecida: ${mod} tiene cables quemados pero funciona.`,
-    partial: (mod) => `Se arregló a medias: ${mod} quedó muy dañado.`,
-    fail: (mod) => `El cortocircuito quemó ${mod} y saltaron chispas a los módulos de al lado.`,
-    okDamage: 25, failCrew: 5, failO2: 0, neighborDamage: 20,
-  },
-  polvo: {
-    icon: '🌪️', name: 'Tormenta de polvo repentina', where: 'marte', steps: ['protocol:polvo', 'valves'],
-    text: (mod) => `¡Una tormenta de polvo llega en minutos! Protejan ${mod}: sigan el protocolo y cierren las válvulas de entrada de aire.`,
-    ok: (mod) => `Todo sellado a tiempo: la tormenta pasó y ${mod} solo quedó con polvo.`,
-    partial: (mod) => `Se selló a medias: entró polvo y ${mod} quedó muy dañado.`,
-    fail: (mod) => `La tormenta llenó de polvo ${mod} y dañó lo que estaba al lado.`,
-    okDamage: 15, failCrew: 6, failO2: 10, neighborDamage: 20,
-  },
-  sello: {
-    icon: '🫧', name: 'Falla del sello del hábitat', where: 'suelo', steps: ['leak', 'valves'], hiss: true,
-    text: (mod) => `¡El sello de ${mod} cede! Encuentren la fuga y desvíen el aire con las válvulas.`,
-    ok: (mod) => `Fuga sellada: ${mod} quedó con un parche y nadie se lastimó.`,
-    partial: (mod) => `Se selló tarde: ${mod} quedó muy dañado.`,
-    fail: (mod) => `El sello reventó: se perdió ${mod} y mucho aire.`,
-    okDamage: 25, failCrew: 10, failO2: 35, neighborDamage: 0,
-  },
-};
-
 const CHANCE = { facil: 0.012, medio: 0.02, dificil: 0.03 };
 const TIME_MULT = { facil: 1.35, medio: 1, dificil: 0.8 };
 const LEVEL = { facil: 0, medio: 1, dificil: 2 };
-export const WRONG_PENALTY = 2; // segundos que se pierden por un cable o un paso equivocado
+export const WRONG_PENALTY = 2; // segundos que se pierden por un error
 
 /** Número pseudoaleatorio [0,1) a partir de la semilla de la partida y una sal. */
 function hash01(seed, salt) {
@@ -100,10 +33,11 @@ export const neighborsOf = (s, m) => s.modules.filter((o) => o !== m && Math.abs
 export const doorId = (a, b) => [a, b].sort().join('|');
 export const modName = (m) => MODULES[m.type]?.name ?? m.type;
 
-/** Dónde está la tripulación: en el espacio (órbita o viaje) o en el suelo de la Luna o Marte. */
+/** Dónde está la tripulación: 'viaje' (camino a Marte), 'espacio' (órbita) o 'suelo' (Luna o Marte). */
 export function placeOf(s) {
+  if (s.leg === 'ida' || s.leg === 'vuelta') return 'viaje';
   const sc = SCENARIOS[s.scenarioId];
-  if (!sc || sc.orbital || s.leg === 'ida' || s.leg === 'vuelta') return 'espacio';
+  if (!sc || sc.orbital) return 'espacio';
   return 'suelo';
 }
 /** Tipos posibles aquí. */
@@ -111,46 +45,91 @@ export function typesFor(s) {
   const place = placeOf(s);
   return Object.keys(FLASH_TYPES).filter((k) => {
     const w = FLASH_TYPES[k].where;
-    return w === 'todo' || w === place || (w === 'marte' && place === 'suelo' && s.scenarioId === 'marte');
+    if (w === 'todo' || w === place) return true;
+    if (w === 'espacio') return place === 'viaje';
+    if (w === 'luna' || w === 'marte') return place === 'suelo' && s.scenarioId === w;
+    return false;
   });
 }
-const needsDoors = (type) => FLASH_TYPES[type].steps.includes('doors');
+/** Pasos del evento según la dificultad (difícil suma el extra; niños, solo el primero). */
+export function stepsFor(s, type) {
+  const T = FLASH_TYPES[type];
+  if (s.kids) return T.steps.slice(0, 1);
+  return s.difficulty === 'dificil' && T.extra ? [...T.steps, T.extra] : T.steps;
+}
+const needsDoors = (s, type) => stepsFor(s, type).includes('doors');
 
 /** Módulos que pueden recibir un evento relámpago de ese tipo. */
 export function targets(s, type = 'meteorito') {
-  return s.modules.filter((m) => !CRITICAL.has(m.type) && m.health > 0 && (!needsDoors(type) || neighborsOf(s, m).length > 0));
+  const T = FLASH_TYPES[type];
+  if (T.prefer) {
+    const pref = s.modules.filter((m) => m.type === T.prefer && m.health > 0 && (!needsDoors(s, type) || neighborsOf(s, m).length));
+    if (pref.length) return pref;
+  }
+  return s.modules.filter((m) => !CRITICAL.has(m.type) && m.health > 0 && (!needsDoors(s, type) || neighborsOf(s, m).length > 0));
 }
 
 /** Arma los datos de un paso (un minijuego). */
 function makeStep(spec, s, lvl, rnd) {
   const [kind, arg] = spec.split(':');
+  const kid = !!s.kids;
   if (kind === 'doors') return { kind };
   if (kind === 'leak') {
-    const [w, h] = s.kids ? [3, 2] : [[3, 3], [4, 3], [5, 3]][lvl];
-    return { kind, w, h, hole: Math.floor(rnd(11) * w * h), probed: {} };
+    const [w, h] = kid ? [3, 2] : [[3, 3], [4, 3], [5, 3]][lvl];
+    // En difícil los sensores tienen ruido: las lecturas mienten un poco (menos el agujero).
+    return { kind, w, h, hole: Math.floor(rnd(11) * w * h), probed: {}, blind: arg === 'ciego', noise: !kid && lvl === 2 ? 12 : 0, salt: Math.floor(rnd(12) * 1000) };
   }
   if (kind === 'valves') {
-    const n = s.kids ? 2 : [3, 4, 5][lvl];
+    const n = kid ? 2 : [3, 4, 5][lvl];
     // Válvulas unidas: al girar una también gira la de al lado (como un engranaje).
-    const links = s.kids ? [] : shuffle(n - 1, (i) => rnd(30 + i)).slice(0, lvl).map((i) => [i, i + 1]);
+    const links = kid ? [] : shuffle(n - 1, (i) => rnd(30 + i)).slice(0, lvl).map((i) => [i, i + 1]);
     const target = Array.from({ length: n }, (_, i) => Math.floor(rnd(40 + i) * 4));
     // Se desordena desde la solución con giros hacia atrás: siempre tiene solución.
-    let angles = [...target];
+    const angles = [...target];
     const back = (i) => { for (const j of [i, ...links.filter((l) => l.includes(i)).map((l) => (l[0] === i ? l[1] : l[0]))]) angles[j] = (angles[j] + 3) % 4; };
     for (let k = 0; k < n + lvl * 2; k++) back(Math.floor(rnd(60 + k) * n));
     if (angles.every((a, i) => a === target[i])) back(0);
     return { kind, target, angles, links };
   }
   if (kind === 'cables') {
-    const n = s.kids ? 3 : [3, 4, 5][lvl];
+    const n = kid ? 3 : [3, 4, 5][lvl];
     // right[slot] = cable que va en ese borne. Con nivel ≥ 1 los bornes muestran el sistema, no el color: hay que leer el esquema.
     const systems = shuffle(CABLE_SYSTEMS.length, (i) => rnd(70 + i)).slice(0, n).map((k) => CABLE_SYSTEMS[k]);
-    return { kind, n, right: shuffle(n, (i) => rnd(80 + i)), systems, chart: !s.kids && lvl >= 1, conn: {} };
+    return { kind, n, right: shuffle(n, (i) => rnd(80 + i)), systems, chart: !kid && lvl >= 1, conn: {} };
   }
   if (kind === 'protocol') {
-    const all = PROTOCOLS[arg];
-    const len = s.kids ? 3 : [3, 4, 5][lvl];
-    return { kind, name: arg, items: all.slice(0, len), order: shuffle(len, (i) => rnd(90 + i)), progress: 0, reshuffle: !s.kids && lvl === 2 };
+    const len = kid ? 3 : [3, 4, 5][lvl];
+    return { kind, name: arg, items: PROTOCOLS[arg].slice(0, len), order: shuffle(len, (i) => rnd(90 + i)), progress: 0, reshuffle: !kid && lvl === 2 };
+  }
+  if (kind === 'code') {
+    const n = kid ? 3 : [4, 5, 6][lvl];
+    // Se muestra unos segundos y después hay que teclearlo de memoria. En difícil el teclado está desordenado.
+    return { kind, digits: Array.from({ length: n }, (_, i) => Math.floor(rnd(100 + i) * 10)), progress: 0,
+      show: kid ? 7 : [5, 4, 3][lvl], pad: !kid && lvl === 2 ? shuffle(10, (i) => rnd(120 + i)) : [1, 2, 3, 4, 5, 6, 7, 8, 9, 0] };
+  }
+  if (kind === 'power') {
+    const m = kid ? 2 : [3, 4, 5][lvl];
+    const names = shuffle(POWER_SYSTEMS.length, (i) => rnd(130 + i)).slice(0, m).map((k) => POWER_SYSTEMS[k]);
+    const need = Array.from({ length: m }, (_, i) => 1 + Math.floor(rnd(140 + i) * 4));
+    const total = need.reduce((a, b) => a + b, 0);
+    let have;
+    if (kid || lvl === 0) have = need.map(() => 0); // fácil: solo sumar
+    else if (lvl === 1) { // medio: casi todos cortos y uno con de más (hay que quitarle)
+      const over = Math.floor(rnd(150) * m);
+      have = need.map((x, j) => (j === over ? x + 1 : Math.max(0, x - 1 - Math.floor(rnd(151 + j) * 2))));
+    } else { // difícil: toda la energía está repartida mal, hay que quitar a unos para dar a otros
+      have = [...need];
+      for (let k = 0; k < m + 1; k++) { const a = Math.floor(rnd(160 + k) * m); const b = (a + 1 + Math.floor(rnd(170 + k) * (m - 1))) % m; if (have[a] > 0) { have[a]--; have[b]++; } }
+    }
+    if (have.reduce((p, q) => p + q, 0) > total || have.every((x, j) => x === need[j])) have = need.map(() => 0);
+    // En medio y difícil se muestra en kW: hay que calcular cuántas barras son.
+    return { kind, names, need, have, total, unit: kid ? 1 : [1, 0.5, 1.5][lvl] };
+  }
+  if (kind === 'timing') {
+    const need = kid ? 2 : [2, 3, 4][lvl];
+    // En difícil la zona cambia de lugar después de cada acierto.
+    const centers = Array.from({ length: need }, (_, i) => (lvl === 2 && !kid ? 0.2 + rnd(180 + i) * 0.6 : 0.5));
+    return { kind, need, hits: 0, speed: kid ? 0.55 : [0.7, 1, 1.3][lvl], zone: kid ? 0.34 : [0.3, 0.22, 0.16][lvl], centers };
   }
   throw new Error(`Paso desconocido: ${spec}`);
 }
@@ -163,24 +142,26 @@ function stepSeconds(st, doors) {
     case 'valves': return 2 + 2 * st.angles.length + 2 * st.links.length;
     case 'cables': return 2 + 1.8 * st.n + (st.chart ? 2 : 0);
     case 'protocol': return 2 + 1.6 * st.items.length;
+    case 'code': return st.show + 2 + 1.1 * st.digits.length;
+    case 'power': return 3 + 2 * st.names.length;
+    case 'timing': return 2 + 2.6 * st.need;
     default: return 5;
   }
 }
 
 /** Crea un evento relámpago concreto (también lo usan las pruebas). */
 export function makeFlash(s, type, target) {
-  const T = FLASH_TYPES[type];
   const m = s.modules.find((x) => x.id === target);
   const doors = neighborsOf(s, m).map((o) => doorId(m.id, o.id));
   const lvl = LEVEL[s.difficulty] ?? 1;
-  const rnd = (k) => hash01((s.seed ?? 1) + s.day * 131, k);
-  // En modo niños solo hay un paso.
-  const specs = s.kids ? T.steps.slice(0, 1) : T.steps;
-  const steps = specs.map((sp) => makeStep(sp, s, lvl, rnd));
+  const steps = stepsFor(s, type).map((sp, k) => makeStep(sp, s, lvl, (j) => hash01((s.seed ?? 1) + s.day * 131 + k * 7919, j)));
   const base = steps.reduce((a, st) => a + stepSeconds(st, doors.length), 0);
-  const seconds = Math.round(base * (s.kids ? 2 : TIME_MULT[s.difficulty] ?? 1));
+  const seconds = Math.round(base * (s.kids ? 2 : TIME_MULT[s.difficulty] ?? 1) * (s.flashShort ? 0.75 : 1));
+  const hasDoors = steps.some((x) => x.kind === 'doors');
+  // En difícil una escotilla está atascada: hay que tocarla dos veces.
+  const stuck = hasDoors && lvl === 2 && !s.kids && doors.length ? { [doors[Math.floor(hash01(s.seed ?? 1, s.day * 13 + 5) * doors.length)]]: true } : {};
   // closed y conn son objetos (no listas) para que, en línea, dos personas a la vez no se pisen.
-  return { type, target, doors: steps.some((x) => x.kind === 'doors') ? doors : [], closed: {}, steps, seconds, penalty: 0, day: s.day };
+  return { type, target, doors: hasDoors ? doors : [], closed: {}, stuck, half: {}, steps, seconds, penalty: 0, day: s.day };
 }
 
 /** Tira el dado del día. No toca s.rng. */
@@ -190,13 +171,13 @@ export function rollFlash(state) {
   const p = (CHANCE[s.difficulty] ?? 0.02) * (s.kids ? 0.6 : 1) * (s.mode === 'demo' ? 2 : 1) * (s.flashBoost ?? 1)
     * Math.min(1, 365 / (s.totalDays || 365)); // misiones largas (Marte): los mismos eventos por misión, no más
   if (hash01(s.seed ?? 1, s.day * 7 + 1) >= p) return s;
-  // flashOnly: forzar un tipo (para mostrar el juego: ?relampago=cables en la dirección).
+  // flashOnly: forzar tipos (para mostrar el juego: ?relampago=incendio,motor en la dirección).
   const types = typesFor(s).filter((t) => targets(s, t).length && (!s.flashOnly || s.flashOnly.includes(t)));
   if (!types.length) return s;
   const type = types[Math.floor(hash01(s.seed ?? 1, s.day * 7 + 2) * types.length)];
   const list = targets(s, type);
   const target = list[Math.floor(hash01(s.seed ?? 1, s.day * 7 + 3) * list.length)].id;
-  return { ...s, flash: makeFlash(s, type, target) };
+  return { ...s, flash: makeFlash(s, type, target), flashShort: false };
 }
 
 // ── Acciones de los minijuegos (todas puras) ──
@@ -208,20 +189,24 @@ const withStep = (state, i, fn) => {
 };
 const penalize = (state) => ({ ...state, flash: { ...state.flash, penalty: (state.flash.penalty ?? 0) + WRONG_PENALTY } });
 
-/** Cierra una escotilla. */
+/** Cierra una escotilla (la atascada necesita dos toques). */
 export function closeDoor(state, id) {
   const f = state.flash;
   if (!f || !f.doors.includes(id) || f.closed?.[id]) return state;
+  if (f.stuck?.[id] && !f.half?.[id]) return { ...state, flash: { ...f, half: { ...f.half, [id]: true } } };
   return { ...state, flash: { ...f, closed: { ...f.closed, [id]: true } } };
 }
 export const allClosed = (f) => !!f && f.doors.every((d) => f.closed?.[d]);
 
 /** Fuga: qué tan fuerte se oye el silbido en una casilla (0-100). 100 = ahí está el agujero. */
 export function leakReading(st, cell) {
+  if (cell === st.hole) return 100;
   const dx = Math.abs((cell % st.w) - (st.hole % st.w));
   const dy = Math.abs(Math.floor(cell / st.w) - Math.floor(st.hole / st.w));
   const max = st.w + st.h - 2;
-  return Math.round(100 * (1 - (dx + dy) / (max + 1)));
+  const base = 100 * (1 - (dx + dy) / (max + 1));
+  const noise = st.noise ? (hash01(st.salt ?? 1, cell) * 2 - 1) * st.noise : 0;
+  return Math.max(0, Math.min(95, Math.round(base + noise)));
 }
 /** Tocar una casilla del casco: mide la presión; si es el agujero, se parcha. */
 export const probeLeak = (state, i, cell) => withStep(state, i, (st) => { st.probed[cell] = true; return st; });
@@ -247,10 +232,43 @@ export function pressProtocol(state, i, item) {
   if (item !== st.progress) return { state: penalize(state), ok: false };
   return { state: withStep(state, i, (x) => { x.progress++; return x; }), ok: true };
 }
-
 /** Orden en que se ven los botones del protocolo (en difícil se mezclan de nuevo tras cada acierto). */
 export const protocolOrder = (st, seed = 1) => (st.reshuffle && st.progress
   ? shuffle(st.items.length, (k) => hash01(seed + st.progress * 977, k)) : st.order);
+
+/** Teclea un dígito del código. Si se equivoca, vuelve a empezar y pierde tiempo. */
+export function pressCode(state, i, d) {
+  const st = state.flash?.steps?.[i];
+  if (!st || st.progress >= st.digits.length) return { state, ok: false };
+  if (d !== st.digits[st.progress]) return { state: withStep(penalize(state), i, (x) => { x.progress = 0; return x; }), ok: false };
+  return { state: withStep(state, i, (x) => { x.progress++; return x; }), ok: true };
+}
+/** Volver a mirar el código cuesta tiempo. */
+export const peekCode = (state) => penalize(state);
+
+/** Energía: sube o baja una barra de un sistema. No se puede usar más de lo que hay. */
+export function adjustPower(state, i, j, delta) {
+  const st = state.flash?.steps?.[i];
+  if (!st) return state;
+  const used = st.have.reduce((a, b) => a + b, 0);
+  if (delta > 0 && used >= st.total) return state;
+  if (delta < 0 && st.have[j] <= 0) return state;
+  return withStep(state, i, (x) => { x.have[j] += delta > 0 ? 1 : -1; return x; });
+}
+
+/** En el momento justo: la pantalla decide si la marca estaba en la zona. Fallar cuesta tiempo. */
+export function timingPress(state, i, hit) {
+  const st = state.flash?.steps?.[i];
+  if (!st || st.hits >= st.need) return { state, ok: false };
+  if (!hit) return { state: penalize(state), ok: false };
+  return { state: withStep(state, i, (x) => { x.hits++; return x; }), ok: true };
+}
+/** Posición de la marca (0-1) en el segundo t: va y vuelve. */
+export function timingPos(st, t) {
+  const ph = (t * st.speed / 1.6) % 2;
+  return ph < 1 ? ph : 2 - ph;
+}
+export const timingZone = (st) => st.centers[Math.min(st.hits, st.need - 1)];
 
 export function stepDone(f, st) {
   switch (st.kind) {
@@ -259,6 +277,9 @@ export function stepDone(f, st) {
     case 'valves': return st.angles.every((a, j) => a === st.target[j]);
     case 'cables': return Object.keys(st.conn).length === st.n;
     case 'protocol': return st.progress >= st.items.length;
+    case 'code': return st.progress >= st.digits.length;
+    case 'power': return st.have.every((x, j) => x === st.need[j]);
+    case 'timing': return st.hits >= st.need;
     default: return true;
   }
 }
@@ -269,12 +290,17 @@ export const flashLeft = (f, now = Date.now()) => (f.deadline ? Math.max(0, (f.d
 /** Resuelve todos los pasos (para bots, pruebas y el balance). */
 export function autoSolve(state) {
   let s = state;
-  const f = () => s.flash;
-  for (const d of f().doors) s = closeDoor(s, d);
-  f().steps.forEach((st, i) => {
+  for (const d of s.flash.doors) { s = closeDoor(s, d); s = closeDoor(s, d); }
+  s.flash.steps.forEach((st, i) => {
     if (st.kind === 'leak') s = probeLeak(s, i, st.hole);
     if (st.kind === 'cables') for (let slot = 0; slot < st.n; slot++) s = connectCable(s, i, st.right[slot], slot).state;
     if (st.kind === 'protocol') for (let k = 0; k < st.items.length; k++) s = pressProtocol(s, i, k).state;
+    if (st.kind === 'code') for (const d of st.digits) s = pressCode(s, i, d).state;
+    if (st.kind === 'timing') for (let k = 0; k < st.need; k++) s = timingPress(s, i, true).state;
+    if (st.kind === 'power') {
+      st.have.forEach((x, j) => { for (let k = st.need[j]; k < x; k++) s = adjustPower(s, i, j, -1); });
+      st.need.forEach((n, j) => { for (let k = s.flash.steps[i].have[j]; k < n; k++) s = adjustPower(s, i, j, 1); });
+    }
     if (st.kind === 'valves') {
       // Búsqueda pequeña: cuántas vueltas a cada válvula (0-3); n ≤ 5 → 4^5 = 1024 casos.
       const n = st.angles.length;
@@ -316,25 +342,26 @@ export function resolveFlash(state) {
   const lost = [];
   const hurt = (n) => { for (const c of s.crew) if (c.alive && !c.evacuated) c.health = Math.max(1, c.health - n); };
   const damage = (mod, n) => { mod.health = Math.max(0, mod.health - n); if (mod.health === 0) mod.on = false; };
-  let line;
   if (result === 'ok') {
     damage(m, T.okDamage);
-    s.reputation = (s.reputation ?? 0) + 2 + (f.steps.length > 1 ? 1 : 0);
-    line = T.ok(name);
+    s.reputation = (s.reputation ?? 0) + 1 + f.steps.length;
   } else if (result === 'partial') {
-    if (T.partialLost && !s.kids) { loseModule(s, m, T.name); lost.push(m.type); } else damage(m, 70);
+    if (T.partialLost && !s.kids) { loseModule(s, m, T.name); lost.push(m.type); } else damage(m, T.noLose ? 45 : 70);
     hurt(Math.round(T.failCrew / 2));
     if (T.failO2) s.resources.o2 = Math.max(0, s.resources.o2 - T.failO2 / 2);
-    line = T.partial(name);
   } else {
     const neigh = neighborsOf(s, m);
-    if (s.kids) { m.health = 0; m.on = false; } // en modo niños se rompe, pero se puede reparar
+    if (s.kids || T.noLose) damage(m, s.kids ? 100 : 70); // en modo niños se rompe, pero se puede reparar
     else { loseModule(s, m, T.name); lost.push(m.type); }
     for (const o of neigh) damage(o, T.neighborDamage);
     hurt(T.failCrew);
     if (T.failO2) s.resources.o2 = Math.max(0, s.resources.o2 - T.failO2);
-    line = s.kids ? `No alcanzó el tiempo: ${name} se rompió. Hace falta 🔧 Reparación.` : T.fail(name);
   }
+  if (result !== 'ok' && T.shortNext) s.flashShort = true;
+  let line;
+  if (result === 'ok') line = T.ok(name);
+  else if (result === 'partial') line = T.partial(name);
+  else line = s.kids && !T.noLose ? `No alcanzó el tiempo: ${name} se rompió. Hace falta 🔧 Reparación.` : T.fail(name);
   line = `${T.icon} ${line}`;
   s.flashStats = { ok: (s.flashStats?.ok ?? 0) + (result === 'ok' ? 1 : 0), total: (s.flashStats?.total ?? 0) + 1 };
   s.log = [...(s.log ?? []), { day: s.day, kind: result === 'ok' ? 'bueno' : 'evento', text: line }];

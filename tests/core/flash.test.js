@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import {
   makeFlash, closeDoor, resolveFlash, rollFlash, targets, CRITICAL, FLASH_TYPES, autoSolve, stepDone, allDone,
   probeLeak, leakReading, turnValve, connectCable, pressProtocol, typesFor, flashLeft, WRONG_PENALTY,
+  pressCode, adjustPower, timingPress, stepsFor, rollFlash as roll2,
 } from '../../src/core/flash.js';
 import { advanceDay } from '../../src/core/sim.js';
 import { createMission } from '../../src/core/mission.js';
@@ -139,4 +140,84 @@ test('con un evento relámpago abierto, el día no avanza', () => {
   const r = advanceDay(s);
   assert.equal(r.interrupt.kind, 'flash');
   assert.equal(r.state.day, s.day);
+});
+
+test('hay 37 emergencias y cada una tiene un paso extra para difícil', () => {
+  assert.equal(Object.keys(FLASH_TYPES).length, 37);
+  for (const [k, T] of Object.entries(FLASH_TYPES)) {
+    assert.ok(T.extra, `${k} sin extra`);
+    assert.equal(stepsFor(mk('dificil'), k).length, T.steps.length + 1);
+    assert.equal(stepsFor(mk('medio'), k).length, T.steps.length);
+  }
+});
+
+test('código: un dígito mal vuelve a empezar y quita tiempo', () => {
+  const s = mk(); s.flash = makeFlash(s, 'computadora', 'paneles-2-0');
+  const i = stepOf(s, 'code'); const st = s.flash.steps[i];
+  let t = pressCode(s, i, st.digits[0]).state;
+  assert.equal(t.flash.steps[i].progress, 1);
+  const r = pressCode(t, i, (st.digits[1] + 1) % 10);
+  assert.equal(r.ok, false);
+  assert.equal(r.state.flash.steps[i].progress, 0);
+  assert.equal(r.state.flash.penalty, WRONG_PENALTY);
+  assert.equal(st.digits.length, 5);
+  assert.equal(makeFlash(mk('dificil'), 'computadora', 'paneles-2-0').steps[0].digits.length, 6);
+});
+
+test('energía: no se puede usar más de lo que hay; en difícil hay que quitar para dar', () => {
+  const s = mk('dificil'); s.flash = makeFlash(s, 'termico', 'paneles-2-0');
+  const i = stepOf(s, 'power'); const st = s.flash.steps[i];
+  assert.equal(st.have.reduce((a, b) => a + b, 0), st.total);
+  const j = st.have.findIndex((x, k) => x < st.need[k]);
+  assert.deepEqual(adjustPower(s, i, j, 1), s); // ya no queda energía libre
+  const f = makeFlash(mk('facil'), 'termico', 'paneles-2-0').steps[0];
+  assert.ok(f.have.every((x) => x === 0));
+});
+
+test('en el momento justo: fallar quita tiempo; en difícil la zona se mueve', () => {
+  const s = mk(); s.flash = makeFlash(s, 'brazo', 'paneles-2-0');
+  const i = stepOf(s, 'timing');
+  assert.equal(timingPress(s, i, false).state.flash.penalty, WRONG_PENALTY);
+  assert.equal(timingPress(s, i, true).state.flash.steps[i].hits, 1);
+  const d = makeFlash(mk('dificil'), 'brazo', 'paneles-2-0').steps[0];
+  assert.ok(d.zone < s.flash.steps[i].zone);
+  assert.ok(new Set(d.centers).size > 1);
+});
+
+test('difícil: una escotilla atascada pide dos toques y la fuga tiene ruido', () => {
+  const s = mk('dificil'); s.flash = makeFlash(s, 'meteorito', 'paneles-2-0');
+  const stuck = Object.keys(s.flash.stuck)[0];
+  assert.ok(stuck);
+  const once = closeDoor(s, stuck);
+  assert.ok(!once.flash.closed[stuck]);
+  assert.ok(closeDoor(once, stuck).flash.closed[stuck]);
+  assert.ok(s.flash.steps[1].noise > 0);
+  assert.equal(makeFlash(mk('medio'), 'meteorito', 'paneles-2-0').steps[1].noise, 0);
+});
+
+test('alarma falsa sin revisar: la siguiente emergencia trae menos tiempo', () => {
+  const s = mk(); s.flash = makeFlash(s, 'falsa', 'paneles-2-0');
+  const r = resolveFlash(s);
+  assert.equal(r.state.flashShort, true);
+  const a = makeFlash(mk(), 'incendio', 'paneles-2-0').seconds;
+  const b = makeFlash({ ...mk(), flashShort: true }, 'incendio', 'paneles-2-0').seconds;
+  assert.ok(b < a);
+});
+
+test('eventos que no destruyen el módulo (médica, computadora) solo lo dañan', () => {
+  for (const type of ['medica', 'computadora', 'planta']) {
+    const s = mk(); s.flash = makeFlash(s, type, 'paneles-2-0');
+    const r = resolveFlash(s);
+    assert.ok(r.state.modules.some((m) => m.id === 'paneles-2-0'), type);
+  }
+});
+
+test('viaje a Marte: motor, lluvia y rumbo; en la Luna noche y hielo', () => {
+  const viaje = { ...mk(), scenarioId: 'marte', leg: 'ida' };
+  for (const k of ['motor', 'lluvia', 'rumbo', 'escombros']) assert.ok(typesFor(viaje).includes(k), k);
+  assert.ok(!typesFor(mk()).includes('motor'));
+  const luna = { ...mk(), scenarioId: 'luna', leg: 'superficie' };
+  for (const k of ['noche', 'hielo', 'polvolunar', 'sismo', 'rover']) assert.ok(typesFor(luna).includes(k), k);
+  assert.ok(!typesFor(luna).includes('helada'));
+  void roll2;
 });

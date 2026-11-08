@@ -28,7 +28,7 @@ import { digPanel, digAvailable } from '../panels/dig.js';
 import { autoAssign } from '../../core/autoplan.js';
 import { CARGO_PLANS, cleanPanels, replaceBatteries, batteryHealth, gardenStage, BATTERY_PARTS, AUTO_RATION_DAYS } from '../../core/extras.js';
 import { inCoop, coopInfo, shareDraft, onDraft, allDrafts } from '../coop.js';
-import { placeOf, FLASH_TYPES, CABLE_COLORS, closeDoor, resolveFlash, modName, allDone, stepDone, flashLeft, leakReading, probeLeak, turnValve, connectCable, pressProtocol, protocolOrder } from '../../core/flash.js';
+import { placeOf, FLASH_TYPES, CABLE_COLORS, closeDoor, resolveFlash, modName, allDone, stepDone, flashLeft, leakReading, probeLeak, turnValve, connectCable, pressProtocol, protocolOrder, pressCode, peekCode, adjustPower, timingPress, timingPos, timingZone } from '../../core/flash.js';
 
 // Modo niños: menos trabajos, energía en una barra y Nova reparte sola cada día.
 const KID_TASKS = new Set(['cultivo', 'produccion', 'reparacion', 'experimentos', 'medico', 'ejercicio', 'descanso']);
@@ -165,19 +165,23 @@ export function render(root, app, go) {
   // Evento relámpago: 1 o 2 minijuegos contra reloj (escotillas, fuga, válvulas, cables, protocolo).
   // Todo se calcula desde app.state.flash (con la hora límite adentro), así se puede redibujar cuando llega
   // un cambio de otro jugador sin perder la cuenta. Solo el anfitrión (o quien juega solo) cierra el evento.
-  let flashTimer = null; let flashKey = null; let flashAlarm = ''; let cableSel = null;
+  let flashTimer = null; let flashKey = null; let flashAlarm = ''; let cableSel = null; let codeSeen = {}; let codeUntil = {}; let flashRaf = null;
   const flashClose = () => document.getElementById('relampago')?.closest('.modal-bg')?.remove();
   const flashOff = () => { clearInterval(flashTimer); if (flashKey) document.removeEventListener('keydown', flashKey); flashKey = null; };
   const VALVE_ARROW = ['↑', '→', '↓', '←'];
   const CABLE_HEX = { rojo: '#ff4b4b', azul: '#4b9dff', amarillo: '#ffd23d', verde: '#4dff88', blanco: '#e8e8e8' };
-  const STEP_TITLE = { doors: '🚪 Cerrar escotillas', leak: '🔍 Encontrar la fuga', valves: '🔧 Girar válvulas', cables: '🔌 Conectar cables', protocol: '📋 Seguir el protocolo' };
+  const STEP_TITLE = { doors: '🚪 Cerrar escotillas', leak: '🔍 Encontrar la fuga', valves: '🔧 Girar válvulas', cables: '🔌 Conectar cables', protocol: '📋 Seguir el protocolo', code: '🔢 Código de memoria', power: '⚡ Repartir energía', timing: '🎯 En el momento justo' };
   const STEP_HELP = {
     doors: 'Toca cada escotilla (o su número en el teclado) para cerrarla.',
     leak: 'Toca partes del casco: el número es qué tan fuerte se oye el silbido. 100 = ahí está el agujero.',
     valves: 'Cada toque gira la válvula un cuarto de vuelta. Déjalas apuntando como su marca. ═ = giran juntas.',
     cables: 'Toca un cable de la izquierda y después su borne a la derecha. Si te equivocas salta una chispa y pierdes tiempo.',
     protocol: 'Aprieta los pasos en el orden correcto. Un paso equivocado cuesta tiempo.',
+    code: 'Toca MOSTRAR, memoriza el código y tecléalo. Un número mal y empiezas de nuevo.',
+    power: 'Dale a cada sistema justo la energía que pide. No hay más de la que ves: a veces hay que quitarle a uno para darle a otro.',
+    timing: 'Aprieta ¡AHORA! (o la barra espaciadora) cuando la marca esté dentro de la zona verde.',
   };
+  const STEP_HELP_BLIND = 'Las alarmas no dan números: guíate solo por el color. Más rojo = más cerca del agujero.';
   function flashFx(kind) {
     const m = document.querySelector('#relampago')?.closest('.modal');
     if (kind === 'mal') { spark(); m?.classList.remove('chispa'); void m?.offsetWidth; m?.classList.add('chispa'); }
@@ -241,13 +245,14 @@ export function render(root, app, go) {
         const done = !!f.closed?.[d];
         const who = owner(i);
         return h('button', {
-          class: `flash-door ${done ? 'cerrada' : ''} ${horiz ? 'v' : 'h'}`, 'data-door': d, 'data-key': i + 1,
+          class: `flash-door ${done ? 'cerrada' : ''} ${f.stuck?.[d] && !done ? 'atascada' : ''} ${horiz ? 'v' : 'h'}`, 'data-door': d, 'data-key': i + 1,
           disabled: done || !canClose(i), title: who ? `Cierra ${who}` : 'Cerrar escotilla',
           style: { gridColumn: col, gridRow: row }, onclick: () => shut(d),
-        }, done ? '■' : String(i + 1));
+        }, done ? '■' : f.stuck?.[d] ? (f.half?.[d] ? `${i + 1}½` : `${i + 1}!`) : String(i + 1));
       });
       return [
         h('div', { class: 'flash-grid', style: { gridTemplateColumns: cols, gridTemplateRows: rows } }, ...cells, ...doors),
+        Object.keys(f.stuck ?? {}).length ? h('div', { class: 'small amber' }, '⚠ Una escotilla está atascada (!): hay que tocarla dos veces.') : null,
         names.length > 1 ? h('div', { class: 'small' }, ...f.doors.map((d, i) => h('span', { class: `chip ${f.closed?.[d] ? 'ok' : ''}` }, `${i + 1}: ${owner(i)}`)),
           inCoop() ? h('div', { class: 'small amber' }, 'Cada uno cierra las suyas. A la mitad del tiempo, cualquiera puede ayudar.') : null) : null,
       ];
@@ -261,7 +266,7 @@ export function render(root, app, go) {
           class: `flash-panel ${seen ? 'medido' : ''} ${hole ? 'agujero' : ''}`, 'data-cell': c,
           style: seen && !hole ? { '--calor': v / 100 } : {}, disabled: seen,
           onclick: () => { if (c === st.hole) hissHit(); else beep(200 + leakReading(st, c) * 9, 90, 'sine', 0.05); act(probeLeak(app.state, i, c), c === st.hole); },
-        }, hole ? '🩹' : seen ? String(v) : '▒');
+        }, hole ? '🩹' : seen ? (st.blind ? '●' : String(v)) : '▒');
       }));
     const valvesView = (st, i) => h('div', { class: 'flash-valvulas' },
       ...st.angles.flatMap((a, v) => {
@@ -317,7 +322,57 @@ export function render(root, app, go) {
         }, st.items[k]))),
       ];
     };
-    const VIEW = { doors: doorsView, leak: leakView, valves: valvesView, cables: cablesView, protocol: protocolView };
+    const codeVisible = (i) => (codeUntil[`${f.day}-${i}`] ?? 0) > Date.now();
+    const codeView = (st, i) => {
+      const key = `${f.day}-${i}`;
+      const vis = codeVisible(i);
+      const shown = vis ? st.digits.map(String) : st.digits.map((d, k) => (k < st.progress ? String(d) : '_'));
+      return [
+        h('div', { class: `flash-codigo ${vis ? 'visible' : ''}` }, shown.join(' ')),
+        h('div', { class: 'flash-teclado' }, ...st.pad.map((d) => h('button', { class: 'flash-tecla', 'data-digit': d, disabled: vis,
+          onclick: () => { const r = pressCode(app.state, i, d); beep(r.ok ? 700 + d * 40 : 150, 60, 'square', 0.04); act(r.state, r.ok); } }, String(d)))),
+        h('button', { class: 'small', 'data-peek': i, disabled: vis, onclick: () => {
+          const first = !codeSeen[key]; codeSeen[key] = true;
+          codeUntil[key] = Date.now() + (first ? st.show : 2) * 1000;
+          if (first) flashModal(); else act(peekCode(app.state), false);
+        } }, codeSeen[key] ? '👁 Ver otra vez (−2 s)' : `👁 MOSTRAR (${st.show} s)`),
+      ];
+    };
+    const powerView = (st, i) => {
+      const used = st.have.reduce((a, b) => a + b, 0); const free = st.total - used;
+      const kw = (n) => `${fmt(n * st.unit, st.unit % 1 ? 1 : 0)} kW`;
+      return [
+        h('div', { class: 'small amber' }, st.unit === 1 ? `Libres: ${free} barras` : `Libres: ${free} barras · cada barra = ${fmt(st.unit, 1)} kW`),
+        ...st.names.map((n, j) => {
+          const ok = st.have[j] === st.need[j];
+          return h('div', { class: `flash-energia ${ok ? 'ok' : ''}`, 'data-power': j },
+            h('span', { class: 'nombre' }, n),
+            h('button', { class: 'menos', 'data-power-down': j, disabled: st.have[j] <= 0, onclick: () => { beep(300, 40, 'square', 0.03); act(adjustPower(app.state, i, j, -1)); } }, '−'),
+            h('span', { class: 'barras' }, '▮'.repeat(st.have[j]) + '▯'.repeat(Math.max(0, 6 - st.have[j]))),
+            h('button', { class: 'mas', 'data-power-up': j, disabled: free <= 0, onclick: () => { beep(500, 40, 'square', 0.03); act(adjustPower(app.state, i, j, 1)); } }, '+'),
+            h('span', { class: 'pide' }, st.unit === 1 ? `pide ${st.need[j]}` : `pide ${kw(st.need[j])}`));
+        }),
+      ];
+    };
+    const timingView = (st, i) => {
+      const c = timingZone(st);
+      return [
+        h('div', { class: 'flash-pista', 'data-timing': i },
+          h('div', { class: 'zona', style: { left: `${(c - st.zone / 2) * 100}%`, width: `${st.zone * 100}%` } }),
+          h('div', { class: 'marca' })),
+        h('div', { class: 'row' },
+          h('button', { class: 'big flash-ahora', 'data-now': i, onclick: () => timingHit(i) }, '🎯 ¡AHORA!'),
+          h('span', { class: 'small' }, `Aciertos: ${st.hits} de ${st.need}`)),
+      ];
+    };
+    const timingHit = (i) => {
+      const st = app.state.flash?.steps?.[i]; if (!st || stepDone(app.state.flash, st)) return;
+      const pos = timingPos(st, performance.now() / 1000); const c = timingZone(st);
+      const hit = Math.abs(pos - c) <= st.zone / 2;
+      if (hit) beep(1100, 80, 'triangle', 0.06);
+      const r = timingPress(app.state, i, hit); act(r.state, r.ok);
+    };
+    const VIEW = { doors: doorsView, leak: leakView, valves: valvesView, cables: cablesView, protocol: protocolView, code: codeView, power: powerView, timing: timingView };
     const stepsDone = f.steps.filter((st) => stepDone(f, st)).length;
 
     const content = [
@@ -330,7 +385,7 @@ export function render(root, app, go) {
         const done = stepDone(f, st);
         return h('section', { class: `flash-paso ${done ? 'hecho' : ''}`, 'data-step': st.kind },
           h('h3', {}, `${done ? '✅' : `${i + 1}.`} ${STEP_TITLE[st.kind]}`),
-          done ? null : h('p', { class: 'small' }, STEP_HELP[st.kind]),
+          done ? null : h('p', { class: 'small' }, st.blind ? STEP_HELP_BLIND : STEP_HELP[st.kind]),
           ...(done ? [] : [VIEW[st.kind](st, i)].flat()));
       }),
       s.kids ? h('p', { class: 'small green' }, '🧒 Si no alcanzas, el módulo solo se rompe y se puede reparar.') : null,
@@ -350,12 +405,34 @@ export function render(root, app, go) {
       document.getElementById('flash-seg').textContent = `${Math.ceil(l)} s`;
       bar.classList.toggle('roja', l <= 3);
       musicUrgency(1 - l / f.seconds);
+      if (document.querySelector('.flash-codigo.visible') && !f.steps.some((st, i) => st.kind === 'code' && codeVisible(i))) flashModal();
       document.querySelectorAll('.flash-door').forEach((b, i) => { if (!f.closed?.[f.doors[i]] && canClose(i)) b.disabled = false; });
       if (!isGuest() && (l <= 0 || allDone(app.state.flash))) finish();
       if (isGuest() && !app.state.flash) { flashOff(); flashClose(); hiss(false); document.body.classList.remove('alarma-roja'); }
     };
     setKey(null);
-    flashKey = (e) => { const n = Number(e.key); if (f.doors.length && n >= 1 && n <= f.doors.length && canClose(n - 1)) { e.preventDefault(); shut(f.doors[n - 1]); } };
+    flashKey = (e) => {
+      const live = app.state.flash; if (!live) return;
+      if (e.key === ' ') { const i = live.steps.findIndex((st) => st.kind === 'timing' && !stepDone(live, st)); if (i >= 0) { e.preventDefault(); timingHit(i); } return; }
+      if (!/^[0-9]$/.test(e.key)) return;
+      const n = Number(e.key);
+      // Si hay un código por teclear, los números van al código; si no, a las escotillas.
+      const ci = live.steps.findIndex((st, i) => st.kind === 'code' && !stepDone(live, st) && codeSeen[`${f.day}-${i}`] && !codeVisible(i));
+      if (ci >= 0) { e.preventDefault(); const r = pressCode(app.state, ci, n); beep(r.ok ? 700 + n * 40 : 150, 60, 'square', 0.04); act(r.state, r.ok); return; }
+      if (live.doors.length && n >= 1 && n <= live.doors.length && canClose(n - 1)) { e.preventDefault(); shut(live.doors[n - 1]); }
+    };
+    // Marca que se mueve en los minijuegos de "momento justo".
+    cancelAnimationFrame(flashRaf);
+    const anim = () => {
+      const tracks = document.querySelectorAll('#relampago .flash-pista');
+      if (!tracks.length) return;
+      for (const tr of tracks) {
+        const st = app.state.flash?.steps?.[Number(tr.dataset.timing)];
+        if (st) tr.querySelector('.marca').style.left = `${timingPos(st, performance.now() / 1000) * 100}%`;
+      }
+      flashRaf = requestAnimationFrame(anim);
+    };
+    flashRaf = requestAnimationFrame(anim);
     document.addEventListener('keydown', flashKey);
     flashTimer = setInterval(tick, 200);
     tick();
