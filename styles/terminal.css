@@ -364,3 +364,22 @@ body:has(#relampago) #guia, body:has(#relampago) #flecha { display: none; }
 .flash-pista .marca { position: absolute; top: -2px; bottom: -2px; width: 6px; margin-left: -3px; background: var(--amber); box-shadow: 0 0 8px var(--amber); }
 .flash-ahora { margin: 0 .5rem 0 0; }
 @media (max-width: 600px) { .flash-energia { grid-template-columns: 1fr 1.8rem auto 1.8rem; } .flash-energia .pide { grid-column: 1 / -1; text-align: left; } .flash-codigo { font-size: 1.4rem; } }
+
+/* ---------- teléfono: arreglos 8/11 ---------- */
+@media (max-width: 600px) {
+  /* barra en una sola fila deslizable (antes ocupaba 3 filas) */
+  #barra { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; white-space: nowrap; }
+  #barra::-webkit-scrollbar { display: none; }
+  #barra > * { flex: none; }
+  #barra .logo { font-size: .75rem; }
+  /* títulos sin letras tan separadas */
+  h1 { letter-spacing: .04em; line-height: 1.25; }
+  h1 .small, h1 .dim { letter-spacing: 0; font-size: .7rem; display: block; }
+  /* con una ventana abierta, Nova no tapa las opciones (queda solo la carita) */
+  body:has(.modal-bg) #guia .g-bubble { display: none; }
+  /* mapa de escotillas: cabe en la pantalla */
+  .flash-grid { justify-content: safe center; }
+  .flash-grid > * { min-width: 0; }
+  .flash-mod { font-size: .55rem; overflow: hidden; }
+  .flash-door { font-size: .75rem; margin: .1rem; padding: 0 !important; letter-spacing: 0 !important; min-width: 0 !important; overflow: hidden; }
+}

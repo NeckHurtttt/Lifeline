@@ -237,6 +237,8 @@ export function render(root, app, go, params = {}) {
     const rel = new URLSearchParams(location.search).get('relampago');
     if (rel != null) { state.flashBoost = 15; if (rel) state.flashOnly = rel.split(','); }
     if (app.simulacro) { state.flashBoost = 15; app.simulacro = false; }
+    // Modo jurado: la primera emergencia sale segura el día 4 (micrometeorito: escotillas + fuga).
+    if (app.jurado) { state.jurado = true; state.flashBoost = 1000; state.flashOnly = ['meteorito']; }
     if (app.contrarreloj) state.deadline = Date.now() + app.contrarreloj * 60000;
     if (app.historica) { state.historica = app.historica.id; state.scripted = app.historica.scripted ?? []; state.forceBoom = app.historica.forceBoom ?? 0; }
     app.lastDesign = structuredClone(d);

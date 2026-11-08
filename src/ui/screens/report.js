@@ -230,6 +230,11 @@ export function render(root, app, go) {
           h('td', {}, i + 1), h('td', {}, r.score), h('td', {}, r.medal ? MEDALS[r.medal] : (r.success ? '—' : '✖')), h('td', {}, r.days),
           h('td', {}, r.difficulty), h('td', { class: 'small' }, r.players), h('td', { class: 'small dim' }, r.design), h('td', { class: 'small' }, r.date))))),
   );
+  if (s.jurado) {
+    const secs = app.jurado ? Math.floor((Date.now() - app.jurado) / 1000) : 0;
+    say(`🏛️ Paso 5 de 5 · Informe. Puntaje de 0 a 1000 según las 5 categorías del desafío, qué salió bien, qué cambiar y un quiz de lo aprendido. Recorrido en ${Math.floor(secs / 60)}:${String(secs % 60).padStart(2, '0')} min. ¡Gracias por jugar!`, { mood: 'feliz', target: '#causas' });
+    return;
+  }
   say(rep.success
     ? `¡Misión cumplida! ${rep.medal ? `Ganaron ${MEDALS[rep.medal]}.` : ''} Mira abajo qué podrían mejorar para sacar más puntos.`
     : `Esta vez no se pudo. Mira "Qué pasó y qué cambiar" y prueba de nuevo con REDISEÑAR.`,

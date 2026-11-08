@@ -77,6 +77,15 @@ function onlinePanel() {
 }
 let redrawTitle = () => {};
 
+/** Modo jurado: todo listo para mostrar el juego en 3 minutos. */
+export function startJurado(app, go) {
+  Object.assign(app, { mode: 'demo', scenario: 'estacion', difficulty: 'facil', objective: 'ciencia', historica: null, reto: null, practice: null,
+    state: null, lastDesign: null, lastSeed: null, budgetMult: 1, simulacro: false, kids: false, contrarreloj: null, jurado: Date.now() });
+  app.players = makePlayers(1); updateBar();
+  beep(990, 80); go('design', { design: SUGGESTED('estacion') });
+  say('🏛️ Modo jurado. Paso 1 de 5: la nave ya está armada por módulos, dentro del presupuesto y el peso del cohete. Miren el tablero y toquen 🚀 LANZAR.', { mood: 'feliz', target: '#lanzar' });
+}
+
 export function render(root, app, go) {
   const saved = load();
   const names = app.players.map((p) => p.name);
@@ -172,6 +181,7 @@ export function render(root, app, go) {
           beep(990, 80); go('design', { design: SUGGESTED('estacion') });
           say('🎓 Práctica guiada: la nave ya está armada. Toca 🚀 LANZAR y te explico todo en la misión.', { mood: 'feliz', target: '#lanzar' });
         } }, '🎓 Práctica guiada'),
+        ' ', h('button', { id: 'jurado', title: 'Recorrido de 3 minutos por lo principal: nave, despegue, una emergencia y el informe.', onclick: () => startJurado(app, go) }, '🏛️ Modo jurado (3 min)'),
         ' ', h('button', { id: 'simulacro', title: 'Misión fácil con muchas emergencias relámpago para practicar los minijuegos.', onclick: () => {
           Object.assign(app, { mode: 'demo', scenario: 'estacion', difficulty: 'facil', objective: 'ciencia', historica: null, reto: null, practice: null, state: null, lastDesign: null, lastSeed: null, budgetMult: 1, simulacro: true });
           beep(990, 80); go('design', { design: SUGGESTED('estacion') });
@@ -201,6 +211,9 @@ export function render(root, app, go) {
     );
   };
   redrawTitle = draw;
+  // ?jurado en la dirección: entra directo al recorrido de 3 minutos (para el link del jurado).
+  if (new URLSearchParams(location.search).has('jurado') && !app.juradoAuto && !coopInfo().role) { app.juradoAuto = true; startJurado(app, go); return () => {}; }
+  app.jurado = null;
   const offCoop = onCoopChange(() => draw());
   draw();
   say(saved ? `¡Hola otra vez! Tu misión va en el día ${saved.day}. Toca SEGUIR para continuar.` : 'Aquí Nova, Control de Misión. Si es tu primera vez, toca "¿Cómo se juega?".',

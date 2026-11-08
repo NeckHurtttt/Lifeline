@@ -12,6 +12,7 @@ import { EVENTS } from '../../data/events.js';
 import { MINIMISSIONS } from '../../data/minimissions.js';
 import { TASKS, validateSchedule, normalizeSchedule } from '../../core/tasks.js';
 import { advanceDay, runUntilInterrupt, daysLeft } from '../../core/sim.js';
+import { fastForward, juradoStep } from '../../core/jurado.js';
 import { prepareFor, resolveEvent, recommendedOption, previewOption } from '../../core/events.js';
 import { acceptMini, previewMini, usesAutoRover } from '../../core/minimissions.js';
 import { setPriority } from '../../core/energy.js';
@@ -230,7 +231,7 @@ export function render(root, app, go) {
       const xs = s.modules.map((m) => m.x); const ys = s.modules.map((m) => m.y);
       const x0 = Math.min(...xs); const y0 = Math.min(...ys);
       const W = Math.max(...xs) - x0 + 1; const H = Math.max(...ys) - y0 + 1;
-      const cols = Array.from({ length: 2 * W - 1 }, (_, i) => (i % 2 ? '1.6rem' : 'minmax(2.4rem, 4.2rem)')).join(' ');
+      const cols = Array.from({ length: 2 * W - 1 }, (_, i) => (i % 2 ? 'minmax(.8rem, 1.6rem)' : 'minmax(1.2rem, 4.2rem)')).join(' ');
       const rows = Array.from({ length: 2 * H - 1 }, (_, i) => (i % 2 ? '1.6rem' : '2.6rem')).join(' ');
       const near = new Set(f.doors.flatMap((d) => d.split('|')));
       const cells = s.modules.map((m) => h('div', {
@@ -1090,6 +1091,33 @@ export function render(root, app, go) {
     say(`🎓 ${app.practice + 1}/${PRACTICE.length}. ${text}`, { mood: last ? 'feliz' : 'normal', target, buttons: [{ label: last ? 'Terminar' : 'Siguiente ▶', onclick: () => { app.practice = last ? null : app.practice + 1; draw(); } }] });
   }
 
+  // Modo jurado: un cartel con el paso del recorrido y un solo botón para seguir.
+  const JURADO_TXT = {
+    3: ['Paso 3 de 5 · La misión', 'Así se ve un día en la estación: recursos, tripulación y turnos. Toquen ⏩ y en unos segundos salta una emergencia relámpago: hay que resolverla contra reloj.', '⏩ Adelantar hasta la emergencia'],
+    4: ['Paso 4 de 5 · El resto del año', 'Ya vieron una emergencia. El resto del año (eventos, cargas, reparaciones) se juega igual. Toquen ⏩ y Nova lo juega por ustedes eligiendo lo recomendado.', '⏩ Adelantar el año y volver a la Tierra'],
+  };
+  function juradoPanel() {
+    const s = app.state;
+    if (!s.jurado || isGuest()) return null;
+    const step = juradoStep(s, 'ops');
+    const [title, txt, label] = JURADO_TXT[step] ?? [];
+    if (!title) return null;
+    const secs = app.jurado ? Math.floor((Date.now() - app.jurado) / 1000) : 0;
+    const blocked = !!s.pending || !!s.flash || s.phase !== 'ops';
+    return h('div', { class: 'panel c-amber', id: 'jurado-panel' },
+      h('h2', {}, `🏛️ Modo jurado · ${title}`),
+      h('div', { class: 'small' }, txt),
+      h('div', { class: 'row', style: { marginTop: '.4rem' } },
+        h('button', { class: 'big', id: 'jurado-seguir', disabled: blocked, onclick: () => {
+          stopClock();
+          if (step === 3) { advance(true); return; }
+          const end = fastForward(app.state);
+          commit(end); beep(1100, 120);
+          go(end.phase === 'reentry' ? 'reentry' : 'report');
+        } }, label),
+        h('span', { class: 'small dim' }, `⏱️ ${Math.floor(secs / 60)}:${String(secs % 60).padStart(2, '0')}`)));
+  }
+
   function draw() {
     keyFn = null;
     if (autoOn() && app.autoDay !== app.state.day && !app.state.pending) { app.autoDay = app.state.day; commit(autoAssign(app.state)); }
@@ -1119,6 +1147,7 @@ export function render(root, app, go) {
           s.pending ? h('button', { class: 'warn', onclick: eventModal }, '⚠️ Ver problema') : null)),
       sched.length ? h('div', { class: 'banner red', id: 'horario' }, '😴 ', sched.join(' · '), ' — todos deben dormir al menos un turno.') : null,
       banner ? h('div', { class: `banner ${banner.cls}`, id: 'aviso' }, banner.text) : null,
+      juradoPanel(),
       tabs([
         { id: 'resumen', label: '🏠 Resumen', color: 'c-blue', badge: ['food', 'water', 'o2'].some((k) => daysLeft(s)[k] < 10) ? '!' : 0 },
         { id: 'tripulacion', label: '🧑‍🚀 Tripulación', color: 'c-pink', badge: sched.length + living().filter((c) => c.health < 50 || c.fatigue >= 70).length },
@@ -1142,6 +1171,7 @@ export function render(root, app, go) {
     else if (s.flash) flashModal();
     else if (s.pending && !document.getElementById('evento')) eventModal();
     else if (!s.pending && app.practice != null) practiceStep();
+    else if (!s.pending && s.jurado && JURADO_TXT[juradoStep(s, 'ops')]) say(JURADO_TXT[juradoStep(s, 'ops')][1], { mood: 'feliz', target: '#jurado-seguir', quiet: true });
     else if (!s.pending) {
       const [t, mood, target, where] = coach(sched);
       if ((tab === 'recorrido' || tab === 'excavar') && mood !== 'alerta') return; // ahí Nova no tapa los controles
