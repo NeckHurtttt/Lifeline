@@ -1,5 +1,5 @@
 import { test } from 'node:test';
-import { closeDoor, resolveFlash } from '../../src/core/flash.js';
+import { autoSolve, resolveFlash } from '../../src/core/flash.js';
 import assert from 'node:assert/strict';
 import { advanceDay, runUntilInterrupt, checkEnd } from '../../src/core/sim.js';
 import { resolveEvent, recommendedOption } from '../../src/core/events.js';
@@ -21,7 +21,7 @@ const mk = ({ difficulty = 'medio', cargoDays = 90, seed = 1, extra = [] } = {})
 // Avanza resolviendo todo con la opción recomendada, hasta fin o reentrada.
 function autoplay(s) {
   for (let i = 0; i < 2000 && s.phase === 'ops'; i++) {
-    if (s.flash) { for (const d of s.flash.doors) s = closeDoor(s, d); s = resolveFlash(s).state; continue; }
+    if (s.flash) { s = resolveFlash(autoSolve(s)).state; continue; }
     if (s.pending) { s = resolveEvent(s, s.pending.eventId, s.pending.severity, recommendedOption(s.pending.eventId), { int: () => 5, chance: () => false, next: () => 0.5 }).state; continue; }
     s = runUntilInterrupt(s).state;
   }

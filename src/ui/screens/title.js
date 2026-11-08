@@ -172,6 +172,11 @@ export function render(root, app, go) {
           beep(990, 80); go('design', { design: SUGGESTED('estacion') });
           say('🎓 Práctica guiada: la nave ya está armada. Toca 🚀 LANZAR y te explico todo en la misión.', { mood: 'feliz', target: '#lanzar' });
         } }, '🎓 Práctica guiada'),
+        ' ', h('button', { id: 'simulacro', title: 'Misión fácil con muchas emergencias relámpago para practicar los minijuegos.', onclick: () => {
+          Object.assign(app, { mode: 'demo', scenario: 'estacion', difficulty: 'facil', objective: 'ciencia', historica: null, reto: null, practice: null, state: null, lastDesign: null, lastSeed: null, budgetMult: 1, simulacro: true });
+          beep(990, 80); go('design', { design: SUGGESTED('estacion') });
+          say('⚡ Simulacro de emergencias: van a saltar muchas alarmas. Cierren escotillas, giren válvulas, conecten cables y sigan los protocolos contra reloj.', { mood: 'alerta', target: '#lanzar' });
+        } }, '⚡ Simulacro de emergencias'),
         ' ', h('button', { id: 'historicas', onclick: () => {
           const close = modal(h('div', {}, h('h2', {}, '📜 Misiones históricas'),
             h('div', { class: 'small dim' }, 'Problemas que pasaron de verdad. ¿Tu equipo lo haría mejor?'),

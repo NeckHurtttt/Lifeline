@@ -234,7 +234,9 @@ export function render(root, app, go, params = {}) {
     state.flareSource = f.source;
     state.kids = !!app.kids;
     // ?relampago en la dirección: muchos eventos relámpago (para mostrar el juego o probarlo).
-    if (new URLSearchParams(location.search).has('relampago')) state.flashBoost = 15;
+    const rel = new URLSearchParams(location.search).get('relampago');
+    if (rel != null) { state.flashBoost = 15; if (rel) state.flashOnly = rel.split(','); }
+    if (app.simulacro) { state.flashBoost = 15; app.simulacro = false; }
     if (app.contrarreloj) state.deadline = Date.now() + app.contrarreloj * 60000;
     if (app.historica) { state.historica = app.historica.id; state.scripted = app.historica.scripted ?? []; state.forceBoom = app.historica.forceBoom ?? 0; }
     app.lastDesign = structuredClone(d);

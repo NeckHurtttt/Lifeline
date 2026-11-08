@@ -2,7 +2,7 @@
 // Tres formas: con cuidado, con cuidado + reparación a mano y excavación ("experto"), y a ciegas.
 // Uso: node scripts/balance.mjs [partidas] [destino]
 import { createMission } from '../src/core/mission.js';
-import { closeDoor, resolveFlash } from '../src/core/flash.js';
+import { autoSolve, closeDoor, resolveFlash } from '../src/core/flash.js';
 import { runUntilInterrupt, advanceDay, daysLeft } from '../src/core/sim.js';
 import { repairPuzzle, applyFieldRepair, fieldRepairBlock } from '../src/core/repairs.js';
 import { ensureTerrain, startOuting, endOuting, digBlock, canDigHere, T, DIG_COLS, DIG_ROWS, TILE_INFO } from '../src/core/dig.js';
@@ -75,7 +75,7 @@ function play(scn, dif, seed, careful, expert = false) {
     if (s.flash) {
       // Un jugador atento cierra a tiempo casi siempre; uno al azar, la mitad de las veces.
       const hit = ((s.seed * 31 + s.day * 17) % 100) / 100 < (careful ? 0.85 : 0.5);
-      if (hit) for (const d of s.flash.doors) s = closeDoor(s, d);
+      if (hit) s = autoSolve(s); else for (const d of s.flash.doors) s = closeDoor(s, d); // a medias
       s = resolveFlash(s).state;
       continue;
     }

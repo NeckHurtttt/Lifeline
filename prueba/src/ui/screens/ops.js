@@ -18,7 +18,7 @@ import { setPriority } from '../../core/energy.js';
 import { restoreRng } from '../../core/rng.js';
 import { save } from '../../core/save.js';
 import { whoDecides, musicMood } from '../main.js';
-import { alarm, beep } from '../audio.js';
+import { alarm, beep, hiss, hissHit, spark, clunk, squeak, zap } from '../audio.js';
 import { say, hideGuide } from '../guide.js';
 import { crewAvatar, moodOf, MOOD_TEXT } from '../avatar.js';
 import { evaGoNoGo, isWeekend, TRESERVE_SECONDS } from '../../core/protocols.js';
@@ -28,7 +28,7 @@ import { digPanel, digAvailable } from '../panels/dig.js';
 import { autoAssign } from '../../core/autoplan.js';
 import { CARGO_PLANS, cleanPanels, replaceBatteries, batteryHealth, gardenStage, BATTERY_PARTS, AUTO_RATION_DAYS } from '../../core/extras.js';
 import { inCoop, coopInfo, shareDraft, onDraft, allDrafts } from '../coop.js';
-import { FLASH_TYPES, closeDoor, resolveFlash, allClosed, modName } from '../../core/flash.js';
+import { FLASH_TYPES, CABLE_COLORS, closeDoor, resolveFlash, modName, allDone, stepDone, flashLeft, leakReading, probeLeak, turnValve, connectCable, pressProtocol, protocolOrder } from '../../core/flash.js';
 
 // Modo niños: menos trabajos, energía en una barra y Nova reparte sola cada día.
 const KID_TASKS = new Set(['cultivo', 'produccion', 'reparacion', 'experimentos', 'medico', 'ejercicio', 'descanso']);
@@ -162,15 +162,30 @@ export function render(root, app, go) {
     draw();
   }
 
-  // Evento relámpago: hay que cerrar las escotillas del módulo afectado antes de que se acabe el tiempo.
+  // Evento relámpago: 1 o 2 minijuegos contra reloj (escotillas, fuga, válvulas, cables, protocolo).
   // Todo se calcula desde app.state.flash (con la hora límite adentro), así se puede redibujar cuando llega
   // un cambio de otro jugador sin perder la cuenta. Solo el anfitrión (o quien juega solo) cierra el evento.
-  let flashTimer = null; let flashKey = null; let flashAlarm = '';
+  let flashTimer = null; let flashKey = null; let flashAlarm = ''; let cableSel = null;
+  const flashClose = () => document.getElementById('relampago')?.closest('.modal-bg')?.remove();
   const flashOff = () => { clearInterval(flashTimer); if (flashKey) document.removeEventListener('keydown', flashKey); flashKey = null; };
+  const VALVE_ARROW = ['↑', '→', '↓', '←'];
+  const CABLE_HEX = { rojo: '#ff4b4b', azul: '#4b9dff', amarillo: '#ffd23d', verde: '#4dff88', blanco: '#e8e8e8' };
+  const STEP_TITLE = { doors: '🚪 Cerrar escotillas', leak: '🔍 Encontrar la fuga', valves: '🔧 Girar válvulas', cables: '🔌 Conectar cables', protocol: '📋 Seguir el protocolo' };
+  const STEP_HELP = {
+    doors: 'Toca cada escotilla (o su número en el teclado) para cerrarla.',
+    leak: 'Toca partes del casco: el número es qué tan fuerte se oye el silbido. 100 = ahí está el agujero.',
+    valves: 'Cada toque gira la válvula un cuarto de vuelta. Déjalas apuntando como su marca. ═ = giran juntas.',
+    cables: 'Toca un cable de la izquierda y después su borne a la derecha. Si te equivocas salta una chispa y pierdes tiempo.',
+    protocol: 'Aprieta los pasos en el orden correcto. Un paso equivocado cuesta tiempo.',
+  };
+  function flashFx(kind) {
+    const m = document.querySelector('#relampago')?.closest('.modal');
+    if (kind === 'mal') { spark(); m?.classList.remove('chispa'); void m?.offsetWidth; m?.classList.add('chispa'); }
+    if (kind === 'bien') beep(900, 60, 'triangle', 0.05);
+  }
   function flashModal() {
     const s = app.state;
     const f = s.flash;
-    document.getElementById('relampago')?.closest('.modal-bg')?.remove();
     flashOff();
     if (!f.deadline && !isGuest()) { commit({ ...s, flash: { ...f, deadline: Date.now() + f.seconds * 1000 } }); return flashModal(); }
     const T = FLASH_TYPES[f.type];
@@ -178,78 +193,173 @@ export function render(root, app, go) {
     if (!target) { if (!isGuest()) { commit({ ...s, flash: null }); draw(); } return; }
     const names = inCoop() ? coopInfo().players.filter((p) => !p.away).map((p) => p.name) : app.players.map((p) => p.name);
     const owner = (i) => (names.length > 1 ? names[i % names.length] : null);
-    const left = () => (f.deadline ? Math.max(0, (f.deadline - Date.now()) / 1000) : f.seconds);
+    const left = () => flashLeft(app.state.flash ?? f);
     const canClose = (i) => !inCoop() || mine(owner(i)) || left() <= f.seconds / 2;
     const finish = () => {
       flashOff();
       if (!app.state.flash) return;
       const r = resolveFlash(app.state);
-      close();
+      flashClose(); cableSel = null;
+      hiss(false);
+      document.body.classList.remove('alarma-roja');
       commit(r.state);
       banner = { text: r.log.join(' '), cls: r.success ? '' : 'red' };
-      if (r.success) beep(1200, 160, 'triangle'); else alarm('emergencia');
+      if (r.success) [0, 120, 240].forEach((d, k) => setTimeout(() => beep([660, 880, 1320][k], 140, 'triangle', 0.06), d)); else alarm('emergencia');
       if (app.state.phase === 'report') handle({ kind: 'fin' });
       draw();
     };
+    // Aplica una acción: guarda, suena y redibuja (o termina si ya está todo).
+    const act = (next, good = true) => {
+      if (!app.state.flash) return;
+      commit(next);
+      flashFx(good ? 'bien' : 'mal');
+      if (allDone(app.state.flash) && !isGuest()) finish(); else flashModal();
+    };
     const shut = (id) => {
       if (!app.state.flash || app.state.flash.closed?.[id]) return;
-      commit(closeDoor(app.state, id));
-      beep(300, 70, 'square'); beep(180, 120, 'square');
-      if (allClosed(app.state.flash) && !isGuest()) finish(); else { close(); flashModal(); }
+      clunk();
+      act(closeDoor(app.state, id));
     };
-    // Cuadrícula doble: módulos en las casillas impares y escotillas entre ellos.
-    const xs = s.modules.map((m) => m.x); const ys = s.modules.map((m) => m.y);
-    const x0 = Math.min(...xs); const y0 = Math.min(...ys);
-    const W = Math.max(...xs) - x0 + 1; const H = Math.max(...ys) - y0 + 1;
-    const cols = Array.from({ length: 2 * W - 1 }, (_, i) => (i % 2 ? '1.6rem' : 'minmax(2.6rem, 4.2rem)')).join(' ');
-    const rows = Array.from({ length: 2 * H - 1 }, (_, i) => (i % 2 ? '1.6rem' : '3rem')).join(' ');
-    const near = new Set(f.doors.flatMap((d) => d.split('|')));
-    const cells = s.modules.map((m) => h('div', {
-      class: `flash-mod ${m.id === f.target ? 'golpe' : near.has(m.id) ? 'vecino' : ''}`,
-      style: { gridColumn: 2 * (m.x - x0) + 1, gridRow: 2 * (m.y - y0) + 1 },
-    }, m.id === f.target ? `${T.icon} ${MOD_CODE[m.type]}` : MOD_CODE[m.type]));
-    const doors = f.doors.map((d, i) => {
-      const [a, b] = d.split('|').map((id) => s.modules.find((m) => m.id === id));
-      const horiz = a.y === b.y;
-      const col = horiz ? 2 * (Math.min(a.x, b.x) - x0) + 2 : 2 * (a.x - x0) + 1;
-      const row = horiz ? 2 * (a.y - y0) + 1 : 2 * (Math.min(a.y, b.y) - y0) + 2;
-      const done = !!f.closed?.[d];
-      const who = owner(i);
-      return h('button', {
-        class: `flash-door ${done ? 'cerrada' : ''} ${horiz ? 'v' : 'h'}`, 'data-door': d, 'data-key': i + 1,
-        disabled: done || !canClose(i), title: who ? `Cierra ${who}` : 'Cerrar escotilla',
-        style: { gridColumn: col, gridRow: row }, onclick: () => shut(d),
-      }, done ? '■' : String(i + 1));
-    });
-    const close = modal(h('div', { id: 'relampago' },
+
+    const doorsView = () => {
+      // Cuadrícula doble: módulos en las casillas impares y escotillas entre ellos.
+      const xs = s.modules.map((m) => m.x); const ys = s.modules.map((m) => m.y);
+      const x0 = Math.min(...xs); const y0 = Math.min(...ys);
+      const W = Math.max(...xs) - x0 + 1; const H = Math.max(...ys) - y0 + 1;
+      const cols = Array.from({ length: 2 * W - 1 }, (_, i) => (i % 2 ? '1.6rem' : 'minmax(2.4rem, 4.2rem)')).join(' ');
+      const rows = Array.from({ length: 2 * H - 1 }, (_, i) => (i % 2 ? '1.6rem' : '2.6rem')).join(' ');
+      const near = new Set(f.doors.flatMap((d) => d.split('|')));
+      const cells = s.modules.map((m) => h('div', {
+        class: `flash-mod ${m.id === f.target ? 'golpe' : near.has(m.id) ? 'vecino' : ''}`,
+        style: { gridColumn: 2 * (m.x - x0) + 1, gridRow: 2 * (m.y - y0) + 1 },
+      }, m.id === f.target ? `${T.icon} ${MOD_CODE[m.type]}` : MOD_CODE[m.type]));
+      const doors = f.doors.map((d, i) => {
+        const [a, b] = d.split('|').map((id) => s.modules.find((m) => m.id === id));
+        const horiz = a.y === b.y;
+        const col = horiz ? 2 * (Math.min(a.x, b.x) - x0) + 2 : 2 * (a.x - x0) + 1;
+        const row = horiz ? 2 * (a.y - y0) + 1 : 2 * (Math.min(a.y, b.y) - y0) + 2;
+        const done = !!f.closed?.[d];
+        const who = owner(i);
+        return h('button', {
+          class: `flash-door ${done ? 'cerrada' : ''} ${horiz ? 'v' : 'h'}`, 'data-door': d, 'data-key': i + 1,
+          disabled: done || !canClose(i), title: who ? `Cierra ${who}` : 'Cerrar escotilla',
+          style: { gridColumn: col, gridRow: row }, onclick: () => shut(d),
+        }, done ? '■' : String(i + 1));
+      });
+      return [
+        h('div', { class: 'flash-grid', style: { gridTemplateColumns: cols, gridTemplateRows: rows } }, ...cells, ...doors),
+        names.length > 1 ? h('div', { class: 'small' }, ...f.doors.map((d, i) => h('span', { class: `chip ${f.closed?.[d] ? 'ok' : ''}` }, `${i + 1}: ${owner(i)}`)),
+          inCoop() ? h('div', { class: 'small amber' }, 'Cada uno cierra las suyas. A la mitad del tiempo, cualquiera puede ayudar.') : null) : null,
+      ];
+    };
+    const leakView = (st, i) => h('div', { class: 'flash-casco', style: { gridTemplateColumns: `repeat(${st.w}, 1fr)` } },
+      ...Array.from({ length: st.w * st.h }, (_, c) => {
+        const seen = !!st.probed[c];
+        const v = seen ? leakReading(st, c) : null;
+        const hole = seen && c === st.hole;
+        return h('button', {
+          class: `flash-panel ${seen ? 'medido' : ''} ${hole ? 'agujero' : ''}`, 'data-cell': c,
+          style: seen && !hole ? { '--calor': v / 100 } : {}, disabled: seen,
+          onclick: () => { if (c === st.hole) hissHit(); else beep(200 + leakReading(st, c) * 9, 90, 'sine', 0.05); act(probeLeak(app.state, i, c), c === st.hole); },
+        }, hole ? '🩹' : seen ? String(v) : '▒');
+      }));
+    const valvesView = (st, i) => h('div', { class: 'flash-valvulas' },
+      ...st.angles.flatMap((a, v) => {
+        const ok = a === st.target[v];
+        const link = st.links.some((l) => l[0] === v);
+        return [
+          h('button', { class: `flash-valvula ${ok ? 'ok' : ''}`, 'data-valve': v, onclick: () => { squeak(); act(turnValve(app.state, i, v)); } },
+            h('span', { class: 'flecha', style: { transform: `rotate(${a * 90}deg)` } }, '▲'),
+            h('small', {}, `meta ${VALVE_ARROW[st.target[v]]}`)),
+          v < st.angles.length - 1 ? h('span', { class: `flash-eslabon ${link ? 'unida' : ''}` }, link ? '═' : '') : null,
+        ];
+      }));
+    const cablesView = (st, i) => {
+      const placed = Object.values(st.conn);
+      const leftCol = Array.from({ length: st.n }, (_, w) => {
+        const c = CABLE_COLORS[w]; const done = st.conn[w] != null;
+        return h('button', {
+          class: `flash-cable ${cableSel === w ? 'elegido' : ''} ${done ? 'listo' : ''}`, 'data-wire': w, disabled: done,
+          style: { '--cable': CABLE_HEX[c], gridRow: w + 1 }, onclick: () => { cableSel = cableSel === w ? null : w; beep(500, 30, 'square', 0.03); flashModal(); },
+        }, `● ${c.toUpperCase()}`);
+      });
+      const rightCol = Array.from({ length: st.n }, (_, slot) => {
+        const wire = st.right[slot]; const done = placed.includes(slot);
+        const label = st.chart ? st.systems[slot] : `● ${CABLE_COLORS[wire].toUpperCase()}`;
+        return h('button', {
+          class: `flash-borne ${done ? 'listo' : ''}`, 'data-slot': slot, disabled: done || cableSel == null,
+          style: { gridRow: slot + 1, ...(!st.chart || done ? { '--cable': CABLE_HEX[CABLE_COLORS[wire]] } : {}) },
+          onclick: () => { const r = connectCable(app.state, i, cableSel, slot); if (r.ok) zap(); cableSel = null; act(r.state, r.ok); },
+        }, label);
+      });
+      // Líneas de los cables ya conectados.
+      const NS = 'http://www.w3.org/2000/svg';
+      const svg = document.createElementNS(NS, 'svg');
+      svg.setAttribute('viewBox', `0 0 100 ${st.n * 10}`); svg.setAttribute('preserveAspectRatio', 'none'); svg.classList.add('flash-lineas'); svg.style.gridRow = `1 / span ${st.n}`;
+      for (const [w, slot] of Object.entries(st.conn)) {
+        const e = document.createElementNS(NS, 'line');
+        for (const [k, v] of Object.entries({ x1: 0, y1: Number(w) * 10 + 5, x2: 100, y2: slot * 10 + 5, stroke: CABLE_HEX[CABLE_COLORS[w]], 'stroke-width': 2.5 })) e.setAttribute(k, v);
+        svg.append(e);
+      }
+      return [
+        st.chart ? h('div', { class: 'flash-esquema small' }, '📄 Esquema: ', ...Array.from({ length: st.n }, (_, w) => h('span', { class: 'chip', style: { color: CABLE_HEX[CABLE_COLORS[w]] } }, `${CABLE_COLORS[w]} → ${st.systems[st.right.indexOf(w)]}`))) : null,
+        h('div', { class: 'flash-cables', style: { gridTemplateRows: `repeat(${st.n}, 2.3rem)` } },
+          h('div', { class: 'col' }, ...leftCol), svg, h('div', { class: 'col' }, ...rightCol)),
+      ];
+    };
+    const protocolView = (st, i) => {
+      const order = protocolOrder(st, s.seed ?? 1);
+      return [
+        h('ol', { class: 'flash-lista small' }, ...st.items.map((it, k) => h('li', { class: k < st.progress ? 'hecho' : k === st.progress ? 'ahora' : '' }, it))),
+        h('div', { class: 'flash-botones' }, ...order.map((k) => h('button', {
+          class: `flash-paso-btn ${k < st.progress ? 'hecho' : ''}`, 'data-item': k, disabled: k < st.progress,
+          onclick: () => { const r = pressProtocol(app.state, i, k); act(r.state, r.ok); },
+        }, st.items[k]))),
+      ];
+    };
+    const VIEW = { doors: doorsView, leak: leakView, valves: valvesView, cables: cablesView, protocol: protocolView };
+    const stepsDone = f.steps.filter((st) => stepDone(f, st)).length;
+
+    const content = [
       h('div', { class: 'big-ico code alerta' }, '⚡ EVENTO RELÁMPAGO'),
       h('h2', { class: 'red' }, `${T.icon} ${T.name}`),
-      h('p', { style: { fontSize: '1.1rem' } }, T.text(modName(target))),
+      h('p', { style: { fontSize: '1.05rem' } }, T.text(modName(target))),
       h('div', { class: 'flash-tiempo' }, h('div', { class: 'flash-barra', id: 'flash-barra' }), h('b', { id: 'flash-seg' }, `${Math.ceil(left())} s`)),
-      h('div', { class: 'flash-grid', style: { gridTemplateColumns: cols, gridTemplateRows: rows } }, ...cells, ...doors),
-      h('p', { class: 'small' }, `🚪 Toca cada escotilla (o su número en el teclado) para cerrarla. Cerradas: ${Object.keys(f.closed ?? {}).length} de ${f.doors.length}.`),
-      names.length > 1 ? h('div', { class: 'small' }, ...f.doors.map((d, i) => h('span', { class: `chip ${f.closed?.[d] ? 'ok' : ''}` }, `${i + 1}: ${owner(i)}`)),
-        inCoop() ? h('div', { class: 'small amber' }, 'Cada uno cierra las suyas. A la mitad del tiempo, cualquiera puede ayudar.') : null) : null,
-      T.alwaysLost ? h('p', { class: 'small amber' }, 'Este módulo ya no se salva: lo importante es proteger al resto.') : null,
-      s.kids && !T.alwaysLost ? h('p', { class: 'small green' }, '🧒 Si no alcanzas, el módulo solo se rompe y se puede reparar.') : null,
-    ), { grave: true });
+      f.steps.length > 1 ? h('div', { class: 'small amber' }, `Pasos listos: ${stepsDone} de ${f.steps.length}. Si hacen solo uno, el daño es a medias.`) : null,
+      ...f.steps.map((st, i) => {
+        const done = stepDone(f, st);
+        return h('section', { class: `flash-paso ${done ? 'hecho' : ''}`, 'data-step': st.kind },
+          h('h3', {}, `${done ? '✅' : `${i + 1}.`} ${STEP_TITLE[st.kind]}`),
+          done ? null : h('p', { class: 'small' }, STEP_HELP[st.kind]),
+          ...(done ? [] : [VIEW[st.kind](st, i)].flat()));
+      }),
+      s.kids ? h('p', { class: 'small green' }, '🧒 Si no alcanzas, el módulo solo se rompe y se puede reparar.') : null,
+    ];
+    const box = document.getElementById('relampago');
+    if (box) box.replaceChildren(...content.flat().filter(Boolean).map((x) => (typeof x === 'string' ? document.createTextNode(x) : x)));
+    else {
+      modal(h('div', { id: 'relampago' }, ...content), { grave: true });
+      document.body.classList.add('sacudon', 'alarma-roja');
+      setTimeout(() => document.body.classList.remove('sacudon'), 600);
+    }
     const tick = () => {
       const l = left();
       const bar = document.getElementById('flash-barra');
       if (!bar) { flashOff(); return; }
       bar.style.width = `${(l / f.seconds) * 100}%`;
       document.getElementById('flash-seg').textContent = `${Math.ceil(l)} s`;
-      if (l <= 3) bar.classList.add('roja');
+      bar.classList.toggle('roja', l <= 3);
       document.querySelectorAll('.flash-door').forEach((b, i) => { if (!f.closed?.[f.doors[i]] && canClose(i)) b.disabled = false; });
-      if (!isGuest() && (l <= 0 || allClosed(app.state.flash))) finish();
+      if (!isGuest() && (l <= 0 || allDone(app.state.flash))) finish();
+      if (isGuest() && !app.state.flash) { flashOff(); flashClose(); hiss(false); document.body.classList.remove('alarma-roja'); }
     };
     setKey(null);
-    flashKey = (e) => { const n = Number(e.key); if (n >= 1 && n <= f.doors.length && canClose(n - 1)) { e.preventDefault(); shut(f.doors[n - 1]); } };
+    flashKey = (e) => { const n = Number(e.key); if (f.doors.length && n >= 1 && n <= f.doors.length && canClose(n - 1)) { e.preventDefault(); shut(f.doors[n - 1]); } };
     document.addEventListener('keydown', flashKey);
     flashTimer = setInterval(tick, 200);
     tick();
     const tag = `${f.day}-${f.target}`;
-    if (flashAlarm !== tag) { flashAlarm = tag; alarm('emergencia'); hideGuide(); }
+    if (flashAlarm !== tag) { flashAlarm = tag; alarm('emergencia'); hideGuide(); if (T.hiss) hiss(true); }
   }
 
   function eventModal() {

@@ -16,7 +16,7 @@ export function h(tag, attrs = {}, ...kids) {
     if (v === undefined || v === null || v === false) continue;
     if (k.startsWith('on')) el.addEventListener(k.slice(2).toLowerCase(), v);
     else if (k === 'class') el.className = v;
-    else if (k === 'style' && typeof v === 'object') Object.assign(el.style, v);
+    else if (k === 'style' && typeof v === 'object') { for (const [sk, sv] of Object.entries(v)) { if (sk.startsWith('--')) el.style.setProperty(sk, sv); else el.style[sk] = sv; } }
     else if (k === 'value') el.value = v;
     else if (v === true) el.setAttribute(k, '');
     else if (k === 'placeholder') { el.__esPh = String(v); el.setAttribute(k, tr(String(v))); }

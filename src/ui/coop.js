@@ -10,7 +10,7 @@ const PREFIX = 'vdl-sala-';
 const ALPHA = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
 export const COOP_MAX = 4;
 // Versión del protocolo: si alguien entra con la página vieja (caché), se avisa que recargue.
-const COOP_VERSION = 5;
+const COOP_VERSION = 6;
 
 const coop = { base: null, role: null, code: '', name: '', peer: null, conns: [], hostConn: null, players: [], ver: 0, applying: false, status: '', listeners: new Set() };
 let hooks = { getApp: null, rerender: null };
