@@ -1,5 +1,5 @@
 // Autoguardado en una sola ranura. Sin cargar ranuras anteriores.
-const KEY = 'vdl.save';
+const KEY = 'vdl.save.ninos'; // versión niños: guardado aparte de la versión completa
 const VERSION = 1;
 
 const listeners = new Set();

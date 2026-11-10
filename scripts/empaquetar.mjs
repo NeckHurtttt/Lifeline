@@ -13,11 +13,11 @@ const js = execFileSync('npx', ['-y', 'esbuild@0.28', 'src/ui/main.js', '--bundl
 
 const fuente = readFileSync(join(root, 'fonts/VT323-Regular.ttf')).toString('base64');
 const css = leer('styles/console.css') + '\n' +
-  leer('styles/terminal.css').replace('url("../fonts/VT323-Regular.ttf")', `url("data:font/ttf;base64,${fuente}")`);
+  leer('styles/terminal.css').replace('url("../fonts/VT323-Regular.ttf")', `url("data:font/ttf;base64,${fuente}")`) + '\n' + leer('styles/ninos.css');
 
 let html = leer('index.html');
 const reemplazar = (de, a) => { if (!html.includes(de)) throw new Error('No encontré: ' + de); html = html.replace(de, () => a); };
-reemplazar('  <link rel="stylesheet" href="styles/console.css">\n  <link rel="stylesheet" href="styles/terminal.css">\n', `  <style>\n${css}\n  </style>\n`);
+reemplazar('  <link rel="stylesheet" href="styles/console.css">\n  <link rel="stylesheet" href="styles/terminal.css">\n  <link rel="stylesheet" href="styles/ninos.css">\n', `  <style>\n${css}\n  </style>\n`);
 writeFileSync(join(root, 'juego.js'), js);
 reemplazar('  <script src="juego.js" defer></script>', `  <script>\n${js.replace(/<\/script/gi, '<\\/script')}\n  </script>`);
 html = html.replace('<head>', '<head>\n  <!-- Archivo generado por scripts/empaquetar.mjs. No editar a mano. -->');

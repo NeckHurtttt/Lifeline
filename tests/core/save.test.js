@@ -17,12 +17,12 @@ test('guardar y cargar devuelven el mismo estado', () => {
 });
 
 test('JSON roto: null y se borra la clave (Review Focus 5)', () => {
-  const st = mem(); st.setItem('vdl.save', '{roto');
+  const st = mem(); st.setItem('vdl.save.ninos', '{roto');
   assert.equal(load(st), null);
-  assert.equal(st.m.has('vdl.save'), false);
+  assert.equal(st.m.has('vdl.save.ninos'), false);
 });
 
 test('otra versión: null', () => {
-  const st = mem(); st.setItem('vdl.save', JSON.stringify({ v: 0, state: { day: 1 } }));
+  const st = mem(); st.setItem('vdl.save.ninos', JSON.stringify({ v: 0, state: { day: 1 } }));
   assert.equal(load(st), null);
 });

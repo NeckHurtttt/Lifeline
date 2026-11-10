@@ -1,5 +1,6 @@
 // Pantalla de operaciones: recursos, nave, tripulación con avatares, alertas, eventos, minimisiones y bitácora, con Nova guiando.
 import { tr } from '../../i18n/i18n.js';
+import { setNow, nivel } from '../ninos.js';
 import { MOD_CODE, RES_CODE, NODE_CODE } from '../art.js';
 import { hatchClue, tryHatch, resolveHatches, WRONG_COST_S } from '../../core/hatches.js';
 import { chart } from './report.js';
@@ -75,8 +76,27 @@ const STAT = { fuerza: '💪', tecnica: '🛠️', ciencia: '🧠', medicina: '�
 const STAT_NAME = { fuerza: 'Fuerza', tecnica: 'Técnica', ciencia: 'Ciencia', medicina: 'Medicina', temple: 'Calma' };
 const RES_NAME = { o2: '🫧 aire', water: '💧 agua', food: '🍎 comida', meds: '💊 medicinas', parts: '⚙️ piezas', fuel: '⛽ combustible', battery: '🔋 batería', science: '🧪 ciencia', reputation: '⭐ fama' };
 
+const KID_WORD = { o2: 'AIRE', water: 'AGUA', food: 'COMIDA', meds: 'MEDICINAS', parts: 'PIEZAS DE REPUESTO', fuel: 'COMBUSTIBLE', battery: 'LUZ (BATERÍA)', science: 'DESCUBRIMIENTOS', reputation: 'APLAUSOS DE LA TIERRA' };
+/** Efectos en palabras para niños: sin números. */
+function kidChips(effects) {
+  const out = [];
+  for (const [k, v] of Object.entries(effects ?? {})) {
+    if (KID_WORD[k]) out.push([`${v > 0 ? 'MÁS' : 'MENOS'} ${KID_WORD[k]}`, v > 0]);
+    else if (k === 'crewHealth') out.push([v > 0 ? 'SE SIENTEN MEJOR' : 'SE LASTIMAN UN POCO', v > 0]);
+    else if (k === 'crewMorale') out.push([v > 0 ? 'SE PONEN CONTENTOS' : 'SE PONEN TRISTES', v > 0]);
+    else if (k === 'crewRadiation') out.push(['LES LLEGA RADIACIÓN (MALO)', false]);
+    else if (k === 'moduleDamage') out.push(['SE ROMPE ALGO DE LA NAVE', false]);
+    else if (k === 'moduleOff') out.push(['ALGO DE LA NAVE SE APAGA UNOS DÍAS', false]);
+    else if (k === 'delayResupply') out.push(['LA COMIDA NUEVA LLEGA TARDE', false]);
+    else if (k === 'endMission') out.push(['TODOS VUELVEN ANTES (PIERDES)', false]);
+  }
+  if (!out.length) return [h('span', { class: 'chip ok' }, 'NO PASA NADA')];
+  return out.map(([t, good]) => h('span', { class: `chip ${good ? 'ok' : 'bad'}` }, t));
+}
+
 /** Efectos de una opción como etiquetas de colores. */
 function chips(effects) {
+  if (globalThis.__vdlKids) return kidChips(effects);
   const out = [];
   for (const [k, v] of Object.entries(effects ?? {})) {
     if (RES_NAME[k]) out.push([`${v > 0 ? '+' : ''}${v} ${RES_NAME[k]}`, v > 0]);
@@ -496,10 +516,11 @@ export function render(root, app, go) {
     const close = modal(h('div', { id: 'evento' },
       h('div', { class: `big-ico code ${ev.kind === '+' ? '' : 'alerta'}` }, ev.kind === '+' ? 'BUENO' : ev.disaster ? 'EMERGENCIA' : 'ALERTA'),
       h('h2', { class: p.severity === 'grave' ? 'red' : ev.kind === '+' ? 'green' : 'amber' }, ev.name),
-      h('div', { class: 'small' }, { leve: '🟢 Poco grave', media: '🟠 Grave', grave: '🔴 ¡Muy grave!' }[p.severity]),
+      kids() ? h('div', { class: 'ahora-evento' }, ev.kind === '+' ? 'ESTO ES ALGO BUENO. Elige qué hacer.' : 'HAY UN PROBLEMA. Elige cómo arreglarlo. El RECOMENDADO es el más seguro.') :
+        h('div', { class: 'small' }, { leve: '🟢 Poco grave', media: '🟠 Grave', grave: '🔴 ¡Muy grave!' }[p.severity]),
       h('p', { style: { clear: 'both', fontSize: '1.1rem' } }, ev.text[p.severity]),
       p.prepared?.length ? h('p', { class: 'small green' }, '✔ Se prepararon antes: ayuda.') : null,
-      ev.procedure ? h('p', { class: 'small' }, '📋 ', ev.procedure) : null,
+      ev.procedure && !kids() ? h('p', { class: 'small' }, '📋 ', ev.procedure) : null,
       isMars(s) ? h('p', { class: 'small amber' }, inBlackout(s) ? '📵 Conjunción solar: Control de Misión no puede ayudar. Decide tu tripulación.' : `📡 Control de Misión responde con ${radioDelayMin(s)} min de retraso: la tripulación decide primero.`) : null,
       ev.countdown && !kids() ? h('div', { class: 'treserve' }, '⏱️ Tiempo de reserva: ', h('b', { id: 'treserve' }, `${left} s`), h('span', { class: 'small dim' }, ' — si llega a 0 sin decidir, la presión baja al mínimo.')) : null,
       hatchPanel,
@@ -515,7 +536,7 @@ export function render(root, app, go) {
           pre ? h('div', { class: 'que-pasa', style: { width: '100%' } },
             pre.ok ? h('b', { class: 'green' }, `✔ Funciona: lo hace ${firstName(pre.who)}. `) : h('b', { class: 'red' }, `✖ No alcanza: ${firstName(pre.who)} no sabe lo suficiente. `),
             kids() ? null : `${pre.parts.map((x) => `${x.label} ${x.value >= 0 ? '+' : ''}${x.value}`).join(' · ')} = ${pre.total} de ${pre.need}`) : null,
-          h('div', { style: { width: '100%' } }, h('span', { class: 'small dim' }, 'Lo que pasa: '), ...chips(effects)));
+          h('div', { style: { width: '100%' } }, h('span', { class: 'small dim' }, kids() ? 'Si eliges esto: ' : 'Lo que pasa: '), ...chips(effects)));
       })),
     ), { grave: p.severity === 'grave' });
     if (inCoop()) { paintVotes(); offVotes = onDraft((k) => { if (!document.getElementById('evento')) offVotes?.(); else if (k.startsWith('voto:')) paintVotes(); }); }
@@ -531,7 +552,7 @@ export function render(root, app, go) {
         if (left <= 0) { if (mine(who)) choose('tarde', true); else clearInterval(timer); }
       }, 1000);
     }
-    say(ev.countdown && kids() ? '¡Hay una fuga de aire! 🫧 Toca el módulo donde crees que está o elige la opción 👍 recomendada. Sin apuro.' : ev.countdown ? '¡Despresurización! Sigan el protocolo: decidan antes de que se acabe el tiempo de reserva. ⏱️' : `¡${ev.name}! Mira cada opción: abajo dice si funciona y qué pasa con cada una.`, { mood: ev.kind === '+' ? 'feliz' : 'alerta', target: '#evento' });
+    say(ev.countdown && kids() ? '¡Hay una fuga de aire! 🫧 Toca el módulo donde crees que está o elige la opción 👍 recomendada. Sin apuro.' : ev.countdown ? '¡Despresurización! Sigan el protocolo: decidan antes de que se acabe el tiempo de reserva. ⏱️' : kids() ? (ev.kind === '+' ? '¡Algo bueno! Elige un botón.' : 'Tranquilo: elige el botón RECOMENDADO.') : `¡${ev.name}! Mira cada opción: abajo dice si funciona y qué pasa con cada una.`, { mood: ev.kind === '+' ? 'feliz' : 'alerta', target: '#evento', quiet: kids() });
   }
 
   function phaseModal() {
@@ -659,7 +680,40 @@ export function render(root, app, go) {
         ]));
   }
 
+  /** Niños: lo que necesitan los astronautas, en palabras grandes. */
+  function kidsResources() {
+    const s = app.state; const left = daysLeft(s);
+    const bat = s.resources.batteryMax ? s.resources.battery / s.resources.batteryMax : 1;
+    const rows = [
+      ['AIRE', left.o2, 'para respirar'], ['AGUA', left.water, 'para tomar'], ['COMIDA', left.food, 'para comer'],
+    ];
+    const card = (name, [word, cls], detail, frac) => h('div', { class: `kid-res ${cls}` },
+      h('div', { class: 'kid-res-nombre' }, name), h('div', { class: 'kid-res-estado' }, word), bar(frac), h('div', { class: 'small dim' }, detail));
+    return h('div', { class: 'panel c-blue', id: 'recursos' },
+      h('h2', {}, '¿QUÉ NECESITAN LOS ASTRONAUTAS?'),
+      h('div', { class: 'kid-res-grid' },
+        ...rows.map(([name, d, why]) => card(name, nivel(d), Number.isFinite(d) ? `${why}: alcanza ${fmt(d)} días` : `${why}: se recicla solo`, Number.isFinite(d) ? d / 60 : 1)),
+        card('LUZ', bat < 0.15 ? ['¡SE ACABA!', 'bad'] : bat < 0.4 ? ['POCO', 'warn'] : ['BIEN', 'ok'], 'batería de la nave', bat)),
+      h('div', { class: 'row', style: { marginTop: '.5rem' } },
+        h('span', { class: 'pill violet' }, `DESCUBRIMIENTOS: ${fmt(s.science)}`),
+        s.nextResupply != null && s.nextResupply < s.totalDays ? h('span', { class: 'pill blue' }, `LLEGA COMIDA NUEVA EL DÍA ${s.nextResupply}`) : null));
+  }
+
+  /** Niños: caras de los astronautas y cómo se sienten. */
+  function kidsCrew() {
+    const s = app.state;
+    return h('div', { class: 'panel c-pink', id: 'caras' },
+      h('h2', {}, '¿CÓMO SE SIENTEN?'),
+      h('div', { class: 'capsule', style: { flexWrap: 'wrap', justifyContent: 'space-around' } }, ...s.crew.filter((c) => !c.evacuated).map((c) => {
+        const mood = moodOf(c);
+        return h('div', { style: { textAlign: 'center', minWidth: '6rem' } }, crewAvatar(c, { size: 64 }), h('div', {}, h('b', {}, firstName(c))),
+          h('div', { class: `small ${['feliz', 'normal'].includes(mood) ? 'green' : 'amber'}` }, MOOD_TEXT[mood]));
+      })),
+      h('div', { class: 'small dim' }, 'Toca ASTRONAUTAS para ver qué hace cada uno.'));
+  }
+
   function resources() {
+    if (kids()) return kidsResources();
     const s = app.state; const r = s.resources; const left = daysLeft(s); const n = living().length || 1;
     const max = { meds: 20 * n, parts: 30, fuel: 100, battery: r.batteryMax || 1, dataStored: 500 };
     return h('div', { class: 'panel c-blue', id: 'recursos' },
@@ -1005,7 +1059,7 @@ export function render(root, app, go) {
     if (site?.nightDays && isNight(site, s.day + 1) && s.resources.battery < s.resources.batteryMax * 0.3) return ['Es de noche y queda poca batería. En la pestaña de la base apaga lo que no sea vital (toca el módulo). El soporte vital y la cabina se apagan al final.', 'alerta', '#estacion', 'estacion'];
     if (s.day === 0 && SC.id === 'marte') return ['¡Empieza el viaje a Marte! Son 210 días sin gravedad: 🏃 ejercicio diario para los huesos y 🛡️ refugio en las tormentas solares. Arrastra a cada uno a su trabajo y toca ▶ AVANZAR.', 'feliz', '#avanzar', null];
     if (s.day === 0 && !SC.orbital) return [`¡Bienvenidos a ${SC.home}! Aquí hay gravedad baja y más radiación. ${site?.nightDays ? `Ojo: cada tanto llega la noche de ${site.nightDays} días.` : ''} Arrastra a cada astronauta a su trabajo y toca ▶ AVANZAR.`, 'feliz', '#avanzar', null];
-    if (kids() && s.day === 0) return ['¡Hola! 🧒 Yo, Nova, reparto los trabajos cada día. Tú mira los avisos, prende o apaga módulos y toca ▶ AVANZAR. Si quieres mandar tú, arrastra las caritas.', 'feliz', '#avanzar', null];
+    if (kids() && s.day === 0) return ['¡Llegamos! Yo le digo a cada astronauta qué hacer. Tú toca ▶ AVANZAR y mira que todo diga BIEN.', 'feliz', '#avanzar', null];
     if (s.day === 0) return ['¡Bienvenidos a la estación! En la pestaña 🧑‍🚀 Tripulación eliges qué hace cada astronauta. Cuando estés listo, toca ▶ AVANZAR.', 'feliz', '#avanzar', null];
     return ['Sin novedades. Avanza y te llamo si pasa algo.', 'feliz', '#avanzar', null];
   }
@@ -1168,11 +1222,12 @@ export function render(root, app, go) {
       h('div', { class: 'day-head' },
         h('div', {},
           h('h1', { style: { fontSize: '2rem', margin: 0 }, id: 'dia' }, `📅 DÍA ${s.day} de ${s.totalDays}`),
+          kids() ? h('div', { class: 'small' }, `Faltan ${Math.max(0, s.totalDays - s.day)} días para volver a casa.`) : null,
           dayNight(),
           marsLeg(),
           isWeekend(s.day + 1) && !kids() ? h('div', { class: 'small amber' }, '🗓️ Mañana es fin de semana: día ligero. Descanso y llamadas a casa dan más ánimo; trabajar lo baja un poco.') : null,
           tripMap(s),
-          reservas()),
+          kids() ? null : reservas()),
         isGuest() ? h('div', { class: 'small amber', id: 'tiempo-anfitrion' }, 'EN LÍNEA: el anfitrión avanza el tiempo. Tú puedes asignar trabajos, reparar, excavar y decidir lo de tu rol.') :
         h('div', { class: 'row' },
           kids() ? null : h('div', { class: 'velocidad', id: 'velocidad' }, h('span', { class: 'small dim' }, 'TIEMPO'),
@@ -1185,16 +1240,16 @@ export function render(root, app, go) {
       banner ? h('div', { class: `banner ${banner.cls}`, id: 'aviso' }, banner.text) : null,
       juradoPanel(),
       tabs([
-        { id: 'resumen', label: '🏠 Resumen', color: 'c-blue', badge: ['food', 'water', 'o2'].some((k) => daysLeft(s)[k] < 10) ? '!' : 0 },
-        { id: 'tripulacion', label: '🧑‍🚀 Tripulación', color: 'c-pink', badge: sched.length + living().filter((c) => c.health < 50 || c.fatigue >= 70).length },
-        { id: 'estacion', label: SC.orbital ? `${SC.id === 'gateway' ? '🌘' : '🛰️'} Estación` : `${DEST} Base`, color: 'c-violet', badge: s.modules.filter((m) => m.health < 40 || !m.on).length },
-        { id: 'misiones', label: '⚠️ Avisos y misiones', color: 'c-amber', badge: s.alerts.length + s.minis.filter((m) => m.status === 'oferta').length },
+        { id: 'resumen', label: kids() ? 'CÓMO ESTAMOS' : '🏠 Resumen', color: 'c-blue', badge: ['food', 'water', 'o2'].some((k) => daysLeft(s)[k] < 10) ? '!' : 0 },
+        { id: 'tripulacion', label: kids() ? 'ASTRONAUTAS' : '🧑‍🚀 Tripulación', color: 'c-pink', badge: sched.length + living().filter((c) => c.health < 50 || c.fatigue >= 70).length },
+        { id: 'estacion', label: kids() ? 'LA NAVE' : SC.orbital ? `${SC.id === 'gateway' ? '🌘' : '🛰️'} Estación` : `${DEST} Base`, color: 'c-violet', badge: s.modules.filter((m) => m.health < 40 || !m.on).length },
+        { id: 'misiones', label: kids() ? 'AVISOS' : '⚠️ Avisos y misiones', color: 'c-amber', badge: s.alerts.length + s.minis.filter((m) => m.status === 'oferta').length },
         ...(kids() ? [] : [{ id: 'recorrido', label: 'Recorrido', color: 'c-violet', badge: s.modules.filter((m) => m.health <= 0).length }]),
         ...(digAvailable(s) && !kids() ? [{ id: 'excavar', label: 'Excavar', color: 'c-green', badge: s.dig?.outing ? '!' : 0 }] : []),
         ...((canExplore(s) || s.map) && !kids() ? [{ id: 'mapa', label: '🗺️ Exploración', color: 'c-green', badge: s.expedition ? 0 : (s.map ?? []).filter((n) => n.known && !n.done).length }] : []),
         ...(kids() ? [] : [{ id: 'diario', label: '📖 Diario', color: 'c-cyan' }]),
       ], tab, pick),
-      tab === 'resumen' ? h('div', { class: 'grid2' }, h('div', {}, resources()), h('div', {}, monitor(), alerts())) : null,
+      tab === 'resumen' ? h('div', { class: 'grid2' }, h('div', {}, resources()), h('div', {}, kids() ? kidsCrew() : monitor(), alerts())) : null,
       tab === 'tripulacion' ? crewCards() : null,
       tab === 'estacion' ? h('div', { class: 'grid-base' }, ship(), h('div', {}, energyPanel(), kids() ? null : operaciones())) : null,
       tab === 'misiones' ? h('div', { class: 'grid2' }, alerts(), minis()) : null,
@@ -1203,6 +1258,16 @@ export function render(root, app, go) {
       tab === 'recorrido' ? walkPanel(app, commit, draw, setKey) : null,
       tab === 'excavar' && digAvailable(s) ? digPanel(app, commit, draw, setKey) : null,
     );
+    if (kids()) {
+      const left = daysLeft(s);
+      const low = [['AIRE', left.o2], ['AGUA', left.water], ['COMIDA', left.food]].find(([, d]) => d < 10);
+      if (s.flash) setNow('¡ALARMA! Haz lo que dice el cuadro antes de que se acabe el tiempo.', true);
+      else if (s.pending) setNow('Pasó algo. Lee y toca un botón. El RECOMENDADO es el más seguro.');
+      else if (phaseDue(s)) setNow('Toca el botón grande del cuadro.');
+      else if (s.phase === 'reentry') setNow('¡Se terminó el año! Toca INICIAR REENTRADA para volver a la Tierra.');
+      else if (low) setNow(`¡Se acaba el ${low[0]}! Mira los avisos o pide ayuda a Nova.`, true);
+      else setNow('Toca AVANZAR para que pase el tiempo. Cuida que no falte nada.');
+    }
     if (phaseDue(s) && s.phase === 'ops') { if (!document.getElementById('fase')) phaseModal(); }
     else if (s.flash) flashModal();
     else if (s.pending && !document.getElementById('evento')) eventModal();

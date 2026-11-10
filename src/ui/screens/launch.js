@@ -84,9 +84,9 @@ export function render(root, app, go) {
   els.sky = h('div', { class: 'sky' }, h('div', { class: 'planet' }), h('div', { class: 'station' }, art({ estacion: 'estacion', gateway: 'estacion', luna: 'luna', marte: 'marte' }[s.scenarioId])), h('div', { class: 'ground' }), h('div', { class: 'tower' }), els.rocket);
   const MODE_TXT = { auto: 'automático: solo mira', pausas: 'con pausas: ustedes deciden el clima y el GO', manual: 'manual: ustedes deciden todo, ¡hasta los abortos!' };
   mount(root,
-    h('h1', { style: { fontSize: '1.8rem' } }, '🚀 Despegue', h('span', { class: 'dim small' }, ` · ${MODE_TXT[mode]}`)),
+    h('h1', { style: { fontSize: '1.8rem' } }, '🚀 Despegue', h('span', { class: 'dim small' }, app.kids ? ' · mira cómo sube el cohete' : ` · ${MODE_TXT[mode]}`)),
     h('div', { class: 'grid3' },
-      h('div', { class: 'panel c-violet' }, h('h2', {}, 'Pasos del despegue'), els.steps),
+      h('div', { class: 'panel c-violet' }, h('h2', {}, app.kids ? 'QUÉ VA PASANDO' : 'Pasos del despegue'), els.steps),
       h('div', { class: 'panel c-blue', style: { textAlign: 'center' } }, els.sky, els.clock, els.tel, els.action,
         h('div', { class: 'capsule', style: { marginTop: '.5rem' } }, ...s.crew.map((c) => crewAvatar(c, { size: 56 })))),
       h('div', { class: 'panel c-cyan' }, h('h2', {}, '📻 Radio de Control'), els.radio)),
@@ -97,7 +97,7 @@ export function render(root, app, go) {
     if (inCoop()) shareDraft('radio', radioLog.slice(0, 15).map((e) => [e.textContent, e.className]));
   };
   const drawSteps = (now) => els.steps.replaceChildren(...STEPS.map((st) =>
-    h('li', { class: `${status[st.id] ?? ''} ${st.id === now ? 'now' : ''}`, 'data-step': st.id }, `${clockText(st.t)}  ${st.label}`)));
+    h('li', { class: `${status[st.id] ?? ''} ${st.id === now ? 'now' : ''}`, 'data-step': st.id }, app.kids ? st.desc : `${clockText(st.t)}  ${st.label}`)));
   const drawTel = () => {
     const v = tel(t);
     els.clock.textContent = clockText(t);

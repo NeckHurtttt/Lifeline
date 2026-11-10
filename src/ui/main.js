@@ -13,6 +13,9 @@ import { music } from './music.js';
 import { initCoop, onCoopChange, coopInfo, coopScreen, isGuest, getDraft, onDraft, coopAction, sendChat, onChat } from './coop.js';
 import { h, modal } from './dom.js';
 import { GLOSSARY } from '../data/glossary.js';
+import { kidsTitle, stepBar } from './ninos.js';
+
+globalThis.__vdlKids = true; // efectos en palabras (ops.js chips)
 
 export const PLAYER_ROLES = {
   comandante: 'Comandante',
@@ -44,9 +47,9 @@ export function whoDecides(app, role) {
 export const app = {
   state: null,
   players: makePlayers(1),
-  difficulty: 'medio',
-  mode: 'libre',
-  kids: (() => { try { return localStorage.getItem('vdl-ninos') === '1'; } catch { return false; } })(),
+  difficulty: 'facil',
+  mode: 'demo',
+  kids: true, // VERSIÓN NIÑOS: siempre
   autoPlan: true,
   budgetMult: 1,
   routine: null,
@@ -57,7 +60,7 @@ export const app = {
   lastReport: null, // para comparar con el intento anterior
 };
 
-const screens = { title, design, launch, ops, reentry, report, arbol };
+const screens = { title: { render: kidsTitle }, design, launch, ops, reentry, report, arbol };
 const root = document.getElementById('app');
 let cleanup = null;
 
@@ -67,7 +70,9 @@ export function go(name, params = {}) {
   root.replaceChildren();
   document.querySelectorAll('.modal-bg, .static').forEach((e) => e.remove());
   app.screen = name;
+  app.kids = true;
   hideGuide();
+  stepBar(name);
   updateBar();
   // En el cooperativo en línea el anfitrión dirige el diseño, el despegue y la reentrada; el invitado mira el resultado.
   const HOST_ONLY = { launch: 'dirigiendo el despegue', reentry: 'dirigiendo la reentrada', arbol: 'en el árbol de mejoras' };
@@ -109,7 +114,8 @@ export function updateBar() {
   const info = document.getElementById('barra-info');
   const p = app.players.map((x) => `${x.name}: ${x.roles.map((r) => PLAYER_ROLES[r]).join('+')}`).join(' · ');
   const c = coopInfo();
-  info.textContent = tr(`${c.role ? `EN LÍNEA ${c.code} · ` : ''}${app.mode.toUpperCase()} · ${app.difficulty} · ${p}`);
+  info.textContent = tr(`${c.role ? `EN LÍNEA ${c.code} · ` : ''}VERSIÓN PARA NIÑOS`);
+  void p;
 }
 
 const mute = document.getElementById('silencio');

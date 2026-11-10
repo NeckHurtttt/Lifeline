@@ -1,7 +1,7 @@
 // Informe final: resultado, medalla, gráfico de recursos, causas, lecciones, rediseño y ranking local.
 import { loadCampaign, saveCampaign, recordResult } from '../../core/campaign.js';
 import { SCENARIOS } from '../../data/catalog.js';
-import { h, mount, bar } from '../dom.js';
+import { h, mount, bar, fmt } from '../dom.js';
 import { buildReport } from '../../core/report.js';
 import { clearSave } from '../../core/save.js';
 import { LESSONS } from '../../data/lessons.js';
@@ -168,6 +168,18 @@ export function render(root, app, go) {
         h('button', { onclick: () => go('arbol') }, '🌳 Ver mejoras')) : null,
       h('div', { class: 'capsule', style: { margin: '.6rem 0' } }, ...s.crew.map((c) => h('div', { style: { textAlign: 'center' } },
         crewAvatar(c, { size: 76 }), h('div', { class: 'small' }, h('b', {}, c.name.split(' ')[0])), h('div', { class: 'small dim' }, MOOD_TEXT[moodOf(c)]))))),
+    app.kids ? (() => {
+      const home = s.crew.filter((c) => c.alive).length;
+      const stars = !rep.success ? 0 : rep.score >= 650 ? 3 : rep.score >= 400 ? 2 : 1;
+      return h('div', { class: 'panel c-green kid-fin', id: 'estrellas', style: { textAlign: 'center' } },
+        h('div', { class: 'estrellas' }, ...[0, 1, 2].map((i) => h('span', { class: i < stars ? 'llena' : 'vacia' }, '★'))),
+        h('h2', {}, stars === 3 ? '¡PERFECTO!' : stars === 2 ? '¡MUY BIEN!' : stars === 1 ? '¡LO LOGRASTE!' : 'ESTA VEZ NO SALIÓ'),
+        h('p', { style: { fontSize: '1.2rem' } }, `Volvieron ${home} de ${s.crew.length} astronautas. Hicieron ${fmt(s.science)} descubrimientos.`),
+        h('p', { class: 'small' }, stars < 3 ? 'Para ganar más estrellas: cuida que nunca falte aire, agua, comida ni luz, y elige lo RECOMENDADO en los problemas.' : '¡Eres de Control de Misión de verdad!'),
+        h('div', { class: 'row', style: { justifyContent: 'center' } },
+          h('button', { class: 'big', id: 'otra-vez', onclick: () => go('title') }, '▶ JUGAR OTRA VEZ'),
+          h('button', { id: 'ver-detalle', onclick: (e) => { document.body.classList.toggle('ver-detalle'); e.target.textContent = document.body.classList.contains('ver-detalle') ? 'OCULTAR DETALLES' : 'VER TODOS LOS DETALLES'; } }, 'VER TODOS LOS DETALLES')));
+    })() : null,
     h('div', { class: 'panel c-cyan', id: 'puntaje' },
       h('h2', {}, `🏅 Puntaje: ${rep.score} / 1000`, before ? delta(rep.score, before.score) : null),
       h('div', { class: 'small dim' }, `Objetivo: ${obj.icon} ${obj.name}. Las categorías con ×2 o más valen más para este objetivo.`,
@@ -233,6 +245,10 @@ export function render(root, app, go) {
   if (s.jurado) {
     const secs = app.jurado ? Math.floor((Date.now() - app.jurado) / 1000) : 0;
     say(`🏛️ Paso 5 de 5 · Informe. Puntaje de 0 a 1000 según las 5 categorías del desafío, qué salió bien, qué cambiar y un quiz de lo aprendido. Recorrido en ${Math.floor(secs / 60)}:${String(secs % 60).padStart(2, '0')} min. ¡Gracias por jugar!`, { mood: 'feliz', target: '#causas' });
+    return;
+  }
+  if (app.kids) {
+    say(rep.success ? '¡Volvieron a casa! Mira tus estrellas. ¿Juegas otra vez para ganar más?' : 'Esta vez no salió. No pasa nada: toca JUGAR OTRA VEZ y elige lo RECOMENDADO.', { mood: rep.success ? 'feliz' : 'pensando', target: '#otra-vez', quiet: true });
     return;
   }
   say(rep.success
