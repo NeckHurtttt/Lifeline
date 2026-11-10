@@ -122,3 +122,20 @@ test('modo demo: Marte en 120 días con las mismas fases', () => {
   assert.deepEqual(fases, [['edl', 30], ['ascenso', 90]]);
   assert.ok(s.day <= 120);
 });
+
+test('protección planetaria: sellar cuesta combustible; sin sellar se pierde ciencia y fama', async () => {
+  const { SEAL_FUEL } = await import('../../src/core/mars.js');
+  const base = mk();
+  base.day = ASCENT_DAY; base.flags = { landed: true, scienceAtLanding: 100 };
+  base.science = 200; base.reputation = 50;
+  base.resources.fuel = ASCENT_FUEL + SEAL_FUEL + 2;
+  const ok = resolvePhase(base, 'ascenso').state;
+  assert.equal(ok.resources.fuel, 2);
+  assert.equal(ok.science, 200);
+  assert.equal(ok.reputation, 53);
+  const no = resolvePhase(base, 'ascenso', { seal: false }).state;
+  assert.equal(no.resources.fuel, SEAL_FUEL + 2);
+  assert.equal(no.science, 170);
+  assert.equal(no.reputation, 42);
+  assert.equal(no.flags.unsealed, true);
+});

@@ -1,4 +1,5 @@
 // Pantalla de operaciones: recursos, nave, tripulación con avatares, alertas, eventos, minimisiones y bitácora, con Nova guiando.
+import { tr } from '../../i18n/i18n.js';
 import { MOD_CODE, RES_CODE, NODE_CODE } from '../art.js';
 import { hatchClue, tryHatch, resolveHatches, WRONG_COST_S } from '../../core/hatches.js';
 import { chart } from './report.js';
@@ -6,7 +7,7 @@ import { h, mount, bar, modal, fmt, tabs } from '../dom.js';
 import { MODULES, INSTRUMENTS, DIFFICULTY, SCENARIOS } from '../../data/catalog.js';
 import { siteOf, isNight, daysToNight, daysToDawn } from '../../core/surface.js';
 import { canExplore, ensureMap, startExpedition, previewExpedition, tripDays, hasRoverPres, NODE_TYPES } from '../../core/explore.js';
-import { phaseDue, resolvePhase, previewPhase, PHASES, inBlackout, radioDelayMin, isMars, ASCENT_FUEL, planOf } from '../../core/mars.js';
+import { phaseDue, resolvePhase, previewPhase, PHASES, inBlackout, radioDelayMin, isMars, ASCENT_FUEL, SEAL_FUEL, planOf } from '../../core/mars.js';
 import { ROLES, TRAITS } from '../../data/crew.js';
 import { EVENTS } from '../../data/events.js';
 import { MINIMISSIONS } from '../../data/minimissions.js';
@@ -541,14 +542,18 @@ export function render(root, app, go) {
     const list = h('ul', { class: 'plain steps' }, ...P.steps.map((t, i) => h('li', { 'data-fase': i }, t)));
     const out = h('div', { class: 'small', style: { marginTop: '.5rem' } });
     let close = null;
+    // Protección planetaria: sellar las muestras pesa más (pide combustible). Se puede elegir no hacerlo.
+    const canSeal = phase === 'ascenso' && s.resources.fuel >= ASCENT_FUEL + SEAL_FUEL;
+    const sealBox = phase === 'ascenso' ? h('input', { type: 'checkbox', id: 'sellar', checked: canSeal, disabled: !canSeal }) : null;
     const start = h('button', { class: 'big', id: 'iniciarFase', onclick: async () => {
       start.disabled = true;
+      if (sealBox) sealBox.disabled = true;
       for (let i = 0; i < P.steps.length; i++) {
         list.children[i].classList.add('now'); beep(600 + i * 80, 80);
         await new Promise((r) => setTimeout(r, 700));
         list.children[i].classList.remove('now'); list.children[i].classList.add('done');
       }
-      const r = resolvePhase(app.state, phase);
+      const r = resolvePhase(app.state, phase, { seal: sealBox ? sealBox.checked : true });
       commit(r.state);
       out.replaceChildren(...r.log.map((t) => h('div', { class: r.ok ? 'green' : 'red' }, t)));
       alarm(r.ok ? 'aviso' : 'emergencia');
@@ -561,6 +566,9 @@ export function render(root, app, go) {
       list,
       pre ? h('div', { class: 'que-pasa' }, pre.ok ? h('b', { class: 'green' }, '✔ Va a salir bien. ') : h('b', { class: 'red' }, '✖ Cuidado: no alcanza. '),
         pre.parts.map((x) => `${x.label} ${x.value}`).join(' · '), ` = ${pre.total} de ${pre.need}`) : null,
+      sealBox ? h('label', { class: 'row small', style: { marginTop: '.5rem' }, title: 'Regla COSPAR: nada de Marte vuelve sin sellar' },
+        sealBox, ` PROTECCIÓN PLANETARIA: sellar muestras en doble contenedor (−${SEAL_FUEL} combustible). `,
+        canSeal ? h('span', { class: 'dim' }, 'Sin sellar: cuarentena, −30 % de la ciencia de Marte y −8 fama.') : h('span', { class: 'amber' }, 'No alcanza el combustible para sellarlas.')) : null,
       out,
       h('div', { style: { textAlign: 'center', marginTop: '.6rem' } }, start)));
     say(phase === 'edl' ? '¡Llegamos a Marte! Son los "7 minutos de terror": la Tierra no puede ayudar por el retraso de la radio. ¡Suerte, piloto!' : pre.ok ? '¡Hay combustible! Hora de volver a casa.' : `No alcanza el combustible (${pre.total} de ${pre.need}). Si despegan igual, se quedan varados.`,
@@ -1017,6 +1025,34 @@ export function render(root, app, go) {
     const m = (type && s.modules.find((x) => x.type === type)) || s.modules.find((x) => x.type === 'cabina');
     return m?.id ?? null;
   }
+  /** Mapa del viaje como pantalla de monitor: dónde va la nave, hitos de la misión, próxima carga y peligros avisados. */
+  function tripMap(s) {
+    const NS = 'http://www.w3.org/2000/svg';
+    const el = (tag, attrs, text) => { const e = document.createElementNS(NS, tag); for (const [k, v] of Object.entries(attrs)) e.setAttribute(k, v); if (text != null) e.textContent = text; return e; };
+    const W = 200; const X0 = 8; const X1 = W - 8; const Y = 19;
+    const total = Math.max(1, s.totalDays);
+    const xOf = (d) => X0 + (Math.max(0, Math.min(total, d)) / total) * (X1 - X0);
+    const svg = el('svg', { viewBox: `0 0 ${W} 38`, class: 'trip-map', id: 'mapa-viaje' });
+    svg.append(el('line', { x1: X0, y1: Y, x2: X1, y2: Y, class: 'tm-ruta' }), el('line', { x1: X0, y1: Y, x2: xOf(s.day), y2: Y, class: 'tm-hecho' }));
+    const marks = [];
+    if (isMars(s)) {
+      const p = planOf(s);
+      svg.append(el('rect', { x: xOf(p.conj.start), y: Y - 3, width: Math.max(1, xOf(p.conj.end) - xOf(p.conj.start)), height: 6, class: 'tm-conj' }));
+      marks.push([p.landing, 'EDL', 'hito'], [p.conj.start, 'SIN RADIO', 'aviso'], [p.ascent, 'ASCENSO', 'hito']);
+    }
+    if (s.nextResupply != null && s.nextResupply < s.totalDays && s.nextResupply >= s.day) marks.push([s.nextResupply, 'CARGA', 'carga']);
+    for (const a of s.alerts ?? []) marks.push([s.day + a.etaDays, tr(EVENTS[a.eventId]?.name ?? '!').toUpperCase().slice(0, 14), 'peligro']);
+    marks.sort((a, b) => a[0] - b[0]).forEach(([d, label, kind], i) => {
+      const x = xOf(d); const up = i % 2 === 0;
+      svg.append(el('line', { x1: x, y1: Y - 4, x2: x, y2: Y + 4, class: `tm-${kind}` }),
+        el('text', { x, y: up ? Y - 7 : Y + 12, 'text-anchor': 'middle', class: `tm-txt tm-${kind}` }, tr(label)));
+    });
+    const sx = xOf(s.day);
+    svg.append(el('polygon', { points: `${sx - 3},${Y + 3} ${sx + 3},${Y + 3} ${sx},${Y - 3}`, class: 'tm-nave' }),
+      el('text', { x: X0, y: 36, class: 'tm-txt' }, 'T-0'), el('text', { x: X1, y: 36, 'text-anchor': 'end', class: 'tm-txt' }, tr(isMars(s) || !SCENARIOS[s.scenarioId]?.orbital ? 'TIERRA' : 'FIN')));
+    return h('div', { class: 'trip-wrap', title: 'Mapa de la misión: ▲ es tu nave. Rojo = peligro avisado; CARGA = próxima nave de carga.' }, svg);
+  }
+
   function monitor() {
     const s = app.state;
     const NS = 'http://www.w3.org/2000/svg';
@@ -1135,7 +1171,7 @@ export function render(root, app, go) {
           dayNight(),
           marsLeg(),
           isWeekend(s.day + 1) && !kids() ? h('div', { class: 'small amber' }, '🗓️ Mañana es fin de semana: día ligero. Descanso y llamadas a casa dan más ánimo; trabajar lo baja un poco.') : null,
-          h('div', { class: 'trip' }, h('div', { class: 'trip-fill', style: { width: `${pct}%` } }), h('span', { class: 'trip-ship', style: { left: `${pct}%` } }, '▲'), h('span', { class: 'trip-end small' }, 'FIN')),
+          tripMap(s),
           reservas()),
         isGuest() ? h('div', { class: 'small amber', id: 'tiempo-anfitrion' }, 'EN LÍNEA: el anfitrión avanza el tiempo. Tú puedes asignar trabajos, reparar, excavar y decidir lo de tu rol.') :
         h('div', { class: 'row' },

@@ -10,6 +10,9 @@ export const LANDING_DAY = TRANSIT_DAYS;
 export const ASCENT_DAY = TRANSIT_DAYS + SURFACE_DAYS; // 575
 export const ASCENT_FUEL = 180; // combustible que necesita el vehículo de ascenso
 export const EDL_FUEL = 30;
+// Protección planetaria (COSPAR): las muestras vuelven en doble contenedor sellado; el peso extra pide combustible.
+export const SEAL_FUEL = 8;
+export const UNSEALED_SCIENCE_LOSS = 0.3; // muestras sin sellar: en la Tierra se quedan en cuarentena
 export const EDL_CHECK = { stat: 'fuerza', dc: 12 };
 export const CONJUNCTION = { start: 400, end: 414, warn: 395 }; // ~2 semanas sin radio con la Tierra
 export const TRANSIT_SUN = 0.7; // sol medio en el viaje (relativo a la Tierra)
@@ -68,12 +71,12 @@ export function phaseDue(s) {
 export const PHASES = {
   edl: {
     title: 'Llegada a Marte: los "7 minutos de terror"',
-    steps: ['Entrada a la atmósfera a 20 000 km/h', 'El escudo térmico llega a 1300 °C', 'Paracaídas supersónico', 'Se suelta el escudo', 'Motores de frenado', '¡Contacto con el suelo!'],
+    steps: ['Nave esterilizada antes de salir: sin microbios de la Tierra (protección planetaria)', 'Entrada a la atmósfera a 20 000 km/h', 'El escudo térmico llega a 1300 °C', 'Paracaídas supersónico', 'Se suelta el escudo', 'Motores de frenado', '¡Contacto con el suelo!'],
     desc: 'La radio tarda tanto que la Tierra no puede ayudar: la nave aterriza sola y el piloto corrige al final.',
   },
   ascenso: {
     title: 'Despegue desde Marte',
-    steps: ['Revisión del combustible fabricado', 'Encendido del vehículo de ascenso', 'Encuentro con la nave de regreso en órbita', 'Encendido hacia la Tierra (TEI)'],
+    steps: ['Revisión del combustible fabricado', 'Muestras en doble contenedor sellado (protección planetaria)', 'Encendido del vehículo de ascenso', 'Encuentro con la nave de regreso en órbita', 'Encendido hacia la Tierra (TEI)'],
     desc: `Hacen falta ${ASCENT_FUEL} de combustible. La planta ISRU lo fabricó durante el año con el CO₂ del aire.`,
   },
 };
@@ -89,7 +92,7 @@ export function previewPhase(s, phase) {
 }
 
 /** Resuelve la fase. Puro. */
-export function resolvePhase(state, phase) {
+export function resolvePhase(state, phase, { seal = true } = {}) {
   const s = structuredClone(state);
   s.flags ??= {};
   const log = [];
@@ -113,6 +116,7 @@ export function resolvePhase(state, phase) {
     s.medsExpiry = s.day + 180;
     log.push('La nave de carga enviada antes los espera: comida, agua y O₂ para casi todo el año, piezas y medicinas.');
     s.flags.landed = true;
+    s.flags.scienceAtLanding = s.science ?? 0;
     s.leg = 'superficie';
     return { state: s, log, ok: r.ok };
   }
@@ -125,6 +129,18 @@ export function resolvePhase(state, phase) {
       return { state: s, log, ok: false };
     }
     s.resources.fuel -= ASCENT_FUEL;
+    const sealed = seal && s.resources.fuel >= SEAL_FUEL;
+    if (sealed) {
+      s.resources.fuel -= SEAL_FUEL;
+      s.reputation = Math.min(100, (s.reputation ?? 0) + 3);
+      log.push(`Protección planetaria: muestras selladas en doble contenedor (−${SEAL_FUEL} combustible, +3 fama). En la Tierra se pueden estudiar sin miedo a contaminarlas.`);
+    } else {
+      const lost = Math.round(Math.max(0, (s.science ?? 0) - (s.flags.scienceAtLanding ?? s.science ?? 0)) * UNSEALED_SCIENCE_LOSS);
+      s.science = Math.max(0, (s.science ?? 0) - lost);
+      s.reputation = Math.max(0, (s.reputation ?? 0) - 8);
+      s.flags.unsealed = true;
+      log.push(`Muestras sin protocolo de protección planetaria${seal ? ' (no alcanzó el combustible para sellarlas)' : ''}: en la Tierra quedan en cuarentena. −${lost} de ciencia, −8 fama.`);
+    }
     const days = planOf(s).transit * 1.1;
     s.resources.food += NEEDS.food * n * days;
     s.resources.water += NEEDS.water * n * days;

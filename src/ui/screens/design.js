@@ -76,6 +76,9 @@ export const SUGGESTED = (scn = 'estacion', dif = null) => {
   return d;
 };
 
+// Modo niños: pocas piezas y fáciles de entender (más las obligatorias y las que ya tiene la nave).
+const KIDS_MODS = new Set(['paneles', 'baterias', 'laboratorio', 'invernadero', 'bodega', 'refugio', 'enfermeria', 'antena', 'rover']);
+
 const EMPTY = (scn = 'estacion') => ({
   modules: [mod('cabina', 0, 0), mod('soporte_vital', 1, 0), ...(SCENARIOS[scn]?.orbital ? [] : [mod('modulo_aterrizaje', 2, 0)])], instruments: [],
   launcher: scn === 'estacion' ? 'condor1' : 'titan', orbit: SCENARIOS[scn]?.orbit ?? 'leo_estacion',
@@ -142,6 +145,7 @@ export function render(root, app, go, params = {}) {
   const d = structuredClone(params.design ?? prev ?? (app.mode === 'demo' || app.kids ? SUGGESTED(scn, app.difficulty) : EMPTY(scn)));
   for (const m of d.modules) { delete m.health; delete m.on; delete m.priority; delete m.offDays; }
   let selected = 'paneles';
+  let erasing = false; // modo QUITAR: tocar una pieza la saca (en teléfono no hay clic derecho)
   let launching = false;
   let explain = null; // texto de Nova al elegir algo
   let tab = app.designTab ?? 'nave';
@@ -263,8 +267,8 @@ export function render(root, app, go, params = {}) {
       const m = d.modules.find((q) => q.x === x && q.y === y);
       const def = m && MODULES[m.type];
       return h('div', {
-        class: `cell ${m ? 'full' : ''}`, 'data-x': x, 'data-y': y, title: m ? `${def.name}. Clic derecho para quitar.` : `Clic para poner: ${MODULES[selected].name}`,
-        onclick: () => { if (can('ingeniero')) place(x, y); }, oncontextmenu: (e) => { e.preventDefault(); if (m && can('ingeniero')) remove(x, y); },
+        class: `cell ${m ? 'full' : ''} ${erasing && m ? 'quitar' : ''}`, 'data-x': x, 'data-y': y, title: m ? `${def.name}. Clic derecho para quitar.` : `Clic para poner: ${MODULES[selected].name}`,
+        onclick: () => { if (!can('ingeniero')) return; if (erasing) { if (m) remove(x, y); return; } place(x, y); }, oncontextmenu: (e) => { e.preventDefault(); if (m && can('ingeniero')) remove(x, y); },
       }, m ? [h('div', { class: 'ico code' }, MOD_CODE[m.type]), h('b', {}, def.name), h('div', { class: 'dim small' }, def.kw > 0 ? `⚡ da ${def.kw}` : def.kw < 0 ? `⚡ usa ${-def.kw}` : '')] : h('span', { class: 'muted', style: { fontSize: '1.4rem' } }, '+'));
     };
     const row = (label, frac, text, lesson, opts, key) => h('div', { class: `res ${crit.has(key) ? 'critico' : ''}`, title: crit.has(key) ? 'Recurso crítico para tu objetivo y destino' : null },
@@ -286,7 +290,10 @@ export function render(root, app, go, params = {}) {
             myRoles.includes('cientifico') && 'instrumentos de ciencia', myRoles.includes('comunicaciones') && 'astronautas y comida'].filter(Boolean).join(' · ') || 'nada aquí; mira y aconseja')) : null,
       app.kids ? h('div', { class: 'panel c-green', id: 'objetivo' },
         h('h2', {}, '🧒 Tu nave ya está lista'),
-        h('div', { class: 'help', style: { fontSize: '1.1rem' } }, 'Nova la armó para ti. Si quieres, cambia piezas: toca una pieza y luego un cuadro. Cuando estés listo, toca 🚀 LANZAR.')) :
+        h('div', { class: 'help', style: { fontSize: '1.1rem' } }, 'Nova la armó para ti. Si quieres, cambia piezas: toca una pieza y luego un cuadro. Cuando estés listo, toca 🚀 LANZAR.'),
+        h('div', { class: 'row', style: { marginTop: '.5rem' } },
+          ok ? h('span', { class: 'green' }, 'TODO EN VERDE: LA NAVE PUEDE VOLAR') : h('span', { class: 'red' }, `FALTA ARREGLAR: ${r.errors[0] ?? ''}`),
+          h('button', { class: 'big', id: 'lanzar-ninos', disabled: !ok || launching || !can('comandante'), onclick: () => (isGuest() ? coopAction('lanzar') : launch()) }, '🚀 LANZAR'))) :
       h('div', { class: `panel c-green ${app.objective ? '' : 'senalado'}`, id: 'objetivo' },
         h('h2', {}, '0. Objetivo de la misión ', who('comandante')),
         h('div', { class: 'help' }, 'Primero decidan qué quieren lograr: cambia qué cuenta más en el puntaje y qué recursos son críticos (★).'),
@@ -309,9 +316,9 @@ export function render(root, app, go, params = {}) {
           h('div', { class: 'panel c-violet' },
             h('h2', {}, '1. Elige una pieza ', who('ingeniero')),
             h('div', { class: 'help' }, 'Toca una pieza y luego un cuadro de tu nave.'),
-            h('ul', { class: 'plain', id: 'catalogo' }, ...Object.values(MODULES).filter((m) => availableIn(m, scn)).map((m) => h('li', {},
+            h('ul', { class: 'plain', id: 'catalogo' }, ...Object.values(MODULES).filter((m) => availableIn(m, scn) && (!app.kids || KIDS_MODS.has(m.id) || sc.requiredModules.includes(m.id) || d.modules.some((q) => q.type === m.id))).map((m) => h('li', {},
               h('button', { class: selected === m.id ? 'sel' : '', 'data-mod': m.id, style: { width: '100%', textAlign: 'left' }, onclick: () => {
-                selected = m.id; explain = m.id; draw();
+                selected = m.id; erasing = false; explain = m.id; draw();
                 say(`${m.icon} ${m.name}: ${m.desc} Pesa ${m.mass} t y cuesta ${m.cost} millones.`, { quiet: true, target: '#nave' });
               } }, h('span', { class: 'code' }, MOD_CODE[m.id]), ` ${m.name}`, sc.requiredModules.includes(m.id) ? h('span', { class: 'amber small' }, ' (obligatorio)') : null,
               app.kids ? null : h('div', { class: 'dim small' }, `${m.mass} t · ${m.kw > 0 ? '+' : ''}${m.kw} kW · 💰${m.cost}`)))))),
@@ -319,7 +326,9 @@ export function render(root, app, go, params = {}) {
             h('h2', {}, '2. Tu nave ', who('ingeniero')),
             h('div', { class: 'ship', id: 'nave', style: { gridTemplateColumns: `repeat(${GRID.cols}, 1fr)` } },
               ...Array.from({ length: GRID.rows }, (_, y) => Array.from({ length: GRID.cols }, (_, x) => cell(x, y)))),
-            h('div', { class: 'help', style: { marginTop: '.3rem' } }, 'Clic derecho sobre una pieza para quitarla.'))) : null,
+            h('div', { class: 'row', style: { marginTop: '.3rem' } },
+              h('button', { class: `small ${erasing ? 'sel' : ''}`, id: 'quitar', disabled: !can('ingeniero'), onclick: () => { erasing = !erasing; draw(); } }, erasing ? 'LISTO DE QUITAR' : 'QUITAR PIEZAS'),
+              h('span', { class: 'help' }, erasing ? 'Toca las piezas que quieras sacar.' : app.kids ? 'Toca QUITAR PIEZAS para sacar alguna.' : 'O clic derecho sobre una pieza.')))) : null,
           tab === 'ciencia' && !app.kids ? h('div', { class: 'panel c-green', id: 'instrumentos' },
             h('h2', {}, '3. Instrumentos de ciencia ', who('cientifico')),
             h('div', { class: 'help' }, `Van dentro del 🔬 laboratorio: usas ${d.instruments.length} de ${instrSlots} lugares.`),

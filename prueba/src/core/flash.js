@@ -363,6 +363,8 @@ export function resolveFlash(state) {
   else if (result === 'partial') line = T.partial(name);
   else line = s.kids && !T.noLose ? `No alcanzó el tiempo: ${name} se rompió. Hace falta 🔧 Reparación.` : T.fail(name);
   line = `${T.icon} ${line}`;
+  // Modo jurado: una sola emergencia y se pasa al siguiente paso del recorrido.
+  if (s.jurado) { s.juradoFlash = result; s.flashBoost = 0; }
   s.flashStats = { ok: (s.flashStats?.ok ?? 0) + (result === 'ok' ? 1 : 0), total: (s.flashStats?.total ?? 0) + 1 };
   s.log = [...(s.log ?? []), { day: s.day, kind: result === 'ok' ? 'bueno' : 'evento', text: line }];
   return { state: s, success: result === 'ok', result, log: [line], lost };

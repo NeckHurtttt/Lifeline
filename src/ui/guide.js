@@ -26,7 +26,11 @@ function ensure() {
     <div class="g-bubble"><div class="g-name">Nova · Control de Misión</div><div class="g-text"></div><div class="g-btns"></div></div>
     <button class="g-avatar" title="Mostrar u ocultar a Nova"></button>`;
   document.body.append(box);
+  // Tocar el globo lo recoge al instante (para ver lo que hay detrás, como el monitor de la estación).
+  box.querySelector('.g-bubble').addEventListener('click', (e) => { if (e.target.closest('button')) return; clearTimeout(restTimer); box.classList.add('resting'); });
   box.querySelector('.g-avatar').addEventListener('click', () => {
+    // Si estaba recogida, tocar la carita la vuelve a mostrar en vez de esconderla.
+    if (box.classList.contains('resting') && !hidden) { clearTimeout(restTimer); box.classList.remove('resting'); return; }
     hidden = !hidden;
     autoOpened = false;
     box.classList.toggle('closed', hidden);
@@ -106,7 +110,8 @@ export function say(text, { mood = 'normal', target = null, buttons = [], quiet 
   // Los consejos tranquilos se achican solos a los 9 s para no tapar la pantalla (pasar el mouse sobre Nova los muestra).
   clearTimeout(restTimer);
   box.classList.remove('resting');
-  if (quiet && !buttons.length && mood !== 'alerta') restTimer = setTimeout(() => box.classList.add('resting'), 9000);
+  // Todo consejo sin botones se recoge (los tranquilos a los 9 s, los demás a los 14 s); las alertas se quedan.
+  if (!buttons.length && mood !== 'alerta') restTimer = setTimeout(() => box.classList.add('resting'), quiet ? 9000 : 14000);
 }
 let restTimer = null;
 

@@ -63,6 +63,8 @@ select option { background: #021006; color: var(--fg); }
 
 .cell { border-radius: 2px; background: rgba(1, 10, 4, .8); border-color: var(--line); }
 .cell.full { background: rgba(14, 60, 28, .7); border-color: var(--fg); }
+.cell.quitar { border-color: var(--red); border-style: dashed; cursor: not-allowed; }
+.cell.quitar:hover { background: rgba(80, 10, 10, .6); }
 td, th { border-bottom-color: var(--line); }
 
 .res-card, .alert-card, .mini-card, .option, .vote-card { border-radius: 3px; background: rgba(0, 0, 0, .35); border: 2px solid var(--line); }
@@ -287,6 +289,9 @@ body.daltonico .bar.red > i { background-color: var(--red); }
 #guia .g-bubble { transition: opacity .4s, transform .4s; }
 #guia.resting .g-bubble { opacity: 0; transform: translateY(12px) scale(.96); pointer-events: none; }
 #guia.resting:hover .g-bubble { opacity: 1; transform: none; pointer-events: auto; }
+#guia.resting .g-avatar { opacity: .6; }
+#guia.resting:hover .g-avatar { opacity: 1; }
+#guia .g-bubble { cursor: pointer; }
 @media (max-width: 600px) { .chat-bar { max-width: calc(100vw - 5.5rem); bottom: .3rem; } .chat-bar button { font-size: .7rem; } .reservas .chip-res { font-size: .85rem; } }
 .chat-bar { flex-direction: column-reverse; align-items: flex-start; }
 .chat-bar .chat-list { display: none; flex-wrap: wrap; gap: .25rem; background: var(--panel); border: 1px solid var(--line); padding: .3rem; max-width: 18rem; }
@@ -364,3 +369,35 @@ body:has(#relampago) #guia, body:has(#relampago) #flecha { display: none; }
 .flash-pista .marca { position: absolute; top: -2px; bottom: -2px; width: 6px; margin-left: -3px; background: var(--amber); box-shadow: 0 0 8px var(--amber); }
 .flash-ahora { margin: 0 .5rem 0 0; }
 @media (max-width: 600px) { .flash-energia { grid-template-columns: 1fr 1.8rem auto 1.8rem; } .flash-energia .pide { grid-column: 1 / -1; text-align: left; } .flash-codigo { font-size: 1.4rem; } }
+
+/* ---------- teléfono: arreglos 8/11 ---------- */
+@media (max-width: 600px) {
+  /* barra en una sola fila deslizable (antes ocupaba 3 filas) */
+  #barra { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; white-space: nowrap; }
+  #barra::-webkit-scrollbar { display: none; }
+  #barra > * { flex: none; }
+  #barra .logo { font-size: .75rem; }
+  /* títulos sin letras tan separadas */
+  h1 { letter-spacing: .04em; line-height: 1.25; }
+  h1 .small, h1 .dim { letter-spacing: 0; font-size: .7rem; display: block; }
+  /* con una ventana abierta, Nova no tapa las opciones (queda solo la carita) */
+  body:has(.modal-bg) #guia .g-bubble { display: none; }
+  /* mapa de escotillas: cabe en la pantalla */
+  .flash-grid { justify-content: safe center; }
+  .flash-grid > * { min-width: 0; }
+  .flash-mod { font-size: .55rem; overflow: hidden; }
+  .flash-door { font-size: .75rem; margin: .1rem; padding: 0 !important; letter-spacing: 0 !important; min-width: 0 !important; overflow: hidden; }
+}
+
+/* Mapa del viaje (monitor) */
+.trip-wrap { width: min(620px, 100%); min-width: min(420px, 100%); margin: .4rem 0 .2rem; border: 1px solid var(--line); background: #010803; padding: 2px 4px; }
+.trip-map { width: 100%; display: block; font-family: var(--font); }
+.trip-map .tm-ruta { stroke: var(--dim); stroke-width: .8; stroke-dasharray: 3 2; }
+.trip-map .tm-hecho { stroke: var(--fg); stroke-width: 1.6; }
+.trip-map .tm-nave { fill: var(--fg); filter: drop-shadow(0 0 2px var(--fg)); }
+.trip-map .tm-txt { fill: var(--dim); font-size: 6px; letter-spacing: .02em; }
+.trip-map line.tm-hito { stroke: var(--fg); stroke-width: .8; } .trip-map text.tm-hito { fill: var(--fg); }
+.trip-map line.tm-carga { stroke: var(--fg); stroke-width: .8; stroke-dasharray: 1 1; } .trip-map text.tm-carga { fill: var(--fg); }
+.trip-map line.tm-aviso { stroke: var(--amber); stroke-width: .8; } .trip-map text.tm-aviso { fill: var(--amber); }
+.trip-map line.tm-peligro { stroke: var(--red); stroke-width: 1.2; animation: latido 1s infinite; } .trip-map text.tm-peligro { fill: var(--red); }
+.trip-map .tm-conj { fill: rgba(255, 190, 60, .18); }
