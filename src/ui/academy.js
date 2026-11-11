@@ -291,7 +291,7 @@ export function runTraining(id, { kids = false, intro = '' } = {}) {
 
     const introView = () => box.replaceChildren(
       h('h2', {}, `${def.icon} ENTRENAMIENTO: ${def.name.toUpperCase()}`),
-      intro ? h('p', { class: 'dim' }, intro) : null,
+      ...(intro ? [h('p', { class: 'dim' }, intro)] : []),
       h('p', { class: 'acad-meta' }, def.goal),
       h('p', { class: 'small dim' }, `Dura ${seconds} segundos. ${def.fact}`),
       h('div', { class: 'acad-botones' },
@@ -320,7 +320,7 @@ export function runTraining(id, { kids = false, intro = '' } = {}) {
         h('div', { class: 'acad-top' }, h('span', {}, `${def.icon} ${def.name}`), timeEl),
         canvas,
         h('p', { class: 'small dim acad-hint' }, g.hint),
-        ctrl.length ? h('div', { class: `acad-ctrls n${ctrl.length}` }, ...ctrl) : null);
+        ...(ctrl.length ? [h('div', { class: `acad-ctrls n${ctrl.length}` }, ...ctrl)] : []));
 
       let left = seconds, last = performance.now();
       const loop = (now) => {
