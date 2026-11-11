@@ -19,6 +19,8 @@ import { beep } from '../audio.js';
 import { say } from '../guide.js';
 import { crewAvatar } from '../avatar.js';
 import { decodeMission } from '../../core/share.js';
+import { TRAININGS, ACADEMY_ORDER, hasWings } from '../../core/academy.js';
+import { runTraining, academyRecord, saveAcademy } from '../academy.js';
 
 const MODES = {
   campana: { icon: '🗺️', name: 'Campaña', desc: 'Estación → Luna → Marte. Cada misión cumplida abre la siguiente y da puntos para mejoras.' },
@@ -181,6 +183,7 @@ export function render(root, app, go) {
           beep(990, 80); go('design', { design: SUGGESTED('estacion') });
           say('🎓 Práctica guiada: la nave ya está armada. Toca 🚀 LANZAR y te explico todo en la misión.', { mood: 'feliz', target: '#lanzar' });
         } }, '🎓 Práctica guiada'),
+        ' ', h('button', { id: 'academia', title: 'Las 6 pruebas de entrenamiento de astronauta. Con 2 estrellas en todas ganas tus alas.', onclick: () => openAcademy() }, '🎓 Academia de astronautas'),
         ' ', h('button', { id: 'jurado', title: 'Recorrido de 3 minutos por lo principal: nave, despegue, una emergencia y el informe.', onclick: () => startJurado(app, go) }, '🏛️ Modo jurado (3 min)'),
         ' ', h('button', { id: 'simulacro', title: 'Misión fácil con muchas emergencias relámpago para practicar los minijuegos.', onclick: () => {
           Object.assign(app, { mode: 'demo', scenario: 'estacion', difficulty: 'facil', objective: 'ciencia', historica: null, reto: null, practice: null, state: null, lastDesign: null, lastSeed: null, budgetMult: 1, simulacro: true });
@@ -209,6 +212,26 @@ export function render(root, app, go) {
       h('div', { class: 'small dim', style: { textAlign: 'center' } },
         'Agencia ficticia. Inspirado en procedimientos y datos abiertos de NASA. Hecho para NASA Space Apps 2026 · desafío Space Mission Design Game.'),
     );
+  };
+  // ACADEMIA: las 6 pruebas sueltas; guarda las mejores estrellas y da las alas con 2+ en todas.
+  const WHERE = { estacion: 'la Estación', luna: 'la Luna', marte: 'Marte', gateway: 'Gateway' };
+  const openAcademy = () => {
+    const rec = academyRecord(), wings = hasWings(rec);
+    const close = modal(h('div', { id: 'academia-lista' }, h('h2', {}, '🎓 Academia de astronautas'),
+      h('p', { class: 'small' }, wings ? '¡Ganaste tus ALAS DE ASTRONAUTA!' : 'Entrena como los astronautas de verdad. Con 2 estrellas en cada prueba ganas tus ALAS. Antes de cada misión, la prueba de su destino ayuda a la tripulación.'),
+      wings ? h('div', { class: 'alas' }, '— ★ ALAS DE ASTRONAUTA ★ —') : null,
+      h('div', { class: 'acad-lista' }, ...ACADEMY_ORDER.map((id) => {
+        const t = TRAININGS[id], st = rec[id] ?? 0;
+        return h('button', { class: `acad-carta ${st >= 2 ? 'ok' : ''}`, 'data-acad': id, onclick: async () => {
+          beep(820, 40); close();
+          const r = await runTraining(id);
+          if (r) saveAcademy(id, r.stars);
+          openAcademy();
+          if (hasWings(academyRecord()) && !wings) say('¡Felicidades! Ganaste tus ALAS DE ASTRONAUTA.', { mood: 'feliz' });
+        } }, h('div', { class: 'acad-nombre' }, h('span', {}, t.icon), ' ', h('span', {}, t.name)), h('div', { class: 'acad-st' }, '★'.repeat(st) + '☆'.repeat(3 - st)),
+          t.where.length ? h('div', { class: 'small dim' }, `Ayuda en ${WHERE[t.where[0]]}`) : null);
+      })),
+      h('button', { onclick: () => close() }, 'Cerrar')));
   };
   redrawTitle = draw;
   // ?jurado en la dirección: entra directo al recorrido de 3 minutos (para el link del jurado).

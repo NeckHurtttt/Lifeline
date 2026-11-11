@@ -354,3 +354,15 @@ export function runTraining(id, { kids = false, intro = '' } = {}) {
     introView();
   });
 }
+
+// ---------- Récord de la academia (versión niños): mejores estrellas por prueba ----------
+const REC_KEY = 'vdl-academia';
+export function academyRecord() {
+  try { return JSON.parse(localStorage.getItem(REC_KEY) || '{}') ?? {}; } catch { return {}; }
+}
+export function saveAcademy(id, stars) {
+  const rec = academyRecord();
+  rec[id] = Math.max(rec[id] ?? 0, stars);
+  try { localStorage.setItem(REC_KEY, JSON.stringify(rec)); } catch { /* sin guardado: igual se juega */ }
+  return rec;
+}
