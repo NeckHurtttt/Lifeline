@@ -40,5 +40,7 @@ export function skillCheck(state, check, crewIds = null, { prepared = false } = 
   if (crewIds && helpers > 0) { best.parts.push({ label: `ayuda del equipo (${helpers})`, value: helpers }); best.total += helpers; }
   const ok = best.total >= check.dc;
   const text = `${best.parts.map((p) => `${p.label} ${p.value >= 0 ? '+' : ''}${p.value}`).join(', ')} = ${best.total} (hace falta ${check.dc}): ${ok ? 'éxito' : 'fallo, no alcanza'}`;
-  return { ok, total: best.total, need: check.dc, who: best.who, parts: best.parts, text };
+  // Versión niños: sin cuentas, solo si salió bien.
+  const kidText = ok ? `¡${best.who?.name?.split(' ')[0] ?? 'El equipo'} lo logró!` : 'esta vez no salió';
+  return { ok, total: best.total, need: check.dc, who: best.who, parts: best.parts, text: state.kids ? kidText : text };
 }

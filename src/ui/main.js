@@ -104,6 +104,7 @@ export function go(name, params = {}) {
     }
     return;
   }
+  document.body.classList.toggle('en-juego', name !== 'title');
   const r = screens[name].render(root, app, go, params);
   if (typeof r === 'function') cleanup = r;
   if (!params.keepScroll) window.scrollTo(0, 0);

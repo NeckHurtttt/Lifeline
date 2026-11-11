@@ -1,5 +1,8 @@
 // Pantalla de operaciones: recursos, nave, tripulación con avatares, alertas, eventos, minimisiones y bitácora, con Nova guiando.
 import { tr } from '../../i18n/i18n.js';
+
+/** Versión niños: solo la primera oración de un texto largo. */
+const firstSentence = (t) => { const m = String(t).match(/^[\s\S]*?[.!?](?=\s|$)/); return m ? m[0] : t; };
 import { setNow, nivel } from '../ninos.js';
 import { MOD_CODE, RES_CODE, NODE_CODE } from '../art.js';
 import { hatchClue, tryHatch, resolveHatches, WRONG_COST_S } from '../../core/hatches.js';
@@ -350,7 +353,7 @@ export function render(root, app, go) {
       return [
         h('ol', { class: 'flash-lista small' }, ...st.items.map((it, k) => h('li', { class: k < st.progress ? 'hecho' : k === st.progress ? 'ahora' : '' }, it))),
         h('div', { class: 'flash-botones' }, ...order.map((k) => h('button', {
-          class: `flash-paso-btn ${k < st.progress ? 'hecho' : ''}`, 'data-item': k, disabled: k < st.progress,
+          class: `flash-paso-btn ${k < st.progress ? 'hecho' : ''} ${kids() && k === st.progress ? 'pista' : ''}`, 'data-item': k, disabled: k < st.progress,
           onclick: () => { const r = pressProtocol(app.state, i, k); act(r.state, r.ok); },
         }, st.items[k]))),
       ];
@@ -487,7 +490,7 @@ export function render(root, app, go) {
       const r = viaHatch === null ? resolveEvent(app.state, p.eventId, p.severity, optId, rng) : resolveHatches(app.state, viaHatch, rng);
       close();
       commit({ ...r.state, rng: rng.state() });
-      banner = { text: r.log.join(' '), cls: bad ? 'red' : '' };
+      banner = { text: (kids() && r.log.length > 1 ? r.log.slice(1) : r.log).join(' '), cls: bad ? 'red' : '' };
       beep(bad ? 300 : 1000, 120);
       if (app.state.phase === 'report') handle({ kind: 'fin' });
       draw();
@@ -529,7 +532,7 @@ export function render(root, app, go) {
       h('h2', { class: p.severity === 'grave' ? 'red' : ev.kind === '+' ? 'green' : 'amber' }, ev.name),
       kids() ? h('div', { class: 'ahora-evento' }, ev.kind === '+' ? 'ESTO ES ALGO BUENO. Elige qué hacer.' : 'HAY UN PROBLEMA. Elige cómo arreglarlo. El RECOMENDADO es el más seguro.') :
         h('div', { class: 'small' }, { leve: '🟢 Poco grave', media: '🟠 Grave', grave: '🔴 ¡Muy grave!' }[p.severity]),
-      h('p', { style: { clear: 'both', fontSize: '1.1rem' } }, ev.text[p.severity]),
+      h('p', { style: { clear: 'both', fontSize: '1.1rem' } }, kids() ? firstSentence(tr(ev.text[p.severity])) : ev.text[p.severity]),
       p.prepared?.length ? h('p', { class: 'small green' }, '✔ Se prepararon antes: ayuda.') : null,
       ev.procedure && !kids() ? h('p', { class: 'small' }, '📋 ', ev.procedure) : null,
       isMars(s) ? h('p', { class: 'small amber' }, inBlackout(s) ? '📵 Conjunción solar: Control de Misión no puede ayudar. Decide tu tripulación.' : `📡 Control de Misión responde con ${radioDelayMin(s)} min de retraso: la tripulación decide primero.`) : null,

@@ -9,6 +9,8 @@ export const EN = {
   "Ingeniería": "Engineering",
   "Ciencia": "Science",
   "Jugador {0}": "Player {0}",
+  "¡{0} lo logró!": "{0} did it!",
+  "esta vez no salió": "it didn't work this time",
   "SONIDO: NO": "SOUND: OFF",
   "SONIDO: SÍ": "SOUND: ON",
   "{0} · {1} · {2}": "{0} · {1} · {2}",

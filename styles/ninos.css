@@ -80,3 +80,16 @@ body:has(#estrellas) #app > :first-child .capsule { margin: .2rem 0 !important; 
   .lugar-texto { display: none; }
   #destinos h2 { margin-top: 0; }
 }
+
+/* Ajustes (idioma, letra, colores, glosario) solo en el inicio: en la partida se tocaban sin querer. */
+body.en-juego #idioma, body.en-juego #letra-menos, body.en-juego #letra-mas,
+body.en-juego #daltonico, body.en-juego #glosario { display: none; }
+
+/* Protocolo de alarma: letra grande y el paso que sigue brilla. */
+.flash-lista { font-size: 1rem; }
+.flash-lista li.ahora { font-weight: bold; }
+.flash-paso-btn { font-size: 1.05rem; min-height: 3rem; }
+.flash-paso-btn.pista { border: 3px solid var(--amber, #ffb000); box-shadow: 0 0 12px var(--amber, #ffb000); animation: pista 0.8s ease-in-out infinite alternate; }
+.flash-paso-btn.pista::before { content: '👉 '; }
+@keyframes pista { from { box-shadow: 0 0 4px var(--amber, #ffb000); } to { box-shadow: 0 0 18px var(--amber, #ffb000); } }
+@media (prefers-reduced-motion: reduce) { .flash-paso-btn.pista { animation: none; } }

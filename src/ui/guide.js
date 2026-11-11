@@ -111,7 +111,7 @@ export function say(text, { mood = 'normal', target = null, buttons = [], quiet 
   clearTimeout(restTimer);
   box.classList.remove('resting');
   // Todo consejo sin botones se recoge (los tranquilos a los 9 s, los demás a los 14 s); las alertas se quedan.
-  if (!buttons.length && mood !== 'alerta') restTimer = setTimeout(() => box.classList.add('resting'), quiet ? 9000 : 14000);
+  if (!buttons.length && mood !== 'alerta') restTimer = setTimeout(() => box.classList.add('resting'), quiet ? 4000 : 7000);
 }
 let restTimer = null;
 
