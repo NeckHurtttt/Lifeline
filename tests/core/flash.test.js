@@ -221,3 +221,13 @@ test('viaje a Marte: motor, lluvia y rumbo; en la Luna noche y hielo', () => {
   assert.ok(!typesFor(luna).includes('helada'));
   void roll2;
 });
+
+test('textos de emergencias: el módulo nunca va solo como sujeto (evita "Paneles solares está")', () => {
+  for (const [id, T] of Object.entries(FLASH_TYPES)) {
+    for (const fn of ['text', 'ok', 'partial', 'fail']) {
+      const txt = T[fn]?.('Paneles solares');
+      if (!txt || !txt.includes('Paneles solares')) continue;
+      assert.match(txt, /(el|El|del|al) módulo Paneles solares/, `${id}.${fn}: ${txt}`);
+    }
+  }
+});

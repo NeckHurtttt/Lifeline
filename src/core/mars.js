@@ -1,7 +1,8 @@
 // Marte: viaje de ida (7 meses), un año en la superficie y viaje de vuelta (7 meses).
 // Inspirado en la arquitectura de referencia de NASA: carga enviada antes, combustible fabricado allá (ISRU),
 // conjunción solar sin radio y retraso de comunicaciones.
-import { SCENARIOS } from '../data/catalog.js';
+import { SCENARIOS, MODULES } from '../data/catalog.js';
+import { hasUpgrade } from './campaign.js';
 import { skillCheck } from './skill.js';
 
 export const TRANSIT_DAYS = SCENARIOS.marte.travelDays; // 210
@@ -28,6 +29,17 @@ export function planOf(s) {
   const start = Math.round(landing + p.surface * (CONJUNCTION.start - LANDING_DAY) / SURFACE_DAYS);
   const len = Math.max(3, Math.round((CONJUNCTION.end - CONJUNCTION.start) * p.surface / SURFACE_DAYS));
   return { ...p, landing, ascent, conj: { start, end: start + len, warn: start - Math.max(2, Math.round(5 * p.surface / SURFACE_DAYS)) } };
+}
+
+/** El modo demo acorta la estancia en Marte: la planta de combustible (ISRU) trabaja más rápido
+ *  para juntar lo mismo que en el año real. Sin esto, en demo nunca alcanzaba para volver. */
+export const isruScale = (s) => SURFACE_DAYS / planOf(s).surface;
+
+/** Combustible que fabricarán por día las plantas ISRU encendidas (para avisos y proyecciones). */
+export function isruPerDay(s) {
+  const base = s.modules.filter((m) => m.on && m.health > 0 && MODULES[m.type]?.fuelPerDay)
+    .reduce((t, m) => t + MODULES[m.type].fuelPerDay * (m.health / 100), 0);
+  return base * (hasUpgrade(s, 'isru_mejorado') ? 1.5 : 1) * isruScale(s);
 }
 
 /** Tramo del viaje: 'ida' | 'superficie' | 'vuelta' (siempre 'superficie' fuera de Marte). */

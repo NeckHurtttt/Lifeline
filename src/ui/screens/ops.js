@@ -7,7 +7,7 @@ import { h, mount, bar, modal, fmt, tabs } from '../dom.js';
 import { MODULES, INSTRUMENTS, DIFFICULTY, SCENARIOS } from '../../data/catalog.js';
 import { siteOf, isNight, daysToNight, daysToDawn } from '../../core/surface.js';
 import { canExplore, ensureMap, startExpedition, previewExpedition, tripDays, hasRoverPres, NODE_TYPES } from '../../core/explore.js';
-import { phaseDue, resolvePhase, previewPhase, PHASES, inBlackout, radioDelayMin, isMars, ASCENT_FUEL, SEAL_FUEL, planOf } from '../../core/mars.js';
+import { phaseDue, resolvePhase, previewPhase, PHASES, inBlackout, radioDelayMin, isMars, ASCENT_FUEL, SEAL_FUEL, planOf, isruPerDay } from '../../core/mars.js';
 import { ROLES, TRAITS } from '../../data/crew.js';
 import { EVENTS } from '../../data/events.js';
 import { MINIMISSIONS } from '../../data/minimissions.js';
@@ -575,7 +575,7 @@ export function render(root, app, go) {
       { mood: pre.ok ? 'feliz' : 'alerta', target: '#iniciarFase' });
   }
 
-  const fuelRate = (s) => s.modules.filter((m) => m.type === 'planta_combustible' && m.on).reduce((t, m) => t + (MODULES[m.type].fuelPerDay * m.health) / 100, 0);
+  const fuelRate = isruPerDay;
 
   function marsLeg() {
     const s = app.state;

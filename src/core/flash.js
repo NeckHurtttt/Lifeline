@@ -361,7 +361,7 @@ export function resolveFlash(state) {
   let line;
   if (result === 'ok') line = T.ok(name);
   else if (result === 'partial') line = T.partial(name);
-  else line = s.kids && !T.noLose ? `No alcanzó el tiempo: ${name} se rompió. Hace falta 🔧 Reparación.` : T.fail(name);
+  else line = s.kids && !T.noLose ? `No alcanzó el tiempo: el módulo ${name} se rompió. Hace falta 🔧 Reparación.` : T.fail(name);
   line = `${T.icon} ${line}`;
   // Modo jurado: una sola emergencia y se pasa al siguiente paso del recorrido.
   if (s.jurado) { s.juradoFlash = result; s.flashBoost = 0; }

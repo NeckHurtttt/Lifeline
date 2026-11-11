@@ -121,6 +121,9 @@ test('modo demo: Marte en 120 días con las mismas fases', () => {
   }
   assert.deepEqual(fases, [['edl', 30], ['ascenso', 90]]);
   assert.ok(s.day <= 120);
+  // La planta fabrica más rápido en demo: alcanza para despegar de Marte (antes siempre faltaba).
+  assert.ok(s.flags?.ascended, `no despegó: ${s.outcome?.reason}`);
+  assert.notEqual(s.outcome?.success, false, s.outcome?.reason);
 });
 
 test('protección planetaria: sellar cuesta combustible; sin sellar se pierde ciencia y fama', async () => {
