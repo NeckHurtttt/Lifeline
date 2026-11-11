@@ -15,6 +15,7 @@ export function crewScore(state, c, stat, { prepared = false } = {}) {
   const tool = TOOL[stat];
   if (tool && state.modules.some((m) => m.type === tool && m.on && m.health > 0)) parts.push({ label: `herramientas del ${TOOL_NAME[tool]}`, value: 2 });
   if (prepared) parts.push({ label: 'se prepararon antes', value: 1 });
+  if (state.training?.bonus) parts.push({ label: 'entrenamiento en la academia', value: state.training.bonus });
   if (stat === 'tecnica' && c.traits.includes('manos_firmes')) parts.push({ label: 'manos firmes', value: 2 });
   if (stat === 'eva' && c.traits.includes('torpe')) parts.push({ label: 'es torpe', value: -2 });
   if (stat === 'eva' && hasUpgrade(state, 'trajes_nuevos')) parts.push({ label: 'trajes nuevos', value: 1 });
