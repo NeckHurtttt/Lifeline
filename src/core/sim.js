@@ -2,7 +2,8 @@
 import { hasUpgrade } from './campaign.js';
 import { rollFlash } from './flash.js';
 import { restoreRng } from './rng.js';
-import { rollEvents, tickAlerts, resolveResupply, tickDelayed } from './events.js';
+import { rollEvents, tickAlerts, resolveResupply, tickDelayed, resolveEvent, recommendedOption } from './events.js';
+import { EVENTS } from '../data/events.js';
 import { dustTick, dustFactor, batteryTick, autoRationTick, gardenTick } from './extras.js';
 import { offerMinis, progressMinis } from './minimissions.js';
 import { applyTasks, validateSchedule } from './tasks.js';
@@ -76,7 +77,7 @@ export function advanceDay(state) {
   s = rollEvents(s, rng);
   // Misiones históricas: eventos que pasan sí o sí ese día.
   for (const sc of s.scripted ?? []) if (sc.day === s.day && !s.pending) s.pending = { eventId: sc.eventId, severity: sc.severity, prepared: [] };
-  if (s.mode === 'demo') s = rollEvents(s, rng);
+  if (s.mode === 'demo' && !s.kids) s = rollEvents(s, rng); // niños: una sola tirada (menos ventanas de texto)
   for (const st of s.realStorms ?? []) {
     if (st.day !== s.day || s.alerts.some((a) => a.eventId === 'tormenta_solar')) continue;
     s.alerts.push({ eventId: 'tormenta_solar', etaDays: 2, severity: st.severity, prepared: [], false: false, real: st });
@@ -152,6 +153,15 @@ export function advanceDay(state) {
     s.phase = 'reentry';
     pushLog(s, [`Día ${s.totalDays}: hora de volver a casa.`], 'fin');
     return { state: s, interrupt: { kind: 'fin', data: null } };
+  }
+  // Niños: lo bueno pasa solo, sin ventana (se toma lo recomendado); la pantalla lo cuenta en un cartel.
+  if (s.pending && s.kids && EVENTS[s.pending.eventId]?.kind === '+') {
+    const { eventId, severity } = s.pending;
+    const optionId = recommendedOption(eventId, s);
+    const rng2 = restoreRng(s.rng);
+    s = { ...resolveEvent(s, eventId, severity, optionId, rng2).state, rng: rng2.state() };
+    if (s.phase !== 'ops') return { state: s, interrupt: { kind: 'fin', data: s.outcome } };
+    if (!s.pending) return { state: s, interrupt: { kind: 'bueno', data: { eventId, optionId, severity } } };
   }
   if (s.pending) return { state: s, interrupt: { kind: 'evento', data: s.pending } };
   s = rollFlash(s);

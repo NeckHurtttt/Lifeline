@@ -98,7 +98,8 @@ export function runReentryStep(state, stepId, rng, choice) {
         log.push('Entrada empinada: la desaceleración golpea a la tripulación (−10 salud)');
       }
       if (rng.chance(heatShieldRisk(s))) {
-        const sev = pickSeverity(rng, s.difficulty);
+        let sev = pickSeverity(rng, s.difficulty);
+        if (sev === 'grave' && s.kids) sev = 'media'; // niños: el escudo se daña, pero no se pierde la cápsula
         if (sev === 'grave') {
           for (const c of s.crew) { c.alive = false; c.health = 0; }
           s.phase = 'report';

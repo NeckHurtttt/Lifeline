@@ -6,6 +6,7 @@ import { skillCheck } from './skill.js';
 import { envMults, siteOf, availableIn } from './surface.js';
 import { inBlackout } from './mars.js';
 import { addFault } from './repairs.js';
+import { kidsEventMult, KIDS_MAX_PROBLEMS } from './ninos.js';
 
 const SEVERITIES = ['leve', 'media', 'grave'];
 const POSITIVE_CHANCE = 0.06;
@@ -69,14 +70,16 @@ function launchEvent(s, eventId, rng) {
 export function rollEvents(state, rng) {
   const s = structuredClone(state);
   s.alerts ??= [];
-  if (rng.chance(DIFFICULTY[s.difficulty].disasterRate * (SCENARIOS[s.scenarioId]?.disasterMult ?? 1))) {
-    const id = weightedPick(pool(s, true), rng);
-    if (id) launchEvent(s, id, rng);
-  }
-  if (rng.chance(POSITIVE_CHANCE)) {
-    const id = weightedPick(pool(s, false), rng);
-    if (id) launchEvent(s, id, rng);
-  }
+  const k = s.kids ? kidsEventMult(s) : 1;
+  // Niños: tope de problemas por partida (lo bueno sigue llegando).
+  const room = (id) => !s.kids || EVENTS[id].kind === '+' || (s.kidsProblems ?? 0) < KIDS_MAX_PROBLEMS;
+  const launch = (id) => {
+    if (!id || !room(id)) return;
+    launchEvent(s, id, rng);
+    if (s.kids && EVENTS[id].kind !== '+') s.kidsProblems = (s.kidsProblems ?? 0) + 1;
+  };
+  if (rng.chance(DIFFICULTY[s.difficulty].disasterRate * (SCENARIOS[s.scenarioId]?.disasterMult ?? 1) * k)) launch(weightedPick(pool(s, true), rng));
+  if (rng.chance(POSITIVE_CHANCE * k)) launch(weightedPick(pool(s, false), rng));
   return s;
 }
 
@@ -189,6 +192,8 @@ export function resolveEvent(state, eventId, severity, optionId, rng, prepared) 
     const followed = optionId === recommendedOption(eventId, state);
     s.reputation = clamp(s.reputation + (followed ? 1 : -1), 0, 100);
     log.push(followed ? 'Seguiste el procedimiento de Control de Misión (+1 fama).' : 'Te apartaste del procedimiento de Control de Misión (−1 fama).');
+    // Niños: cuenta para la estrella de "problemas bien resueltos".
+    if (state.kids && ev.kind !== '+') s.kidsChoices = { good: (s.kidsChoices?.good ?? 0) + (followed ? 1 : 0), total: (s.kidsChoices?.total ?? 0) + 1 };
   }
   let effects = opt.effects[sev];
   if (opt.check) {

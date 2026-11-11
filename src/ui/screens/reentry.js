@@ -11,6 +11,24 @@ import { crewAvatar } from '../avatar.js';
 import { goNoGo } from '../poll.js';
 import { inCoop, shareDraft } from '../coop.js';
 
+// Niños: cada paso en palabras simples (mismos ids que la reentrada de verdad).
+const KID_STEPS = {
+  desacople: 'La cápsula se suelta de la estación',
+  encendido_salida: 'El motor da un empujón para bajar',
+  sep_modulo_servicio: 'Se suelta la parte de atrás de la nave',
+  interfaz_entrada: 'La cápsula toca el aire de la Tierra',
+  apagon_plasma: 'Mucho calor afuera: la radio se calla un ratito',
+  escudo_termico: 'El escudo aguanta el fuego de afuera',
+  paracaidas_freno: 'Se abre un paracaídas chico',
+  paracaidas_principales: 'Se abren 3 paracaídas gigantes',
+  amerizaje: '¡Splash! La cápsula cae al mar',
+  recuperacion: 'Un barco recoge a los astronautas',
+};
+const KID_OVERRIDES = {
+  luna: { desacople: 'La nave despega de la Luna', encendido_salida: 'El motor nos empuja hacia la Tierra: 3 días de viaje', interfaz_entrada: 'Llegamos muy rápido al aire de la Tierra' },
+  marte: { desacople: 'Después de 7 meses, la cápsula se suelta de la nave grande', encendido_salida: 'Un último empujón para apuntar bien a la Tierra', interfaz_entrada: 'Llegamos rapidísimo al aire de la Tierra' },
+};
+
 const ANGLES = {
   normal: 'Normal: el ángulo de diseño',
   empinado: 'Empinado: más rápido, más fuerza G (+20 % de daño)',
@@ -20,6 +38,9 @@ const ANGLES = {
 export function render(root, app, go) {
   const REENTRY_STEPS = reentrySteps(app.state.scenarioId);
   let s = app.state;
+  const kids = !!app.kids;
+  const kidLabel = (id) => KID_OVERRIDES[s.scenarioId]?.[id] ?? KID_STEPS[id];
+  const label = (st) => (kids ? kidLabel(st.id) : st.label);
   const mode = DIFFICULTY[s.difficulty].launchMode;
   const speed = mode === 'auto' ? 450 : 800;
   const status = {};
@@ -36,8 +57,10 @@ export function render(root, app, go) {
       h('div', { class: 'sky space', id: 'cielo' }, h('div', { class: 'planet' }), h('div', { class: 'rocket', id: 'capsula', style: { bottom: '200px' } }, art('capsula'))),
       h('div', { class: 'capsule', style: { marginTop: '.5rem' } }, ...s.crew.map((c) => crewAvatar(c, { size: 60 })))),
     h('div', { class: 'grid2' },
-      h('div', { class: 'panel c-violet' }, h('h2', {}, 'Pasos'), steps,
-        h('div', { class: `small ${risk > 20 ? 'red' : risk > 5 ? 'amber' : 'dim'}` }, `Riesgo del escudo térmico: ${risk} % (según la salud de la cabina)`)),
+      h('div', { class: 'panel c-violet' }, h('h2', {}, kids ? 'QUÉ VA PASANDO' : 'Pasos'), steps,
+        h('div', { class: `small ${risk > 20 ? 'red' : risk > 5 ? 'amber' : 'dim'}` }, kids
+          ? `Escudo de calor: ${risk > 20 ? 'MUY GASTADO (cuidado)' : risk > 5 ? 'UN POCO GASTADO' : 'BIEN'}`
+          : `Riesgo del escudo térmico: ${risk} % (según la salud de la cabina)`)),
       h('div', { class: 'panel c-cyan' }, h('h2', {}, '📻 Radio'), action, out)),
   );
   const say = (text, cls = '') => {
@@ -45,7 +68,7 @@ export function render(root, app, go) {
     if (inCoop()) shareDraft('radio', lines.slice(0, 15).map((e) => [e.textContent, e.className]));
   };
   const drawSteps = (now) => steps.replaceChildren(...REENTRY_STEPS.map((st) =>
-    h('li', { class: `${status[st.id] ?? ''} ${st.id === now ? 'now' : ''}` }, st.label)));
+    h('li', { class: `${status[st.id] ?? ''} ${st.id === now ? 'now' : ''}` }, label(st))));
   const wait = (ms) => new Promise((r) => setTimeout(r, ms));
 
   async function run() {
@@ -58,7 +81,7 @@ export function render(root, app, go) {
       const cap = document.getElementById('capsula');
       if (cap) cap.style.bottom = `${200 - (i / (REENTRY_STEPS.length - 1)) * 180}px`;
       if (i >= 4) document.getElementById('cielo')?.classList.remove('space');
-      nova(/[!?.…]$/.test(step.label) ? `${step.label} ${step.desc}` : `${step.label}: ${step.desc}`, { quiet: true, mood: step.id === 'escudo_termico' ? 'alerta' : step.id === 'recuperacion' ? 'feliz' : 'normal' });
+      nova(kids ? kidLabel(step.id) : /[!?.…]$/.test(step.label) ? `${step.label} ${step.desc}` : `${step.label}: ${step.desc}`, { quiet: true, mood: step.id === 'escudo_termico' ? 'alerta' : step.id === 'recuperacion' ? 'feliz' : 'normal' });
       let choice;
       // Antes de encender los motores para volver, cada jugador (cada rol) dice si está listo.
       if (i === 0 && app.players.length > 1) {
@@ -80,7 +103,7 @@ export function render(root, app, go) {
         action.replaceChildren();
       }
       if (step.id === 'apagon_plasma') {
-        const st = h('div', { class: 'static' }, 'APAGÓN DE PLASMA · SIN SEÑAL');
+        const st = h('div', { class: 'static' }, kids ? 'MUCHO CALOR · LA RADIO SE CALLA' : 'APAGÓN DE PLASMA · SIN SEÑAL');
         document.body.append(st);
         await wait(4000);
         st.remove();
@@ -89,7 +112,7 @@ export function render(root, app, go) {
       const rng = restoreRng(s.rng);
       const r = runReentryStep(s, step.id, rng, choice);
       s = { ...r.state, rng: rng.state() };
-      for (const [k, l] of r.log.entries()) say(l, k === 0 ? '' : (r.ok ? 'aviso' : 'evento'));
+      for (const [k, l] of r.log.entries()) say(k === 0 && kids ? kidLabel(step.id) : l, k === 0 ? '' : (r.ok ? 'aviso' : 'evento'));
       if (r.log.length > 1 && !/silencio/.test(r.log[1])) alarm(r.ok ? 'aviso' : 'emergencia');
       if (!r.ok) {
         status[step.id] = 'fail';

@@ -77,8 +77,8 @@ const STAT_NAME = { fuerza: 'Fuerza', tecnica: 'Técnica', ciencia: 'Ciencia', m
 const RES_NAME = { o2: '🫧 aire', water: '💧 agua', food: '🍎 comida', meds: '💊 medicinas', parts: '⚙️ piezas', fuel: '⛽ combustible', battery: '🔋 batería', science: '🧪 ciencia', reputation: '⭐ fama' };
 
 const KID_WORD = { o2: 'AIRE', water: 'AGUA', food: 'COMIDA', meds: 'MEDICINAS', parts: 'PIEZAS DE REPUESTO', fuel: 'COMBUSTIBLE', battery: 'LUZ (BATERÍA)', science: 'DESCUBRIMIENTOS', reputation: 'APLAUSOS DE LA TIERRA' };
-/** Efectos en palabras para niños: sin números. */
-function kidChips(effects) {
+/** Efectos en palabras para niños: sin números. [texto, ¿bueno?] */
+function kidWords(effects) {
   const out = [];
   for (const [k, v] of Object.entries(effects ?? {})) {
     if (KID_WORD[k]) out.push([`${v > 0 ? 'MÁS' : 'MENOS'} ${KID_WORD[k]}`, v > 0]);
@@ -90,6 +90,10 @@ function kidChips(effects) {
     else if (k === 'delayResupply') out.push(['LA COMIDA NUEVA LLEGA TARDE', false]);
     else if (k === 'endMission') out.push(['TODOS VUELVEN ANTES (PIERDES)', false]);
   }
+  return out;
+}
+function kidChips(effects) {
+  const out = kidWords(effects);
   if (!out.length) return [h('span', { class: 'chip ok' }, 'NO PASA NADA')];
   return out.map(([t, good]) => h('span', { class: `chip ${good ? 'ok' : 'bad'}` }, t));
 }
@@ -133,6 +137,13 @@ export function render(root, app, go) {
     if (!interrupt) { banner = { text: `📅 Día ${s.day}: todo tranquilo.`, cls: '' }; return; }
     const k = interrupt.kind;
     if (k === 'alerta') { const ev = EVENTS[interrupt.data.eventId]; banner = { text: `⚠️ AVISO: ${EVENT_ICON[ev.id] ?? ''} ${ev.name} en ${interrupt.data.etaDays} día(s).`, cls: '' }; alarm('aviso'); }
+    else if (k === 'bueno') {
+      const ev = EVENTS[interrupt.data.eventId];
+      const opt = ev.options.find((o) => o.id === interrupt.data.optionId);
+      const good = kidWords(opt?.effects?.[interrupt.data.severity]).filter(([, ok]) => ok).map(([t]) => t);
+      banner = { text: `¡ALGO BUENO! ${ev.name}${good.length ? `: ${good.map((w) => tr(w)).join(', ')}` : ''}.`, cls: 'bueno' };
+      beep(1100, 120, 'triangle');
+    }
     else if (k === 'evento' || k === 'flash') { banner = null; } // el sonido lo pone la ventana del evento, según la gravedad
     else if (k === 'mini') { banner = { text: `🎯 Nueva minimisión: ${MINI_ICON[interrupt.data.id] ?? ''} ${MINIMISSIONS[interrupt.data.id].name}.`, cls: '' }; beep(900, 120); }
     else if (k === 'muerte') { banner = { text: interrupt.data.join(' · '), cls: 'red' }; alarm('emergencia'); }

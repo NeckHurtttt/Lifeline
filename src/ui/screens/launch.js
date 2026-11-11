@@ -85,7 +85,7 @@ export function render(root, app, go) {
   const MODE_TXT = { auto: 'automático: solo mira', pausas: 'con pausas: ustedes deciden el clima y el GO', manual: 'manual: ustedes deciden todo, ¡hasta los abortos!' };
   mount(root,
     h('h1', { style: { fontSize: '1.8rem' } }, '🚀 Despegue', h('span', { class: 'dim small' }, app.kids ? ' · mira cómo sube el cohete' : ` · ${MODE_TXT[mode]}`)),
-    h('div', { class: 'grid3' },
+    h('div', { class: 'grid3', id: 'despegue' },
       h('div', { class: 'panel c-violet' }, h('h2', {}, app.kids ? 'QUÉ VA PASANDO' : 'Pasos del despegue'), els.steps),
       h('div', { class: 'panel c-blue', style: { textAlign: 'center' } }, els.sky, els.clock, els.tel, els.action,
         h('div', { class: 'capsule', style: { marginTop: '.5rem' } }, ...s.crew.map((c) => crewAvatar(c, { size: 56 })))),

@@ -17,6 +17,7 @@ import { modal } from '../dom.js';
 import { NEEDS } from '../../core/life.js';
 import { HISTORICA } from '../../data/historicas.js';
 import { musicMood } from '../main.js';
+import { kidStars, kidReason, kidTip } from '../../core/ninos.js';
 
 // v2: puntaje de 0 a 1000 por categorías (el ranking viejo usaba otra escala).
 const RANK_KEY = 'vdl.ranking.v2';
@@ -169,13 +170,15 @@ export function render(root, app, go) {
       h('div', { class: 'capsule', style: { margin: '.6rem 0' } }, ...s.crew.map((c) => h('div', { style: { textAlign: 'center' } },
         crewAvatar(c, { size: 76 }), h('div', { class: 'small' }, h('b', {}, c.name.split(' ')[0])), h('div', { class: 'small dim' }, MOOD_TEXT[moodOf(c)]))))),
     app.kids ? (() => {
-      const home = s.crew.filter((c) => c.alive).length;
-      const stars = !rep.success ? 0 : rep.score >= 650 ? 3 : rep.score >= 400 ? 2 : 1;
+      const { stars, goals } = kidStars(s, rep);
       return h('div', { class: 'panel c-green kid-fin', id: 'estrellas', style: { textAlign: 'center' } },
         h('div', { class: 'estrellas' }, ...[0, 1, 2].map((i) => h('span', { class: i < stars ? 'llena' : 'vacia' }, '★'))),
         h('h2', {}, stars === 3 ? '¡PERFECTO!' : stars === 2 ? '¡MUY BIEN!' : stars === 1 ? '¡LO LOGRASTE!' : 'ESTA VEZ NO SALIÓ'),
-        h('p', { style: { fontSize: '1.2rem' } }, `Volvieron ${home} de ${s.crew.length} astronautas. Hicieron ${fmt(s.science)} descubrimientos.`),
-        h('p', { class: 'small' }, stars < 3 ? 'Para ganar más estrellas: cuida que nunca falte aire, agua, comida ni luz, y elige lo RECOMENDADO en los problemas.' : '¡Eres de Control de Misión de verdad!'),
+        h('p', { style: { fontSize: '1.2rem' }, id: 'por-que' }, rep.success
+          ? `Volvieron ${s.crew.filter((c) => c.alive).length} de ${s.crew.length} astronautas. Hicieron ${fmt(s.science)} descubrimientos.`
+          : kidReason(rep)),
+        h('ul', { class: 'metas', id: 'metas' }, ...goals.map((g) => h('li', { class: g.ok ? 'ok' : 'falta' }, h('span', { class: 'meta-estrella' }, g.ok ? '★' : '☆'), h('span', {}, g.text)))),
+        h('p', { class: 'small', id: 'consejo' }, stars < 3 ? kidTip(rep, goals) : '¡Eres de Control de Misión de verdad!'),
         h('div', { class: 'row', style: { justifyContent: 'center' } },
           h('button', { class: 'big', id: 'otra-vez', onclick: () => go('title') }, '▶ JUGAR OTRA VEZ'),
           h('button', { id: 'ver-detalle', onclick: (e) => { document.body.classList.toggle('ver-detalle'); e.target.textContent = document.body.classList.contains('ver-detalle') ? 'OCULTAR DETALLES' : 'VER TODOS LOS DETALLES'; } }, 'VER TODOS LOS DETALLES')));

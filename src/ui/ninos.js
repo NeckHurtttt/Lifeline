@@ -64,6 +64,12 @@ export function kidsTitle(root, app, go) {
     beep(990, 80);
     go('design', { design: SUGGESTED(app.scenario, 'facil') });
   };
+  const places = () => h('div', { class: 'panel c-pink', id: 'destinos' },
+    h('h2', {}, '¿A DÓNDE VAMOS?'),
+    h('div', { class: 'lugares' }, ...PLACES.map((p) => h('button', {
+      class: `lugar ${app.scenario === p.id ? 'sel' : ''}`, 'data-scn': p.id,
+      onclick: () => { app.scenario = p.id; beep(820, 40); draw(); say(`${p.name}: ${p.text}`, { quiet: true, target: '#jugar' }); },
+    }, h('div', { class: 'lugar-nombre' }, p.name), h('div', { class: 'lugar-nivel' }, p.level), h('div', { class: 'small lugar-texto' }, p.text)))));
   const draw = () => mount(root,
     h('div', { class: 'ninos-titulo' },
       h('div', { class: 'capsule' },
@@ -73,21 +79,17 @@ export function kidsTitle(root, app, go) {
     saved ? h('div', { class: 'panel c-green', style: { textAlign: 'center' } },
       h('button', { class: 'big', id: 'continuar', onclick: () => { app.state = saved; app.difficulty = saved.difficulty; app.mode = saved.mode ?? 'demo'; go(saved.phase === 'reentry' ? 'reentry' : 'ops'); } },
         `SEGUIR MI MISIÓN (DÍA ${saved.day})`)) : null,
-    h('div', { class: 'panel c-blue' },
+    places(),
+    h('div', { style: { textAlign: 'center', margin: '1rem 0' } },
+      h('button', { class: 'big', id: 'jugar', onclick: start }, '▶ JUGAR')),
+    h('div', { class: 'panel c-blue', id: 'como' },
       h('h2', {}, 'ASÍ SE JUEGA'),
       h('ol', { class: 'como-ninos' },
         h('li', {}, h('b', {}, 'ARMA LA NAVE. '), 'Nova ya la armó. Solo toca LANZAR.'),
         h('li', {}, h('b', {}, 'DESPEGA. '), 'Mira el cohete subir. Si te preguntan, di GO.'),
         h('li', {}, h('b', {}, 'VIVE EN EL ESPACIO. '), 'Toca AVANZAR. Que no falte AIRE, AGUA, COMIDA ni LUZ. Si suena una alarma, arréglala rápido.'),
-        h('li', {}, h('b', {}, 'VUELVE A CASA. '), 'Mira cuántas estrellas ganaste.'))),
-    h('div', { class: 'panel c-pink' },
-      h('h2', {}, '¿A DÓNDE VAMOS?'),
-      h('div', { class: 'lugares' }, ...PLACES.map((p) => h('button', {
-        class: `lugar ${app.scenario === p.id ? 'sel' : ''}`, 'data-scn': p.id,
-        onclick: () => { app.scenario = p.id; beep(820, 40); draw(); say(`${p.name}: ${p.text}`, { quiet: true, target: '#jugar' }); },
-      }, h('div', { class: 'lugar-nombre' }, p.name), h('div', { class: 'lugar-nivel' }, p.level), h('div', { class: 'small' }, p.text))))),
-    h('div', { style: { textAlign: 'center', margin: '1.2rem 0' } },
-      h('button', { class: 'big', id: 'jugar', onclick: start }, '▶ JUGAR')),
+        h('li', {}, h('b', {}, 'VUELVE A CASA. '), 'Mira cuántas estrellas ganaste.')),
+      h('p', { class: 'metas-titulo' }, h('b', {}, 'GANA LAS 3 ESTRELLAS: '), '★ vuelve a casa · ★ elige bien en los problemas · ★ gana las alarmas')),
     h('div', { class: 'small dim', style: { textAlign: 'center' } },
       h('a', { href: '../' }, 'Ir a la versión completa'), ' · Agencia ficticia. Inspirado en datos abiertos de NASA. NASA Space Apps 2026.'),
   );

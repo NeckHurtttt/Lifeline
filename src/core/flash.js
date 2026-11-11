@@ -4,6 +4,7 @@
 // Puro y determinista: el azar sale de un hash de la semilla y el día, así no cambia el resto de la partida.
 import { MODULES, SCENARIOS } from '../data/catalog.js';
 import { FLASH_TYPES, PROTOCOLS, CABLE_COLORS, CABLE_SYSTEMS, POWER_SYSTEMS } from '../data/flashes.js';
+import { kidsFlashDay } from './ninos.js';
 
 export { FLASH_TYPES, PROTOCOLS, CABLE_COLORS, CABLE_SYSTEMS, POWER_SYSTEMS };
 
@@ -168,16 +169,23 @@ export function makeFlash(s, type, target) {
 export function rollFlash(state) {
   const s = state;
   if (s.flash || s.pending || s.day < 4 || s.phase !== 'ops') return s;
-  const p = (CHANCE[s.difficulty] ?? 0.02) * (s.kids ? 0.6 : 1) * (s.mode === 'demo' ? 2 : 1) * (s.flashBoost ?? 1)
-    * Math.min(1, 365 / (s.totalDays || 365)); // misiones largas (Marte): los mismos eventos por misión, no más
-  if (hash01(s.seed ?? 1, s.day * 7 + 1) >= p) return s;
+  // Niños: 3 alarmas seguras por partida, repartidas (lo más divertido no queda al azar).
+  const kidsPlan = s.kids && !s.flashBoost && !s.flashOnly;
+  if (kidsPlan) {
+    const due = kidsFlashDay(s);
+    if (due === null || s.day < due) return s;
+  } else {
+    const p = (CHANCE[s.difficulty] ?? 0.02) * (s.kids ? 0.6 : 1) * (s.mode === 'demo' ? 2 : 1) * (s.flashBoost ?? 1)
+      * Math.min(1, 365 / (s.totalDays || 365)); // misiones largas (Marte): los mismos eventos por misión, no más
+    if (hash01(s.seed ?? 1, s.day * 7 + 1) >= p) return s;
+  }
   // flashOnly: forzar tipos (para mostrar el juego: ?relampago=incendio,motor en la dirección).
   const types = typesFor(s).filter((t) => targets(s, t).length && (!s.flashOnly || s.flashOnly.includes(t)));
   if (!types.length) return s;
   const type = types[Math.floor(hash01(s.seed ?? 1, s.day * 7 + 2) * types.length)];
   const list = targets(s, type);
   const target = list[Math.floor(hash01(s.seed ?? 1, s.day * 7 + 3) * list.length)].id;
-  return { ...s, flash: makeFlash(s, type, target), flashShort: false };
+  return { ...s, flash: makeFlash(s, type, target), flashShort: false, ...(kidsPlan ? { kidsFlashes: (s.kidsFlashes ?? 0) + 1 } : {}) };
 }
 
 // ── Acciones de los minijuegos (todas puras) ──
