@@ -13,7 +13,7 @@ import { siteOf, scenarioOf, isNight, daysToNight } from './surface.js';
 import { MODULES } from '../data/catalog.js';
 import { progressExpedition } from './explore.js';
 import { tickFaults } from './repairs.js';
-import { legOf, phaseDue, marsSolarFactor, inBlackout, isMars, planOf } from './mars.js';
+import { legOf, phaseDue, marsSolarFactor, inBlackout, isMars, planOf, isruScale } from './mars.js';
 
 export const NIGHT_WARN_DAYS = 2;
 /** Desgaste diario de cada módulo (sin mantenimiento la nave se va rompiendo). */
@@ -122,7 +122,7 @@ export function advanceDay(state) {
     const def = MODULES[m.type];
     if (s.leg === 'ida' || s.leg === 'vuelta') continue; // en el viaje no hay suelo
     if (def.waterPerDay && site?.ice) s.resources.water += def.waterPerDay * (m.health / 100);
-    if (def.fuelPerDay) s.resources.fuel += def.fuelPerDay * (m.health / 100) * (hasUpgrade(s, 'isru_mejorado') ? 1.5 : 1);
+    if (def.fuelPerDay) s.resources.fuel += def.fuelPerDay * (m.health / 100) * (hasUpgrade(s, 'isru_mejorado') ? 1.5 : 1) * isruScale(s);
   }
 
   s = tickDelayed(s);
