@@ -93,3 +93,9 @@ body.en-juego #daltonico, body.en-juego #glosario { display: none; }
 .flash-paso-btn.pista::before { content: '👉 '; }
 @keyframes pista { from { box-shadow: 0 0 4px var(--amber, #ffb000); } to { box-shadow: 0 0 18px var(--amber, #ffb000); } }
 @media (prefers-reduced-motion: reduce) { .flash-paso-btn.pista { animation: none; } }
+#academia .acad-lista { display: grid; grid-template-columns: repeat(auto-fill, minmax(125px, 1fr)); gap: .6rem; }
+.acad-carta { display: flex; flex-direction: column; align-items: center; gap: .2rem; padding: .7rem .4rem; }
+.acad-carta.ok { border-color: var(--amber); }
+.acad-carta .acad-nombre { font-size: 1.1em; }
+.acad-carta .acad-st { color: var(--amber); font-size: 1.5em; letter-spacing: .15em; }
+#academia .alas { text-align: center; color: var(--amber); font-size: 1.4em; margin: .3rem 0 .6rem; text-shadow: 0 0 10px var(--amber); }

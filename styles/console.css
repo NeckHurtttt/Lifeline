@@ -376,3 +376,21 @@ label.pick { background: rgba(255,255,255,.08); padding: .1rem .5rem; border-rad
 .mini-astro { position: absolute; left: 50%; bottom: 0; width: 120%; height: 160%; transform: translateX(-50%) scaleX(var(--dir, 1)); filter: drop-shadow(0 0 2px var(--fg)); pointer-events: none; z-index: 2; }
 .mini-astro svg { width: 100%; height: 100%; display: block; }
 .mini-astro .paso-b { display: none; }
+
+/* Academia de astronautas */
+.modal:has(.academia) { max-width: 600px; padding: .9rem 1rem; }
+.academia h2 { margin: 0 0 .4rem; }
+.academia .acad-meta { font-size: 1.15em; }
+.acad-canvas { width: 100%; max-width: 560px; aspect-ratio: 4 / 3; display: block; margin: .3rem auto; border: 2px solid var(--line); border-radius: 10px; background: #020a04; touch-action: none; }
+.acad-top { display: flex; justify-content: space-between; font-size: 1.2em; }
+.acad-hint { margin: .2rem 0 .4rem; }
+.acad-ctrls { display: grid; gap: .5rem; grid-template-columns: 1fr; user-select: none; -webkit-user-select: none; touch-action: none; }
+.acad-ctrls.n4 { grid-template-columns: repeat(4, 1fr); }
+.acad-ctrl { font-size: 1.4em; padding: .7rem 0; touch-action: none; }
+.acad-botones { display: flex; gap: .6rem; flex-wrap: wrap; justify-content: center; margin-top: .6rem; }
+.acad-estrellas { font-size: 3.2rem; text-align: center; letter-spacing: .2em; color: var(--amber); }
+@media (max-width: 600px) { .modal:has(.academia) { width: 98%; padding: .6rem; } }
+.acad-ctrl::before, .acad-ctrl::after { content: none !important; }
+.acad-ctrls.n5 { grid-template-columns: repeat(3, 1fr); }
+.acad-ctrls.n5 .acad-ctrl { font-size: 1em; padding: .6rem .2rem; }
+.acad-ctrls.n5 [data-ctrl="send"] { grid-column: span 2; }

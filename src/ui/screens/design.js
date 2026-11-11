@@ -1,4 +1,6 @@
 // Pantalla de diseño: cuadrícula de módulos, instrumentos, cohete, órbita, carga y tripulación, con Nova guiando.
+import { trainingFor, applyTraining } from '../../core/academy.js';
+import { runTraining, academyRecord } from '../academy.js';
 import { MOD_CODE } from '../art.js';
 import { h, mount, bar, modal, fmt, tabs } from '../dom.js';
 import { MODULES, INSTRUMENTS, LAUNCHERS, ORBITS, GRID, DIFFICULTY, SCENARIOS } from '../../data/catalog.js';
@@ -229,7 +231,7 @@ export function render(root, app, go, params = {}) {
     say('Revisando el clima espacial con datos reales de NASA… ☀️', { mood: 'pensando' });
     const seed = app.lastSeed ?? Math.floor(Math.random() * 2 ** 31);
     const f = await flares;
-    const state = createMission({ design: structuredClone(d), scenarioId: scn, difficulty: app.difficulty, seed, demo: app.mode === 'demo' });
+    let state = createMission({ design: structuredClone(d), scenarioId: scn, difficulty: app.difficulty, seed, demo: app.mode === 'demo' });
     state.mode = app.mode;
     state.objective = app.objective;
     state.budgetMult = budgetMult;
@@ -245,6 +247,15 @@ export function render(root, app, go, params = {}) {
     if (app.jurado) { state.jurado = true; state.flashBoost = 1000; state.flashOnly = ['meteorito']; }
     if (app.contrarreloj) state.deadline = Date.now() + app.contrarreloj * 60000;
     if (app.historica) { state.historica = app.historica.id; state.scripted = app.historica.scripted ?? []; state.forceBoom = app.historica.forceBoom ?? 0; }
+    // Academia: antes de volar, una prueba corta según el destino (se puede saltar).
+    if (!app.kids && !app.jurado && !app.historica && app.practice == null && state.flashBoost == null && !inCoop()) {
+      const tid = trainingFor(scn);
+      const res = await runTraining(tid, { intro: 'Antes de volar, la tripulación entrena. Con 2 o 3 estrellas resolverá mejor los problemas de la misión.' });
+      if (res) state = applyTraining(state, tid, res.stars);
+    } else if (app.kids) { // niños: cuenta lo que ganaron en la academia
+      const tid = trainingFor(scn), stars = academyRecord()[tid] ?? 0;
+      if (stars) state = applyTraining(state, tid, stars);
+    }
     app.lastDesign = structuredClone(d);
     app.lastScenario = scn;
     app.lastSeed = seed;

@@ -1,5 +1,7 @@
 // VERSIÓN NIÑOS: todo se entiende de una. Barra fija con los 4 pasos del juego + "AHORA:" (qué tocar),
 // e inicio con un solo botón. El juego por dentro es el mismo; aquí solo cambia cómo se muestra.
+import { runTraining, academyRecord, saveAcademy } from './academy.js';
+import { TRAININGS, ACADEMY_ORDER, hasWings } from '../core/academy.js';
 import { h, mount } from './dom.js';
 import { tr } from '../i18n/i18n.js';
 import { say } from './guide.js';
@@ -16,7 +18,7 @@ export const STEPS = [
 ];
 const STEP_OF = { title: -1, design: 0, launch: 1, ops: 2, reentry: 3, report: 4 };
 const NOW_DEFAULT = {
-  title: 'Elige a dónde ir y toca JUGAR.',
+  title: 'Entrena en la ACADEMIA y luego toca MISIÓN.',
   design: 'Tu nave ya está lista. Toca el botón LANZAR.',
   launch: 'Mira cómo despega. Si te preguntan, toca CONTINUAR o GO.',
   ops: 'Toca AVANZAR para que pase el tiempo. Cuida que no falte nada.',
@@ -65,11 +67,29 @@ export function kidsTitle(root, app, go) {
     go('design', { design: SUGGESTED(app.scenario, 'facil') });
   };
   const places = () => h('div', { class: 'panel c-pink', id: 'destinos' },
-    h('h2', {}, '¿A DÓNDE VAMOS?'),
+    h('h2', {}, '2. ¿A DÓNDE VAMOS?'),
     h('div', { class: 'lugares' }, ...PLACES.map((p) => h('button', {
       class: `lugar ${app.scenario === p.id ? 'sel' : ''}`, 'data-scn': p.id,
       onclick: () => { app.scenario = p.id; beep(820, 40); draw(); say(`${p.name}: ${p.text}`, { quiet: true, target: '#jugar' }); },
     }, h('div', { class: 'lugar-nombre' }, p.name), h('div', { class: 'lugar-nivel' }, p.level), h('div', { class: 'small lugar-texto' }, p.text)))));
+  const academy = () => {
+    const rec = academyRecord(), wings = hasWings(rec);
+    return h('div', { class: 'panel c-amber', id: 'academia' },
+      h('h2', {}, '1. ACADEMIA DE ASTRONAUTAS'),
+      h('p', { class: 'small' }, wings ? '¡Ganaste tus ALAS DE ASTRONAUTA! Ya puedes volar a donde quieras.' : 'Entrena como los astronautas de verdad. Con 2 estrellas en todo ganas tus ALAS. Lo que entrenes ayuda en la misión.'),
+      wings ? h('div', { class: 'alas' }, '— ★ ALAS DE ASTRONAUTA ★ —') : null,
+      h('div', { class: 'acad-lista' }, ...ACADEMY_ORDER.map((id) => {
+        const t = TRAININGS[id], st = rec[id] ?? 0;
+        return h('button', { class: `acad-carta ${st >= 2 ? 'ok' : ''}`, 'data-acad': id, onclick: async () => {
+          beep(820, 40);
+          const r = await runTraining(id, { kids: true });
+          if (r) saveAcademy(id, r.stars);
+          draw();
+          if (hasWings(academyRecord()) && !wings) say('¡Felicidades! Ganaste tus ALAS DE ASTRONAUTA. Ahora vuela en una MISIÓN.', { mood: 'feliz', target: '#jugar' });
+        } }, h('div', { class: 'acad-nombre' }, t.name), h('div', { class: 'acad-st' }, '★'.repeat(st) + '☆'.repeat(3 - st)),
+          t.where.length ? h('div', { class: 'small dim' }, `Ayuda en ${{ estacion: 'la Estación', luna: 'la Luna', marte: 'Marte', gateway: 'Gateway' }[t.where[0]]}`) : null);
+      })));
+  };
   const draw = () => mount(root,
     h('div', { class: 'ninos-titulo' },
       h('div', { class: 'capsule' },
@@ -79,12 +99,14 @@ export function kidsTitle(root, app, go) {
     saved ? h('div', { class: 'panel c-green', style: { textAlign: 'center' } },
       h('button', { class: 'big', id: 'continuar', onclick: () => { app.state = saved; app.difficulty = saved.difficulty; app.mode = saved.mode ?? 'demo'; go(saved.phase === 'reentry' ? 'reentry' : 'ops'); } },
         `SEGUIR MI MISIÓN (DÍA ${saved.day})`)) : null,
+    academy(),
     places(),
     h('div', { style: { textAlign: 'center', margin: '1rem 0' } },
-      h('button', { class: 'big', id: 'jugar', onclick: start }, '▶ JUGAR')),
+      h('button', { class: 'big', id: 'jugar', onclick: start }, '▶ MISIÓN')),
     h('div', { class: 'panel c-blue', id: 'como' },
       h('h2', {}, 'ASÍ SE JUEGA'),
       h('ol', { class: 'como-ninos' },
+        h('li', {}, h('b', {}, 'ENTRÉNATE. '), 'Juega las pruebas de la ACADEMIA y gana estrellas.'),
         h('li', {}, h('b', {}, 'ARMA LA NAVE. '), 'Nova ya la armó. Solo toca LANZAR.'),
         h('li', {}, h('b', {}, 'DESPEGA. '), 'Mira el cohete subir. Si te preguntan, di GO.'),
         h('li', {}, h('b', {}, 'VIVE EN EL ESPACIO. '), 'Toca AVANZAR. Que no falte AIRE, AGUA, COMIDA ni LUZ. Si suena una alarma, arréglala rápido.'),
@@ -94,8 +116,8 @@ export function kidsTitle(root, app, go) {
       h('a', { href: '../' }, 'Ir a la versión completa'), ' · Agencia ficticia. Inspirado en datos abiertos de NASA. NASA Space Apps 2026.'),
   );
   draw();
-  say(saved ? `Hola otra vez. Tu misión va en el día ${saved.day}. Toca SEGUIR.` : 'Hola, soy Nova, de Control de Misión. Elige a dónde ir y toca JUGAR. Yo te ayudo en todo.',
-    { mood: 'feliz', target: saved ? '#continuar' : '#jugar' });
+  say(saved ? `Hola otra vez. Tu misión va en el día ${saved.day}. Toca SEGUIR.` : 'Hola, soy Nova, de Control de Misión. Primero entrena en la ACADEMIA y después vuela en una MISIÓN. Yo te ayudo en todo.',
+    { mood: 'feliz', target: saved ? '#continuar' : '#academia' });
   return () => {};
 }
 
