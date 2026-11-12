@@ -115,7 +115,7 @@ function diary(s, rep) {
 <h1>Diario del comandante</h1><p class="dim">${esc(sc?.name ?? '')} · ${esc(s.difficulty)} · ${rep.success ? 'Misión cumplida' : 'Misión fallida'} · puntaje ${rep.score}/1000</p>
 <p>Tripulación: ${s.crew.map((c) => esc(c.name)).join(', ')}.</p>
 ${Object.entries(byDay).map(([d, ts]) => `<div class="d"><b>Día ${d}</b> ${ts.map(esc).join(' ')}</div>`).join('')}
-<p><i>${esc(rep.reason)}</i></p><p class="dim">Ventana de Lanzamiento · NASA Space Apps 2026</p>
+<p><i>${esc(rep.reason)}</i></p><p class="dim">LIFELINE · NASA Space Apps 2026</p>
 <script>setTimeout(()=>print(),400)<\/script></body></html>`);
   w.document.close();
 }
