@@ -1,8 +1,6 @@
 // Traducción al inglés: "texto en español": "English". Plantillas con {0}, {1}… (mismo número = mismo hueco).
 // Para ver qué falta: node scripts/i18n-extract.mjs --missing
 export const EN = {
-  "Ventana de Lanzamiento": "Launch Window",
-  "◢ VENTANA DE LANZAMIENTO": "◢ LAUNCH WINDOW",
   "Silenciar sonido": "Mute sound",
   "Comandante": "Commander",
   "Comunicaciones": "Communications",
@@ -44,7 +42,6 @@ export const EN = {
   "Elige cómo jugar y toca NUEVA MISIÓN cuando quieras.": "Choose how to play and tap NEW MISSION when you're ready.",
   "¡Entendido!": "Got it!",
   "Siguiente ▶": "Next ▶",
-  "VENTANA DE LANZAMIENTO": "LAUNCH WINDOW",
   "🛠️ Diseña tu nave · 🚀 Despega · 🛰️ Sobrevive un año en el espacio · 🌊 Vuelve a casa": "🛠️ Design your spacecraft · 🚀 Launch · 🛰️ Survive a year in space · 🌊 Come back home",
   "▶ SEGUIR MI MISIÓN · DÍA {0}": "▶ CONTINUE MY MISSION · DAY {0}",
   "¿A dónde vamos?": "Where are we going?",
@@ -2530,7 +2527,7 @@ export const EN = {
   " · mira cómo sube el cohete": " · watch the rocket go up",
   "QUÉ VA PASANDO": "WHAT'S HAPPENING",
   "VERSIÓN PARA NIÑOS": "KIDS VERSION",
-  "Ventana de Lanzamiento · Niños": "Launch Window · Kids",
+  "LIFELINE · Niños": "LIFELINE · Kids",
   "¡ALGO BUENO! {0}: {1}.": "GOOD NEWS! {0}: {1}.",
   "¡ALGO BUENO! {0}.": "GOOD NEWS! {0}.",
   "Volvieron a casa": "They made it home",

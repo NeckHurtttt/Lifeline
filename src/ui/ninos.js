@@ -94,7 +94,7 @@ export function kidsTitle(root, app, go) {
     h('div', { class: 'ninos-titulo' },
       h('div', { class: 'capsule' },
         ...['Ada Sol', 'Leo Mar', 'Iris Luz', 'Tomás Rey'].map((n, i) => crewAvatar({ name: n, role: ['comandante', 'piloto', 'ingeniero', 'medico'][i], alive: true, health: 100, morale: 90, fatigue: 0, radiation: 0, hunger: 0, thirst: 0 }, { size: 70 }))),
-      h('h1', {}, 'VENTANA DE LANZAMIENTO'),
+      h('h1', {}, 'LIFELINE'),
       h('p', { class: 'mision' }, 'Lleva a 4 astronautas al espacio, cuídalos y tráelos de vuelta a casa.')),
     saved ? h('div', { class: 'panel c-green', style: { textAlign: 'center' } },
       h('button', { class: 'big', id: 'continuar', onclick: () => { app.state = saved; app.difficulty = saved.difficulty; app.mode = saved.mode ?? 'demo'; go(saved.phase === 'reentry' ? 'reentry' : 'ops'); } },

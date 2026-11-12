@@ -105,7 +105,7 @@ export function render(root, app, go) {
       h('div', { style: { textAlign: 'center', margin: '1rem 0 1.5rem' } },
         h('div', { class: 'capsule', style: { marginBottom: '.4rem' } },
           ...['Ada Sol', 'Leo Mar', 'Iris Luz', 'Tomás Rey'].map((n, i) => crewAvatar({ name: n, role: ['comandante', 'piloto', 'ingeniero', 'medico'][i], alive: true, health: 100, morale: 90, fatigue: 0, radiation: 0, hunger: 0, thirst: 0 }, { size: 70 }))),
-        h('h1', {}, 'VENTANA DE LANZAMIENTO'),
+        h('h1', {}, 'LIFELINE'),
         h('div', { class: 'dim', style: { fontSize: '1.1rem' } }, '🛠️ Diseña tu nave · 🚀 Despega · 🛰️ Sobrevive un año en el espacio · 🌊 Vuelve a casa')),
       saved ? h('div', { class: 'panel c-green', style: { textAlign: 'center' } },
         h('button', { class: 'big', id: 'continuar', onclick: () => { app.state = saved; app.difficulty = saved.difficulty; app.mode = saved.mode ?? app.mode; go(saved.phase === 'reentry' ? 'reentry' : 'ops'); } },

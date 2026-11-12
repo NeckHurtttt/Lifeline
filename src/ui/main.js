@@ -122,7 +122,7 @@ export function updateBar() {
 const mute = document.getElementById('silencio');
 const muteLabel = () => { mute.textContent = tr(isMuted() ? 'SONIDO: NO' : 'SONIDO: SÍ'); mute.title = tr('Silenciar sonido'); };
 const langBtn = document.getElementById('idioma');
-const langLabel = () => { langBtn.textContent = getLang() === 'en' ? 'EN → ES' : 'ES → EN'; document.title = tr('Ventana de Lanzamiento'); document.querySelector('.logo').textContent = tr('◢ VENTANA DE LANZAMIENTO'); };
+const langLabel = () => { langBtn.textContent = getLang() === 'en' ? 'EN → ES' : 'ES → EN'; document.title = tr('LIFELINE'); document.querySelector('.logo').textContent = tr('◢ LIFELINE'); };
 setLang(getLang());
 langBtn.addEventListener('click', () => {
   setLang(getLang() === 'en' ? 'es' : 'en');
