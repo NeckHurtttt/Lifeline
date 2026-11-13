@@ -8,7 +8,7 @@ import { fileURLToPath } from 'node:url';
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const leer = p => readFileSync(join(root, p), 'utf8');
 
-const js = execFileSync('npx', ['-y', 'esbuild@0.28', 'src/ui/main.js', '--bundle', '--format=iife', '--minify', '--charset=utf8', '--target=es2017'],
+const js = execFileSync('npx', ['-y', 'esbuild@0.28', 'src/ui/main.js', '--bundle', '--format=iife', '--minify', '--charset=utf8', '--target=es2017', '--loader:.png=dataurl'],
   { cwd: root, encoding: 'utf8', maxBuffer: 64 << 20 });
 
 const fuente = readFileSync(join(root, 'fonts/VT323-Regular.ttf')).toString('base64');
