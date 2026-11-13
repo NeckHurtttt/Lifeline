@@ -1,4 +1,5 @@
 import { h, mount, modal } from '../dom.js';
+import { secretCalmButton } from '../easter-egg.js';
 import { HISTORICAS } from '../../data/historicas.js';
 import { ACHIEVEMENTS, loadAchievements } from '../../core/achievements.js';
 import { SUGGESTED } from './design.js';
@@ -210,7 +211,8 @@ export function render(root, app, go) {
             h('button', { onclick: () => close() }, 'Cerrar')));
         } }, '🏅 Logros')),
       h('div', { class: 'small dim', style: { textAlign: 'center' } },
-        'Agencia ficticia. Inspirado en procedimientos y datos abiertos de NASA. Hecho para NASA Space Apps 2026 · desafío Space Mission Design Game.'),
+        'Agencia ficticia. Inspirado en procedimientos y datos abiertos de NASA. Hecho para NASA Space Apps 2026 · desafío Space Mission Design Game.',
+        secretCalmButton()),
     );
   };
   // ACADEMIA: las 6 pruebas sueltas; guarda las mejores estrellas y da las alas con 2+ en todas.
