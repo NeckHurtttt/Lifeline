@@ -188,7 +188,14 @@ export async function hostRoom(name) {
       // Si alguien se cae, su lugar queda guardado (con sus roles) hasta que vuelva con el mismo nombre.
       conn.on('close', () => dropConn(conn));
     });
-    peer.on('disconnected', () => setStatus('Sin conexión con el directorio; la sala sigue para quien ya entró.'));
+    // Si se corta el enlace con el directorio (WARP, wifi, pestaña dormida), se reconecta solo para que puedan entrar más.
+    const relink = () => {
+      if (coop.peer !== peer || peer.destroyed || !peer.disconnected) return;
+      try { peer.reconnect(); } catch { /* se reintenta abajo */ }
+      setTimeout(relink, 5000);
+    };
+    peer.on('disconnected', () => { setStatus('Reconectando con el directorio… la sala sigue para quien ya entró.'); setTimeout(relink, 1000); });
+    peer.on('open', () => { if (coop.peer === peer) setStatus(`Sala ${code} abierta. Comparte el código.`); });
     setStatus(`Sala ${code} abierta. Comparte el código.`);
     syncPlayers();
     return code;

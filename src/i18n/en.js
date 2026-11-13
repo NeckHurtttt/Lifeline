@@ -1449,7 +1449,7 @@ export const EN = {
   "No se pudo cargar la conexión (¿hay internet?)": "Couldn't load the connection (is there internet?)",
   "Anfitrión": "Host",
   "Jugador": "Player",
-  "Sin conexión con el directorio; la sala sigue para quien ya entró.": "Lost the directory connection; the room still works for those already in.",
+  "Reconectando con el directorio… la sala sigue para quien ya entró.": "Reconnecting to the directory… the room still works for those already in.",
   "Sala {0} abierta. Comparte el código.": "Room {0} open. Share the code.",
   "No se pudo abrir la sala. Prueba otra vez.": "Couldn't open the room. Try again.",
   "El código tiene 6 letras o números.": "The code has 6 letters or numbers.",
