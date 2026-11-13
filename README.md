@@ -1,163 +1,158 @@
 <div align="center">
 
-<samp>TRANSMISIÓN 001 / SANTA CRUZ → ÓRBITA / #LosTiraVida</samp>
+<img src="docs/img/banner.svg" width="100%" alt="LIFELINE · #LosTiraVida" />
+
+# Santa Cruz, tenemos un problema.
+
+**La nave la armás vos. Las macanas también corren por tu cuenta.**
+
+<a href="https://neckhurtttt.github.io/Lifeline/"><img src="https://img.shields.io/badge/DALE-PONETE_AL_MANDO-007A3D?style=for-the-badge&labelColor=14241B" alt="Jugar Lifeline" /></a>
+<a href="https://neckhurtttt.github.io/Lifeline/ninos/"><img src="https://img.shields.io/badge/PARA-LOS_CHICOS-F5F5ED?style=for-the-badge&labelColor=007A3D" alt="Jugar la versión para niños" /></a>
+<a href="https://github.com/NeckHurtttt/Lifeline/releases/latest"><img src="https://img.shields.io/badge/LLEVATE-EL_JUEGO-007A3D?style=for-the-badge&labelColor=14241B" alt="Descargar Jugar.html" /></a>
 
 <br /><br />
 
-<img src="docs/img/banner.svg" width="100%" alt="LIFELINE — consola espacial de #LosTiraVida" />
+<img src="https://img.shields.io/badge/HECHO_EN-SANTA_CRUZ_🇧🇴-007A3D?style=flat-square&labelColor=14241B" alt="Hecho en Santa Cruz, Bolivia" />
+<img src="https://img.shields.io/badge/POR-%23LosTiraVida-F5F5ED?style=flat-square&labelColor=007A3D" alt="Por #LosTiraVida" />
 
-# Vos poné el rumbo. Que vuelvan todos.
+NASA Space Apps Challenge 2026<br />
+<sub>En el navegador · Español e inglés · Solo o con tu gente</sub>
 
-<samp>「 la señal sigue viva, pariente. la tripulación depende de vos. 」</samp>
+<br />
 
-Un juego de supervivencia espacial de **#LosTiraVida**.<br />
-Hecho en **Santa Cruz, Bolivia** · NASA Space Apps Challenge 2026.
-
-<a href="https://neckhurtttt.github.io/Lifeline/"><img src="https://img.shields.io/badge/INICIAR-MISIÓN-39ff6a?style=for-the-badge&amp;labelColor=051a0b" alt="Jugar Lifeline en el navegador" /></a>
-<a href="https://neckhurtttt.github.io/Lifeline/ninos/"><img src="https://img.shields.io/badge/MODO-PEQUES-f2b134?style=for-the-badge&amp;labelColor=0b1630" alt="Jugar la versión para niños" /></a>
-<a href="https://github.com/NeckHurtttt/Lifeline/releases/latest"><img src="https://img.shields.io/badge/DESCARGAR-Jugar.html-9fb3ff?style=for-the-badge&amp;labelColor=0b1630" alt="Descargar la versión sin conexión" /></a>
-
-<br /><br />
-
-<samp>NAVEGADOR · ES / EN · 1–4 JUGADORES · SIN INSTALAR NADA</samp>
-
-<br /><br />
-
-[expediente](#expediente) &nbsp;/&nbsp; [la misión](#la-mision) &nbsp;/&nbsp; [destinos](#destinos) &nbsp;/&nbsp; [jugar](#jugar) &nbsp;/&nbsp; [sala de máquinas](#sala-de-maquinas)
+[De qué va](#de-que-va) · [Cómo se juega](#como-se-juega) · [Hasta dónde llegás](#destinos) · [Descargar](#jugar) · [Código y pruebas](#codigo)
 
 <img src="docs/img/latido.svg" width="100%" alt="" />
 
-<img src="docs/img/juego.gif" width="820" alt="Partida de Lifeline: inicio, armado de la nave, despegue y emergencia por micrometeorito" />
+<img src="docs/img/juego.gif" width="820" alt="Una partida: armar la nave, despegar y reparar una fuga por micrometeorito" />
 
-<br />
-
-<sub>Armás la nave. Despegás. Aparece una fuga. Ya pues, cerrá la escotilla.</sub>
+<sub>Todo iba bien hasta que alguien dijo «¿qué podría salir mal?».</sub>
 
 </div>
 
-<br />
+<a id="de-que-va"></a>
 
-<a id="expediente"></a>
+## Che, ¿y esto de qué va?
 
-## 01 / expediente de vuelo
+Tenés una nave, una tripulación y un año por delante. Hay que darles de comer, cuidar el
+agua, mantener el aire respirable y conseguir que vuelvan a casa. Parece manejable hasta
+que se corta la energía y empieza a sonar una alarma que no conocías.
 
-**Oí, pariente: allá arriba no hay venta en la esquina.** Si se acaba el agua, falla la energía
-o se fuga el aire, te toca resolver con lo que llevaste.
+**Eso es Lifeline.** Un juego de supervivencia espacial de **#LosTiraVida**, desde Santa Cruz,
+Bolivia. Acá elegís a quién llevar, en qué gastar la plata y qué reparar primero cuando
+se arruina más de una cosa. Y sí, después te toca hacerte cargo de lo que decidiste.
 
-En **Lifeline** diseñás una misión, elegís tu tripulación y despegás con cuenta regresiva,
-clima, votación Go/No-Go, Max Q y posibilidad de aborto. Después viene lo bravo:
-**mantener a todos con vida durante un año**, administrar recursos, responder a emergencias
-y volver para contarla.
+Podés jugar solo o llamar a tus amigos y repartirse la nave. Uno manda, otro repara,
+otro mira los datos. El que dice «yo pensé que vos te estabas encargando» también tiene lugar.
 
-El informe final te muestra qué pasó y qué lecciones se pueden traer a la Tierra.
-Porque cuidar el agua, la energía y a tu gente también vale acá abajo, ve.
+> **La misión:** que vuelvan todos. Aunque la nave vuelva medio parchada.
 
-```text
-ORIGEN       Santa Cruz, Bolivia
-EQUIPO       #LosTiraVida
-OBJETIVO     Que la tripulación vuelva completa
-RECURSOS     Aire / agua / comida / energía / piezas
-ESTADO       Esperando tu GO
-```
+<a id="como-se-juega"></a>
 
-> Agencia ficticia, inspirada en procedimientos y datos abiertos de NASA.
-
-<a id="la-mision"></a>
-
-## 02 / de aquí al despegue
+## Primero armala. Después vemos si vuela.
 
 <table>
 <tr>
-<td align="center" width="33%"><img src="docs/img/arma-tu-nave.png" alt="Diseño de la nave con módulos en cuadrícula" /><br /><b>01 · ARMÁ TU NAVE</b><br /><sub>Cuadrá módulos, peso, plata y energía. Que quede pintuda, pero que aguante.</sub></td>
-<td align="center" width="33%"><img src="docs/img/despegue.png" alt="Pantalla de despegue y cuenta regresiva" /><br /><b>02 · DALE EL GO</b><br /><sub>Revisá el clima y los sistemas. Si algo anda mal, mejor abortar a tiempo.</sub></td>
-<td align="center" width="33%"><img src="docs/img/estacion.png" alt="Estación espacial durante la misión" /><br /><b>03 · CUIDÁ A TU GENTE</b><br /><sub>Repartí turnos, medí recursos y atendé las alarmas. Aquí nadie se hace el opa.</sub></td>
+<td align="center" width="33%">
+<img src="docs/img/arma-tu-nave.png" alt="Diseño de la nave por módulos" /><br />
+<b>Armá algo que aguante</b><br />
+<sub>Elegí módulos y cuadrá peso, plata y energía. No gastés todo en dejarla bonita.</sub>
+</td>
+<td align="center" width="33%">
+<img src="docs/img/despegue.png" alt="Cuenta regresiva del despegue" /><br />
+<b>Ahora sí, a despegar</b><br />
+<sub>Revisá el clima, votá Go/No-Go y seguí la cuenta regresiva. Abortar también vale.</sub>
+</td>
+<td align="center" width="33%">
+<img src="docs/img/estacion.png" alt="Operaciones en la estación espacial" /><br />
+<b>No me descuidés a la gente</b><br />
+<sub>Repartí trabajos, cuidá los recursos y atendé las emergencias antes de que se junten.</sub>
+</td>
 </tr>
 </table>
 
-### Lo que llevás a bordo
+El despegue incluye Max Q y abortos. Después vienen los turnos, el desgaste y las tormentas
+solares, con fechas reales de NASA DONKI. Al volver, recibís un informe de lo que pasó:
+qué funcionó, dónde metiste la pata y qué tiene que ver todo esto con cuidar los recursos en la Tierra.
 
-| Sistema | Lo que te toca, pariente |
-| :--- | :--- |
-| **Academia de astronautas** | 6 pruebas: gravedad cero, acople, brazo robótico, caminata lunar, centrífuga y rover con retraso de señal. Las estrellas mejoran a tu tripulación. |
-| **Emergencias relámpago** | 37 situaciones entre meteoritos, incendios, fugas y cortocircuitos. Resolvé minijuegos de escotillas, válvulas, cables, protocolos y códigos en segundos. |
-| **Soporte vital** | Administrá aire, agua, comida, energía, piezas y radiación con datos reales. |
-| **Tripulación** | Contratá por entrevista y asigná trabajos arrastrando, o usá el reparto automático. |
-| **Cooperativo en línea** | Jugá con tus cunumis: de 2 a 4 personas, cada una en su compu y con código de sala. Roles de Comandante, Ingeniería, Ciencia y Comunicaciones. |
-| **Modo peques** | Menos números, letra grande, una alarma a la vez y estrellas al final. Para que los chicos también se animen. |
-| **Misiones históricas** | Apolo 13, Skylab, Mir 1997 y la Estación en 2015. A ver cómo salís de esas. |
-| **Logros y retos** | 13 logros, récords, contrarreloj y quiz final. Volver con todos ya es motivo de orgullo. |
+### Hay bastante para hacer
+
+- **Aprendé antes de salir.** La academia tiene 6 pruebas: gravedad cero, acople, brazo robótico,
+  caminata lunar, centrífuga y rover con retraso de señal. Las estrellas mejoran a tu tripulación.
+- **Arreglá el desastre.** Hay 37 emergencias entre fugas, meteoritos, incendios y cortocircuitos.
+  Cerrá escotillas, mové válvulas, conectá cables y seguí protocolos. Algunas se resuelven en segundos.
+- **Elegí bien a quién llevás.** Contratás por entrevista y repartís trabajos arrastrando,
+  o dejás que el juego los asigne automáticamente.
+- **Jugá acompañado.** De 2 a 4 personas, cada una desde su compu, con un código de sala.
+  Comandante, Ingeniería, Ciencia y Comunicaciones. Pónganse de acuerdo, pues.
+- **Traé a los chicos.** Su versión tiene letra grande, menos números, una alarma a la vez
+  y estrellas al terminar.
+- **Probá las misiones históricas.** Apolo 13, Skylab, Mir 1997 y la Estación en 2015.
+  También hay 13 logros, récords, contrarreloj y un quiz final.
 
 <details>
-<summary><samp>[ ABRIR PROTOCOLOS / aquí se trabaja en equipo ]</samp></summary>
+<summary><b>Para los que quieren llevar las cuentas de todo</b></summary>
 
-También tenés protocolos inspirados en NASA: EVA en pareja con pre-respiración,
-despresurización con tiempo de reserva y ejercicio obligatorio, entre otros.
+El soporte vital incluye aire, agua, comida, energía, piezas y radiación, con datos reales.
+Hay procedimientos inspirados en NASA: EVA en pareja con pre-respiración, despresurización
+con tiempo de reserva y ejercicio obligatorio, entre otros.
 
-La campaña conecta **Estación → Luna → Marte** con un árbol de mejoras y la guía **Nova**.
-Paso a paso, que hasta para ir lejos hay que saber de dónde arrancar.
+La campaña sigue **Estación → Luna → Marte**, con un árbol de mejoras y la guía **Nova**.
 
 </details>
 
-<br />
-
 <a id="destinos"></a>
 
-## 03 / elegí hasta dónde te animás
+## ¿Hasta dónde te animás?
 
-| Destino | El asunto es así |
+| Destino | Con qué te vas a encontrar |
 | :--- | :--- |
-| **Estación espacial** | Un año en órbita, con carga cada 60 días. Aprendé a cuidar lo que tenés. |
-| **Gateway lunar** | Una estación alrededor de la Luna, con carga cada 180 días. El pedido tarda, ve. |
-| **Base lunar** | Noches de hasta 14 días, hielo, rovers, alunizaje y despegue lunar. Llevá bien las cuentas de energía. |
-| **Marte** | 7 meses de ida, un año en superficie y 7 de vuelta. Te esperan los «7 minutos de terror», combustible fabricado allá, tormentas de polvo, retraso de radio y protección planetaria. |
+| **Estación espacial** | Un año en órbita. La carga llega cada 60 días; fijate que alcance hasta la próxima. |
+| **Gateway lunar** | Una estación alrededor de la Luna. Acá la carga llega cada 180 días. Mejor revisá otra vez lo que empacaste. |
+| **Base lunar** | Noches de hasta 14 días, hielo, rovers, alunizaje y despegue lunar. Vas a extrañar tener el sol a mano. |
+| **Marte** | 7 meses de ida, un año en superficie y 7 de vuelta. Aterrizaje de «7 minutos de terror», combustible fabricado allá, polvo, retraso de radio y protección planetaria. Este viaje va para largo. |
 
 <div align="center">
 
 <img src="docs/img/consola.svg" width="640" alt="Consola de Control de Misión de Lifeline" />
 
-<samp>LEJOS DE CASA / PENDIENTES DE LOS NUESTROS</samp>
-
 </div>
 
 <a id="jugar"></a>
 
-## 04 / ya pues, subite
+## Pasá nomás, ya podés jugar
 
-**[Abrí Lifeline y arrancá la misión →](https://neckhurtttt.github.io/Lifeline/)**<br />
-¿Van los chicos? **[Entrá al modo peques →](https://neckhurtttt.github.io/Lifeline/ninos/)**
+**[Abrir Lifeline →](https://neckhurtttt.github.io/Lifeline/)**<br />
+**[Abrir la versión para chicos →](https://neckhurtttt.github.io/Lifeline/ninos/)**
 
-### ¿Sin internet? Igual se juega.
+No necesitás instalar nada. Para llevártelo y jugar sin conexión:
 
 1. Bajá **`Jugar.html`** desde [Releases](https://github.com/NeckHurtttt/Lifeline/releases/latest).
-   También podés descargar el repo con **Code → Download ZIP** y descomprimirlo.
-2. Abrí `Jugar.html` con doble clic en Chrome, Firefox o Edge.
-3. Listo, pariente. No tenés que instalar nada.
+   También sirve **Code → Download ZIP**, descomprimir y buscar ese archivo.
+2. Abrilo con doble clic en Chrome, Firefox o Edge.
+3. Ya está. Dale una partida y después nos contás cómo te fue.
 
-> **Para jugar en equipo en línea sí necesitás internet.** El cooperativo usa PeerJS (WebRTC);
-> el resto del juego también funciona sin conexión en `Jugar.html`.
+**El cooperativo en línea sí necesita internet.** Usa PeerJS (WebRTC). El resto del juego
+funciona sin conexión en `Jugar.html`.
 
 <img src="docs/img/latido.svg" width="100%" alt="" />
 
-<a id="sala-de-maquinas"></a>
+<a id="codigo"></a>
 
-## 05 / sala de máquinas
+## ¿Querés meter mano? Vení.
 
-¿Viniste a meter mano al código? Pasá nomás. Estos son los comandos y el mapa.
-
-### Levantar y empaquetar
-
-Desde la raíz del repo, con **Python 3** para el servidor y **Node.js / npm** para las
-herramientas de desarrollo:
+Para trabajar con los archivos de `src/`, usá **Python 3** para servir el juego y
+**Node.js / npm** para las herramientas de desarrollo. Corré esto desde la raíz del repo:
 
 ```sh
-# Servir los archivos de desarrollo: http://127.0.0.1:8000
+# Abrir el juego en http://127.0.0.1:8000
 python3 scripts/servir.py
 
-# Regenerar Jugar.html como un solo archivo
+# Empaquetar todo en Jugar.html
 node scripts/empaquetar.mjs
 ```
 
-### Revisar que todo ande
+Y antes de darlo por bueno:
 
 ```sh
 # Pruebas de la lógica del juego
@@ -168,48 +163,48 @@ node scripts/balance.mjs 30
 ```
 
 <details>
-<summary><samp>[ MAPA DEL REPO / para no andar perdido ]</samp></summary>
+<summary><b>Dónde está cada cosa</b></summary>
 
-| Ruta | Qué encontrás |
+| Ruta | Qué hay |
 | :--- | :--- |
 | `src/core/` | Lógica pura y determinista con semilla: diseño, misión, vida diaria, energía, labores, eventos, minimisiones, datos reales, despegue, reentrada, simulación, informe y guardado. |
 | `src/data/` | Catálogos de módulos, cohetes, órbitas, tripulación, eventos, minimisiones y lecciones. |
-| `src/ui/` | Pantallas de menú, diseño, despegue, operaciones, reentrada e informe, más sonido con WebAudio. |
+| `src/ui/` | Pantallas de menú, diseño, despegue, operaciones, reentrada e informe; sonido con WebAudio. |
 | `docs/superpowers/plans/` | Plan por capas: estación, Luna, Marte y campaña. |
 
 </details>
 
-<br />
+## Esto viene de otros trabajos del equipo
 
-## 06 / de dónde viene la misión
+Lifeline junta ideas que ya estaban en los prototipos de **#LosTiraVida**:
 
-Aquí hay trabajo de equipo, ve. Lifeline reúne ideas de los prototipos de **#LosTiraVida**:
-
-- **[V · Mission Control](https://github.com/alejondr3/v-)** aporta el cooperativo en línea
-  de 2 a 4 personas, el código de sala y los recorridos con **A/D** para reparar a mano:
+- **[V · Mission Control](https://github.com/alejondr3/v-)**: cooperativo en línea para 2 a 4
+  personas con código de sala. También recorrer la base con **A/D** y reparar a mano:
   presión de cabina, banda S, bus eléctrico y plantas con hongos.
-- **[Los Tira Vida 02](https://github.com/alejondr3/Lostiravida2)** aporta la EVA de excavación
-  lateral en Luna y Marte: hielo → agua, hierro → piezas, rocas raras → ciencia y regolito →
-  muro contra la radiación.
-- La música es propia: ambiente espacial generado por código en **`src/ui/music.js`**.
+- **[Los Tira Vida 02](https://github.com/alejondr3/Lostiravida2)**: EVA de excavación lateral
+  en Luna y Marte. Sacás hielo para agua, hierro para piezas, rocas raras para ciencia y
+  regolito para protegerte de la radiación.
+- La música es propia, generada por código en **`src/ui/music.js`**.
 
 <details>
-<summary><samp>[ DATOS, HERRAMIENTAS E IA / el expediente completo ]</samp></summary>
+<summary><b>Herramientas, datos y uso de IA</b></summary>
 
-Space Apps pide documentar el software y los servicios de terceros. Esto es lo que usamos:
+Space Apps pide documentar el software y los servicios de terceros. Este es el detalle:
 
-| Herramienta o fuente | Para qué | Licencia / nota |
+| Herramienta o fuente | Uso | Licencia / nota |
 | :--- | :--- | :--- |
 | [PeerJS](https://peerjs.com/) 1.5.4, desde jsDelivr | Cooperativo en línea con WebRTC | MIT. Se carga solo al crear o unirse a una sala. |
 | [esbuild](https://esbuild.github.io/), vía `npx` | Empaquetar `Jugar.html` | MIT. Solo en desarrollo. |
 | API DONKI de NASA | Fechas reales de llamaradas solares | Datos abiertos de NASA, con respaldo de 2024 sin conexión. |
 | Fuente VT323 | Tipografía de consola | SIL Open Font License. |
 | Claude (Anthropic) | Asistente de IA usado para programar y redactar con el equipo | El equipo toma las decisiones de diseño y realiza las pruebas. |
-| OpenAI Codex | Asistente de IA usado para rediseñar y redactar este README | Cambio limitado a la documentación. |
+| OpenAI Codex | Asistencia para el diseño y la redacción de este README | Cambio limitado a documentación. |
 
-**Radiación:** estación ~0,5 mSv/día; Luna ~1,4 mSv/día, con datos de Chang'E-4 LND;
-Marte ~0,64 mSv/día, con datos de MSL/Curiosity RAD. El límite de carrera NASA usado
-como referencia es **600 mSv**, según NASA-STD-3001.
+Datos de radiación: estación ~0,5 mSv/día; Luna ~1,4 mSv/día, de Chang'E-4 LND;
+Marte ~0,64 mSv/día, de MSL/Curiosity RAD. Límite de carrera NASA de referencia:
+**600 mSv**, según NASA-STD-3001.
+
+La agencia del juego es ficticia. Los procedimientos y datos abiertos de NASA sirven de inspiración.
 
 </details>
 
@@ -218,14 +213,11 @@ como referencia es **600 mSv**, según NASA-STD-3001.
 <div align="center">
 
 <img src="docs/img/latido.svg" width="100%" alt="" />
-
 <img src="docs/img/logo-consola.png" width="150" alt="Logo de Lifeline en estilo consola" />
 
-<br /><br />
+### Hecho en Santa Cruz. Jugalo donde estés.
 
-**De Santa Cruz al espacio, con los nuestros a bordo.**<br />
-**#LosTiraVida** · NASA Space Apps Challenge 2026 · Bolivia 🇧🇴
-
-<samp>T−00:00 / TODO CABAL / DALE GO, PARIENTE.</samp>
+**#LosTiraVida · Santa Cruz, Bolivia 🇧🇴**<br />
+<sub>Si llegaste hasta acá, jugate una. Después vemos quién dejó abierta la escotilla.</sub>
 
 </div>
