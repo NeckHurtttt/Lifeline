@@ -1,0 +1,10 @@
+{
+  "name": "LIFELINE · Junior Astronaut Mission Trainer",
+  "short_name": "LIFELINE Niños",
+  "start_url": "./",
+  "display": "standalone",
+  "background_color": "#020a04",
+  "theme_color": "#020a04",
+  "lang": "es",
+  "icons": [{ "src": "docs/img/icono.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }]
+}
