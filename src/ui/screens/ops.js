@@ -214,8 +214,12 @@ export function render(root, app, go) {
       flashClose(); cableSel = null;
       hiss(false);
       document.body.classList.remove('alarma-roja');
-      commit(r.state);
-      banner = { text: r.log.join(' '), cls: r.success ? '' : 'red' };
+      // COMBO: emergencias resueltas seguidas dan fama extra (+1, +2, +3…).
+      const combo = r.success ? (s.flashCombo ?? 0) + 1 : 0;
+      const bonus = combo >= 2 ? combo - 1 : 0;
+      commit({ ...r.state, flashCombo: combo, reputation: (r.state.reputation ?? 0) + bonus });
+      banner = { text: `${bonus ? `⚡ COMBO ×${combo}: +${bonus} fama. ` : ''}${r.log.join(' ')}`, cls: r.success ? '' : 'red' };
+      if (bonus) document.body.classList.add('combo-flash'), setTimeout(() => document.body.classList.remove('combo-flash'), 900);
       if (r.success) [0, 120, 240].forEach((d, k) => setTimeout(() => beep([660, 880, 1320][k], 140, 'triangle', 0.06), d)); else alarm('emergencia');
       if (app.state.phase === 'report') handle({ kind: 'fin' });
       draw();

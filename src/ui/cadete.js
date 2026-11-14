@@ -13,6 +13,7 @@ import { cadetPoints, rankOf, RANKS, dailyChallenge, todayKey, addDestRecord, en
 import { SENSORS, FACTS, SOURCES, FAR } from '../data/nasa.js';
 import { liveCanvas, drawRocket, drawRadar, drawBase, drawPulse } from './viz.js';
 import { speak } from './fx.js';
+import { updateStreak, liveStreak, PHOSPHORS, unlockedPhosphors, rankedUp } from '../core/arcade.js';
 
 const get = (k, d) => { try { const v = localStorage.getItem(k); return v == null ? d : JSON.parse(v); } catch { return d; } };
 const put = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch { /* sin espacio */ } };
@@ -26,11 +27,50 @@ export function profile() {
   const missions = get('vdl-misiones', {});
   const achievements = Object.keys(loadAchievements()).length;
   const wings = hasWings(stars);
-  const points = cadetPoints({ stars, missions, achievements, wings });
-  return { name: cadetName(), stars, missions, achievements, wings, points, rank: rankOf(points) };
+  const arcade = get('vdl-arcade', { best: 0 }).best;
+  const points = cadetPoints({ stars, missions, achievements, wings, arcade });
+  return { name: cadetName(), stars, missions, achievements, wings, arcade, points, rank: rankOf(points), streak: streak() };
+}
+
+// ---------- Racha diaria ----------
+export const streak = () => { const r = get('vdl-racha', null); return { now: liveStreak(r, todayKey()), best: r?.best ?? 0, today: r?.last === todayKey() }; };
+/** Marca que hoy se jugó (academia, arcade o misión). */
+export function markPlayed() {
+  const before = get('vdl-racha', null);
+  const r = updateStreak(before, todayKey());
+  put('vdl-racha', r);
+  if (r.count > 1 && before?.last !== r.last) say(`🔥 ¡Racha de ${r.count} días seguidos! Vuelve mañana para que no se corte.`, { mood: 'feliz', quiet: true });
+  return r;
+}
+
+// ---------- Ascenso de rango con celebración y desbloqueo ----------
+export function checkRankUp() {
+  const p = profile();
+  const seen = get('vdl-rango-visto', 0);
+  if (!rankedUp(seen, p.rank.index)) { if (p.rank.index < seen) put('vdl-rango-visto', p.rank.index); return false; }
+  put('vdl-rango-visto', p.rank.index);
+  const unlock = PHOSPHORS.find((f) => f.rank === p.rank.index);
+  const close = modal(h('div', { class: 'ascenso', id: 'ascenso' },
+    h('div', { class: 'asc-rayos' }),
+    h('div', { class: 'asc-tit' }, '▲ ASCENSO ▲'),
+    h('div', { class: 'asc-ico' }, p.rank.icon),
+    h('div', { class: 'asc-rango' }, p.rank.name.toUpperCase()),
+    h('p', {}, `${p.name}, Control de Misión te asciende a ${p.rank.name}.`),
+    unlock ? h('div', { class: 'asc-premio' }, `🔓 Desbloqueaste: ${unlock.name}. Cámbialo en tu FICHA.`) : null,
+    h('button', { class: 'big', onclick: () => close() }, '¡A LA ORDEN!')));
+  [523, 659, 784, 1047, 1319].forEach((f, k) => setTimeout(() => beep(f, 160, 'triangle', 0.07), k * 130));
+  speak(`Ascenso. Ahora eres ${p.rank.name}.`, { interrupt: true });
+  return true;
+}
+
+// ---------- Color del fósforo (se desbloquea con el rango) ----------
+export function applyPhosphor(id = get('vdl-fosforo', 'verde')) {
+  PHOSPHORS.forEach((f) => document.documentElement.classList.toggle(`fosforo-${f.id}`, f.id === id && id !== 'verde'));
+  put('vdl-fosforo', id);
 }
 /** Lo llama el informe final. */
 export function recordMissionEnd(scenario, success, score) {
+  markPlayed(); setTimeout(checkRankUp, 2500);
   if (success) { const m = get('vdl-misiones', {}); m[scenario] = (m[scenario] ?? 0) + 1; put('vdl-misiones', m); }
   put('vdl-rec-dest', addDestRecord(get('vdl-rec-dest', {}), scenario, { score, date: todayKey(), ok: !!success }));
 }
@@ -97,6 +137,10 @@ function fichaView({ app, go, close, paint }) {
     h('div', { class: 'ficha-stats' },
       ...[['★', 'Estrellas', `${starsTotal} / ${(ACADEMY_ORDER.length + ADVANCED_ORDER.length) * 3}`], ['🚀', 'Misiones cumplidas', missionsTotal], ['🎖️', 'Parches', `${p.achievements} / ${ACHIEVEMENTS.length}`], ['🪽', 'Alas', p.wings ? 'SÍ' : 'todavía no']]
         .map(([i, l, v]) => h('div', { class: 'stat' }, h('div', { class: 'stat-v' }, `${i} ${v}`), h('div', { class: 'small dim' }, l)))),
+    h('div', { class: 'row' }, h('span', { class: `pill ${p.streak.now ? 'amber' : 'dim'}`, id: 'racha' }, `🔥 Racha: ${p.streak.now} día${p.streak.now === 1 ? '' : 's'}${p.streak.today ? ' (hoy ✔)' : ' · ¡juega hoy!'}`),
+      h('span', { class: 'pill dim' }, `mejor racha ${p.streak.best}`), h('span', { class: 'pill dim' }, `🕹️ Arcade: ${p.arcade}`)),
+    h('div', { class: 'row', style: { margin: '.4rem 0' } }, h('span', { class: 'small dim' }, 'Color de pantalla:'),
+      ...PHOSPHORS.map((f) => { const ok = unlockedPhosphors(p.rank.index).includes(f); return h('button', { class: `small ${get('vdl-fosforo', 'verde') === f.id ? 'sel' : ''}`, disabled: !ok, 'data-fosforo': f.id, title: ok ? f.name : `Se desbloquea con rango ${RANKS[f.rank].name}`, onclick: () => { applyPhosphor(f.id); paint(); } }, `${ok ? '' : '🔒 '}${f.name.replace('Fósforo ', '').replace(' (Comandante)', '')}`); })),
     h('div', { class: 'small dim' }, 'Destinos: ', ...Object.entries(DEST).map(([id, n]) => h('span', { class: `pill ${p.missions[id] ? 'green' : 'dim'}` }, `${n} ${p.missions[id] ? '✔' : '·'}`))),
     h('div', { class: 'acad-botones' },
       h('button', { class: 'big', id: 'reto-diario', onclick: () => { close(); startDaily(app, go); } }, `📅 Reto diario · ${DEST[daily.scenario]}`),
@@ -116,8 +160,9 @@ function acadView({ reopen }) {
     const before = hasWings(academyRecord());
     document.querySelector('#centro-cadetes')?.closest('.modal-bg')?.remove();
     const r = await runTraining(t.id);
-    if (r) saveAcademy(t.id, r.stars);
+    if (r) { saveAcademy(t.id, r.stars); markPlayed(); }
     reopen('acad');
+    checkRankUp();
     if (!before && hasWings(academyRecord())) say('¡Felicidades! Ganaste tus ALAS DE ASTRONAUTA.', { mood: 'feliz' });
   } }, h('div', { class: 'acad-nombre' }, h('span', {}, t.icon), ' ', h('span', {}, t.name)), h('div', { class: 'acad-st' }, '★'.repeat(st) + '☆'.repeat(3 - st)),
   t.where.length ? h('div', { class: 'small dim' }, `Ayuda en ${WHERE[t.where[0]]}`) : null);
@@ -169,7 +214,7 @@ function dataView({ app }) {
       const d = await (await fetch('https://api.nasa.gov/planetary/apod?api_key=DEMO_KEY&thumbs=true', { signal: ctl.signal })).json();
       if (!d?.title) throw new Error('sin datos');
       const src = d.media_type === 'image' ? d.url : d.thumbnail_url;
-      apod.replaceChildren(h('b', {}, `📷 Foto del día (NASA APOD): ${d.title}`), src ? h('img', { src, alt: d.title, loading: 'lazy' }) : null,
+      apod.replaceChildren(h('b', {}, `📷 Foto del día (NASA APOD): ${d.title}`), ...(src ? [h('img', { src, alt: d.title, loading: 'lazy' })] : []),
         h('div', { class: 'small dim' }, `${d.date}${d.copyright ? ` · © ${d.copyright.trim()}` : ''}`));
     } catch { apod.textContent = 'Sin conexión con NASA APOD ahora (o se acabó el límite de la llave DEMO). Las demás lecturas funcionan sin internet.'; }
   })();

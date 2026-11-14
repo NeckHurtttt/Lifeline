@@ -154,3 +154,47 @@ body:has(#centro-cadetes) #guia, body:has(.academia) #guia, body:has(#centro-cad
 /* El Centro de cadetes es alto: se desplaza por dentro y nunca corta la parte de arriba. */
 .modal:has(.centro) { max-height: 92vh; overflow-y: auto; }
 .modal:has(.centro) .pip-tabs { top: -1.2rem; }
+
+/* ---------- Inicio: Arcade y Exprés bien grandes ---------- */
+.rapido { display: flex; gap: .8rem; justify-content: center; flex-wrap: wrap; margin: 0 0 .9rem; }
+.arcade-btn { border-color: var(--amber) !important; color: var(--amber); animation: arcade-late 1.8s ease-in-out infinite; }
+@keyframes arcade-late { 50% { box-shadow: 0 0 22px rgba(255, 194, 61, .55); } }
+
+/* ---------- Arcade ---------- */
+.arcade { text-align: center; }
+.arc-logo { font-size: clamp(2.2rem, 7vw, 3.6rem); letter-spacing: .25em; color: var(--amber); text-shadow: 0 0 14px var(--amber); animation: arc-parpadea 2s steps(1) infinite; }
+@keyframes arc-parpadea { 92% { opacity: .4; } }
+.arc-rec { color: var(--dim); margin: .4rem 0; }
+.arc-hud { display: flex; justify-content: space-between; align-items: center; gap: .6rem; border-bottom: 2px solid var(--fg); padding-bottom: .3rem; margin-bottom: .4rem; font-size: 1.1rem; flex-wrap: wrap; }
+.arc-vidas { color: var(--red); letter-spacing: .15em; font-size: 1.3rem; text-shadow: 0 0 6px var(--red); }
+.arc-combo { opacity: .5; } .arc-combo.on { opacity: 1; color: var(--amber); text-shadow: 0 0 10px var(--amber); animation: combo-pulso .5s ease-in-out infinite alternate; }
+@keyframes combo-pulso { to { transform: scale(1.15); } }
+.arc-pts { font-size: 1.4rem; letter-spacing: .1em; }
+.arc-cartel { min-height: 300px; display: grid; place-content: center; gap: .4rem; font-size: 1.8rem; animation: cartel-in .35s cubic-bezier(.2, 1.6, .4, 1); }
+.arc-cartel .arc-ico { font-size: 3.2rem; }
+.arc-cartel .small { font-size: 1rem; max-width: 34ch; margin: 0 auto; }
+.arc-cartel.bien .arc-msg { color: var(--amber); font-size: 2.6rem; text-shadow: 0 0 14px var(--amber); }
+.arc-cartel.mal .arc-msg { color: var(--red); font-size: 2.6rem; text-shadow: 0 0 14px var(--red); }
+@keyframes cartel-in { from { transform: scale(.4); opacity: 0; } }
+.arc-final { font-size: clamp(3rem, 10vw, 5rem); letter-spacing: .12em; text-shadow: 0 0 18px var(--fg); }
+.arc-nuevo { color: var(--amber); font-size: 1.6rem; animation: arc-parpadea .6s steps(1) infinite; }
+
+/* ---------- Ascenso ---------- */
+.ascenso { text-align: center; position: relative; overflow: hidden; padding: 1rem 0; }
+.asc-rayos { position: absolute; inset: -50%; background: repeating-conic-gradient(rgba(255, 194, 61, .12) 0 8deg, transparent 8deg 20deg); animation: rayos 8s linear infinite; z-index: 0; }
+@keyframes rayos { to { transform: rotate(360deg); } }
+.ascenso > :not(.asc-rayos) { position: relative; z-index: 1; }
+.asc-tit { font-size: 1.4rem; letter-spacing: .4em; color: var(--amber); }
+.asc-ico { font-size: 4rem; animation: cartel-in .6s cubic-bezier(.2, 1.6, .4, 1); }
+.asc-rango { font-size: clamp(2.4rem, 8vw, 4rem); letter-spacing: .2em; color: var(--amber); text-shadow: 0 0 20px var(--amber); animation: cartel-in .8s cubic-bezier(.2, 1.6, .4, 1); }
+.asc-premio { border: 2px dashed var(--amber); padding: .4rem .8rem; margin: .6rem auto; display: inline-block; color: var(--amber); }
+
+/* ---------- Combo en la misión ---------- */
+body.combo-flash #aviso { animation: combo-pulso .25s ease-in-out 4 alternate; color: var(--amber); border-color: var(--amber); }
+
+/* ---------- Colores de fósforo desbloqueables (todo el monitor cambia de tinte, también los canvas) ---------- */
+html.fosforo-ambar { filter: hue-rotate(-95deg) saturate(1.1); }
+html.fosforo-cian { filter: hue-rotate(45deg); }
+html.fosforo-blanco { filter: saturate(.15) brightness(1.15); }
+button.big.arcade-btn { color: var(--amber) !important; border-color: var(--amber) !important; text-shadow: 0 0 8px var(--amber); }
+button.big.arcade-btn:hover:not(:disabled) { background: var(--amber) !important; color: #120a00 !important; }

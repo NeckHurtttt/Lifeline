@@ -84,15 +84,15 @@ function orderGame(sets, { hint, cols = 1 }) {
 }
 
 function eva() { return orderGame([{ name: 'TRAJE EVA: ¿qué va primero?', steps: EVA_ORDER }], { cols: 2, hint: 'Toca las piezas en orden: de adentro hacia afuera y al final revisar todo.' }); }
-function protocolo() { return orderGame(shuffle(Object.values(PROTOCOLS)), { hint: 'Toca los pasos en el orden del manual. Un error en una emergencia cuesta caro.' }); }
+function protocolo({ short } = {}) { return orderGame(shuffle(Object.values(PROTOCOLS)).slice(0, short ? 1 : 3), { hint: 'Toca los pasos en el orden del manual. Un error en una emergencia cuesta caro.' }); }
 
-function auxilios() {
-  const rounds = shuffle(TRIAGE).slice(0, 5).map((t) => { const options = shuffle([t.ok, ...t.bad]); return { prompt: `${t.who}: ${t.sym}.`, options, ok: options.indexOf(t.ok) }; });
+function auxilios({ short } = {}) {
+  const rounds = shuffle(TRIAGE).slice(0, short ? 3 : 5).map((t) => { const options = shuffle([t.ok, ...t.bad]); return { prompt: `${t.who}: ${t.sym}.`, options, ok: options.indexOf(t.ok) }; });
   return choiceGame(rounds, { header: 'PACIENTE', hint: 'Lee el problema y toca el tratamiento correcto.' });
 }
 
-function radio() {
-  const words = shuffle(RADIO_WORDS).slice(0, 2);
+function radio({ short } = {}) {
+  const words = shuffle(RADIO_WORDS).filter((w) => !short || w.length <= 4).slice(0, short ? 1 : 2);
   const all = Object.values(NATO);
   const rounds = words.join('').split('').map((ch, k) => {
     const right = NATO[ch];
@@ -170,11 +170,11 @@ function cultivo({ kids }) {
   };
 }
 
-function estrellas({ kids }) {
+function estrellas({ kids, short }) {
   const stars = Array.from({ length: 45 }, () => ({ x: rand(15, W - 15), y: rand(40, H - 15), r: rand(0.8, 2) }));
   const NAMES = ['Sirio', 'Vega', 'Polaris', 'Canopus', 'Antares', 'Rigel'];
   let cx = W / 2, cy = H / 2, round = 0, found = 0, msg = '', msgT = 0;
-  const targets = shuffle(stars).slice(0, 5).map((s, k) => { s.r = 3; s.name = NAMES[k]; return s; });
+  const targets = shuffle(stars).slice(0, short ? 3 : 5).map((s, k) => { s.r = 3; s.name = NAMES[k]; return s; });
   const R = kids ? 16 : 11;
   return {
     controls: [['←', 'left'], ['↑', 'up'], ['↓', 'down'], ['→', 'right'], ['🎯 FIJAR', 'grab', true]],

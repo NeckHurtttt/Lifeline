@@ -14,7 +14,7 @@ import { initCoop, onCoopChange, coopInfo, coopScreen, isGuest, getDraft, onDraf
 import { h, modal } from './dom.js';
 import { GLOSSARY } from '../data/glossary.js';
 import { initFx, boot, transition, ambient, stopAmbient, crt, voiceEnabled, setVoice, ambientOn, setAmbient, readAloud, setReadAloud } from './fx.js';
-import { openCenter } from './cadete.js';
+import { openCenter, applyPhosphor } from './cadete.js';
 
 export const PLAYER_ROLES = {
   comandante: 'Comandante',
@@ -244,7 +244,7 @@ ambBtn.addEventListener('click', () => { setAmbient(!ambientOn(), app.screen ===
 const ajMenu = document.getElementById('ajustes-menu');
 document.getElementById('ajustes').addEventListener('click', () => { ajMenu.hidden = !ajMenu.hidden; beep(800, 25); });
 document.getElementById('cadetes').addEventListener('click', () => openCenter(app, go));
-initFx(); fxLabels();
+initFx(); fxLabels(); applyPhosphor();
 // Se puede instalar y jugar sin internet (PWA).
 if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js').catch(() => {});
 

@@ -11,12 +11,12 @@ export const RANKS = [
 
 /**
  * Puntos del cadete: 1 por estrella de la academia, 3 por misión cumplida (máx. 4 destinos × 2),
- * 1 por logro y 4 si tiene las alas.
+ * 1 por logro, 4 si tiene las alas y 1 cada 1500 puntos de récord en el Arcade (hasta 10).
  */
-export function cadetPoints({ stars = {}, missions = {}, achievements = 0, wings = false } = {}) {
+export function cadetPoints({ stars = {}, missions = {}, achievements = 0, wings = false, arcade = 0 } = {}) {
   const st = Object.values(stars).reduce((a, b) => a + (Number(b) || 0), 0);
   const ms = Object.values(missions).reduce((a, b) => a + Math.min(2, Number(b) || 0), 0) * 3;
-  return st + ms + (Number(achievements) || 0) + (wings ? 4 : 0);
+  return st + ms + (Number(achievements) || 0) + (wings ? 4 : 0) + Math.min(10, Math.floor((Number(arcade) || 0) / 1500));
 }
 
 /** Rango actual, el siguiente y cuánto falta. */

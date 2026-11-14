@@ -246,6 +246,7 @@ export function render(root, app, go, params = {}) {
     // Modo jurado: la primera emergencia sale segura el día 4 (micrometeorito: escotillas + fuga).
     if (app.jurado) { state.jurado = true; state.flashBoost = 1000; state.flashOnly = ['meteorito']; }
     if (app.contrarreloj) state.deadline = Date.now() + app.contrarreloj * 60000;
+    if (app.expres) { state.flashBoost = 8; state.deadline = Date.now() + 5 * 60000; state.expres = true; app.expres = false; }
     if (app.historica) { state.historica = app.historica.id; state.scripted = app.historica.scripted ?? []; state.forceBoom = app.historica.forceBoom ?? 0; }
     // Academia: antes de volar, una prueba corta según el destino (se puede saltar).
     if (!app.kids && !app.jurado && !app.historica && app.practice == null && state.flashBoost == null && !inCoop()) {

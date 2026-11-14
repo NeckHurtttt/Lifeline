@@ -23,6 +23,7 @@ import { decodeMission } from '../../core/share.js';
 import { TRAININGS, ACADEMY_ORDER, hasWings } from '../../core/academy.js';
 import { runTraining, academyRecord, saveAcademy } from '../academy.js';
 import { openCenter, openAcademy as openAcademyCenter, startDaily, attractDemo, profile } from '../cadete.js';
+import { openArcade, arcadeBest } from '../arcade.js';
 import { dailyChallenge } from '../../core/cadete.js';
 
 const MODES = {
@@ -111,7 +112,14 @@ export function render(root, app, go) {
         h('div', { class: 'capsule', style: { marginBottom: '.4rem' } },
           ...['Ada Sol', 'Leo Mar', 'Iris Luz', 'Tomás Rey'].map((n, i) => crewAvatar({ name: n, role: ['comandante', 'piloto', 'ingeniero', 'medico'][i], alive: true, health: 100, morale: 90, fatigue: 0, radiation: 0, hunger: 0, thirst: 0 }, { size: 70 }))),
         h('h1', {}, 'LIFELINE'),
-        h('div', { class: 'dim', style: { fontSize: '1.1rem' } }, '🛠️ Diseña tu nave · 🚀 Despega · 🛰️ Sobrevive un año en el espacio · 🌊 Vuelve a casa')),
+        h('div', { class: 'dim', style: { fontSize: '1.1rem' } }, '🛠️ Diseña tu nave · 🚀 Despega · 🛰️ Sobrevive un año en el espacio · 🌊 Vuelve a casa'),
+        h('div', { class: 'rapido', style: { marginTop: '1rem' } },
+          h('button', { class: 'big arcade-btn', id: 'arcade-btn', onclick: () => openArcade() }, `🕹️ ARCADE · récord ${arcadeBest().best}`),
+          h('button', { class: 'big', id: 'expres', title: 'Misión completa en 5 minutos reales, con más emergencias. Ideal para clase.', onclick: () => {
+            Object.assign(app, { mode: 'demo', scenario: app.scenario ?? 'estacion', difficulty: 'facil', objective: 'ciencia', historica: null, reto: null, practice: null, state: null, lastDesign: null, lastSeed: null, budgetMult: 1, expres: true });
+            beep(990, 80); go('design', { design: SUGGESTED(app.scenario) });
+            say('⏱️ Misión exprés: 5 minutos reales y más emergencias. La nave ya está lista: toca 🚀 LANZAR y pongan el tiempo en 12×.', { mood: 'alerta', target: '#lanzar' });
+          } }, '⏱️ MISIÓN EXPRÉS · 5 min'))),
       saved ? h('div', { class: 'panel c-green', style: { textAlign: 'center' } },
         h('button', { class: 'big', id: 'continuar', onclick: () => { app.state = saved; app.difficulty = saved.difficulty; app.mode = saved.mode ?? app.mode; go(saved.phase === 'reentry' ? 'reentry' : 'ops'); } },
           `▶ SEGUIR MI MISIÓN · DÍA ${saved.day}`)) : null,
@@ -206,7 +214,7 @@ export function render(root, app, go) {
               } }, '▶ Jugar esta misión'))),
             h('button', { onclick: () => close() }, 'Cerrar')));
         } }, '📜 Misiones históricas'),
-        ' ', h('button', { id: 'centro', class: 'warn', onclick: () => openCenter(app, go) }, `🧑‍🚀 Mi ficha · ${profile().rank.name}`),
+        ' ', h('button', { id: 'centro', class: 'warn', onclick: () => openCenter(app, go) }, (() => { const p = profile(); return `🧑‍🚀 Mi ficha · ${p.rank.name}${p.streak.now ? ` · 🔥${p.streak.now}` : ''}`; })()),
         ' ', h('button', { id: 'diario', title: 'La misma misión para todos hoy: comparen puntajes.', onclick: () => startDaily(app, go, SUGGESTED) }, `📅 Reto diario · ${{ estacion: 'Estación', gateway: 'Gateway', luna: 'Luna', marte: 'Marte' }[dailyChallenge().scenario]}`),
         ' ', h('button', { id: 'datos-nasa', onclick: () => openCenter(app, go, 'data') }, '📡 Datos NASA en vivo'),
         ' ', h('button', { id: 'escuelas', onclick: () => openCenter(app, go, 'clase') }, '🏫 Para escuelas'),
