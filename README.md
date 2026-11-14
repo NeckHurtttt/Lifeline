@@ -132,7 +132,7 @@ No necesitás instalar nada. Para llevártelo y jugar sin conexión:
 2. Abrilo con doble clic en Chrome, Firefox o Edge.
 3. Ya está. Dale una partida y después nos contás cómo te fue.
 
-**El cooperativo en línea sí necesita internet.** Usa PeerJS (WebRTC). El resto del juego
+**El cooperativo en línea sí necesita internet.** Usa PeerJS (WebRTC) y, si la red no deja conectar directo, un relevo MQTT público. El resto del juego
 funciona sin conexión en `Jugar.html`.
 
 <img src="docs/img/latido.svg" width="100%" alt="" />
@@ -194,6 +194,7 @@ Space Apps pide documentar el software y los servicios de terceros. Este es el d
 | Herramienta o fuente | Uso | Licencia / nota |
 | :--- | :--- | :--- |
 | [PeerJS](https://peerjs.com/) 1.5.4, desde jsDelivr | Cooperativo en línea con WebRTC | MIT. Se carga solo al crear o unirse a una sala. |
+| [MQTT.js](https://github.com/mqttjs/MQTT.js) 5.10.1, desde jsDelivr, con los brokers públicos de EMQX, HiveMQ y Mosquitto | Relevo del cooperativo cuando la red no deja conectar directo | MIT. Solo se usa si falla la conexión directa; los datos de la partida no son privados. |
 | [esbuild](https://esbuild.github.io/), vía `npx` | Empaquetar `Jugar.html` | MIT. Solo en desarrollo. |
 | API DONKI de NASA | Fechas reales de llamaradas solares | Datos abiertos de NASA, con respaldo de 2024 sin conexión. |
 | Fuente VT323 | Tipografía de consola | SIL Open Font License. |

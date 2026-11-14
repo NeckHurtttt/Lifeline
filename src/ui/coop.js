@@ -4,15 +4,37 @@
 // No necesita servidor propio, pero sí internet. PeerJS se carga solo cuando se usa.
 import { onSave, save } from '../core/save.js';
 import { diff, patch } from '../core/patch.js';
+import { relayHost, relayJoin } from './relay.js';
 
 const PEERJS = 'https://cdn.jsdelivr.net/npm/peerjs@1.5.4/dist/peerjs.min.js';
 const PREFIX = 'vdl-sala-';
 const ALPHA = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
 export const COOP_MAX = 4;
 // Versión del protocolo: si alguien entra con la página vieja (caché), se avisa que recargue.
-const COOP_VERSION = 7;
+const COOP_VERSION = 8;
+// ?relevo en la dirección fuerza el relevo MQTT (para probarlo).
+const FORCE_RELAY = typeof location !== 'undefined' && /[?&]relevo\b/.test(location.search);
+// Servidor de relevo (TURN) para cuando la red no deja conectar directo (WARP, wifi de la U, datos del celular).
+// El TURN gratis de PeerJS está caído: se piden credenciales a Metered.ca (plan gratis). Vacío = solo conexión directa.
+const TURN_URL = '';
+const STUN = [{ urls: 'stun:stun.l.google.com:19302' }, { urls: 'stun:stun.cloudflare.com:3478' }];
+let iceCache = null;
+async function peerOptions() {
+  if (!iceCache) {
+    let turn = [];
+    if (TURN_URL) {
+      try {
+        const ctl = new AbortController(); const t = setTimeout(() => ctl.abort(), 5000);
+        const r = await fetch(TURN_URL, { signal: ctl.signal }); clearTimeout(t);
+        if (r.ok) turn = (await r.json()).filter((x) => x && x.urls);
+      } catch { /* sin relevo: se intenta directo */ }
+    }
+    iceCache = [...STUN, ...turn];
+  }
+  return { config: { iceServers: iceCache } };
+}
 
-const coop = { base: null, role: null, code: '', name: '', peer: null, conns: [], hostConn: null, players: [], ver: 0, applying: false, status: '', listeners: new Set() };
+const coop = { relay: null, base: null, role: null, code: '', name: '', peer: null, conns: [], hostConn: null, players: [], ver: 0, applying: false, status: '', listeners: new Set() };
 let hooks = { getApp: null, rerender: null };
 
 export const coopInfo = () => ({ name: coop.name, role: coop.role, code: coop.code, players: coop.players.slice(), status: coop.status });
@@ -127,7 +149,7 @@ export async function hostRoom(name) {
   coop.name = name || 'Anfitrión';
   for (let intento = 0; intento < 3; intento++) {
     const code = newCode();
-    const peer = new Peer(PREFIX + code.toLowerCase());
+    const peer = new Peer(PREFIX + code.toLowerCase(), await peerOptions());
     const ok = await new Promise((res) => { peer.on('open', () => res(true)); peer.on('error', () => res(false)); });
     if (!ok) { peer.destroy(); continue; }
     Object.assign(coop, { role: 'host', code, peer, conns: [], players: [{ id: peer.id, name: coop.name }], ver: 0 });
@@ -138,7 +160,7 @@ export async function hostRoom(name) {
         else safeSend(c, { type: 'latido' });
       }
     });
-    peer.on('connection', (conn) => {
+    const onConn = (conn) => {
       seen.set(conn, Date.now());
       conn.on('data', (raw) => {
         const msg = unwire(raw);
@@ -187,7 +209,10 @@ export async function hostRoom(name) {
       });
       // Si alguien se cae, su lugar queda guardado (con sus roles) hasta que vuelva con el mismo nombre.
       conn.on('close', () => dropConn(conn));
-    });
+    };
+    peer.on('connection', onConn);
+    // Relevo MQTT para quien no logra conexión directa.
+    relayHost(code, onConn).then((r) => { if (coop.peer === peer) coop.relay = r; else r.close(); }).catch((e) => console.warn('relevo', e));
     // Si se corta el enlace con el directorio (WARP, wifi, pestaña dormida), se reconecta solo para que puedan entrar más.
     const relink = () => {
       if (coop.peer !== peer || peer.destroyed || !peer.disconnected) return;
@@ -217,14 +242,24 @@ export async function joinRoom(rawCode, name) {
   if (code.length !== 6) throw new Error('El código tiene 6 letras o números.');
   const Peer = await loadPeer();
   leaveRoom();
-  const peer = new Peer();
-  await new Promise((res, rej) => { peer.on('open', res); peer.on('error', (e) => rej(new Error(`No se pudo conectar: ${e.type ?? e}`))); });
-  const conn = peer.connect(PREFIX + code.toLowerCase(), { reliable: true });
-  await new Promise((res, rej) => {
-    const t = setTimeout(() => rej(new Error('La sala no responde. Revisa el código.')), 12000);
-    conn.on('open', () => { clearTimeout(t); res(); });
-    peer.on('error', (e) => { clearTimeout(t); rej(new Error(e.type === 'peer-unavailable' ? 'No existe una sala con ese código.' : `Error: ${e.type ?? e}`)); });
-  });
+  let peer = null; let conn = null;
+  try {
+    if (FORCE_RELAY) throw new Error('relevo');
+    peer = new Peer(await peerOptions());
+    await new Promise((res, rej) => { peer.on('open', res); peer.on('error', (e) => rej(new Error(`No se pudo conectar: ${e.type ?? e}`))); });
+    conn = peer.connect(PREFIX + code.toLowerCase(), { reliable: true });
+    await new Promise((res, rej) => {
+      const t = setTimeout(() => rej(new Error('La sala no responde. Revisa el código.')), 9000);
+      conn.on('open', () => { clearTimeout(t); res(); });
+      peer.on('error', (e) => { clearTimeout(t); const err = new Error(e.type === 'peer-unavailable' ? 'No existe una sala con ese código.' : `Error: ${e.type ?? e}`); err.noRoom = e.type === 'peer-unavailable'; rej(err); });
+    });
+  } catch (e) {
+    try { peer?.destroy(); } catch { /* ya cerrada */ }
+    peer = null;
+    // La red no deja conectar directo (o el anfitrión perdió el directorio): se prueba por el relevo MQTT.
+    setStatus('Sin conexión directa. Probando por el relevo…');
+    conn = await relayJoin(code).catch(() => { throw e.noRoom ? e : new Error('La sala no responde. Revisa el código o prueba sin WARP.'); });
+  }
   Object.assign(coop, { role: 'guest', code, peer, hostConn: conn, name: name || 'Jugador' });
   let last = Date.now(); let rejoining = false;
   startBeat(() => {
@@ -258,10 +293,12 @@ export async function joinRoom(rawCode, name) {
 
 export function leaveRoom() {
   clearInterval(beatTimer);
-  const old = coop.peer;
+  const old = coop.peer; const oldRelay = coop.relay; const oldConn = coop.hostConn;
   // Primero se limpia, para que el aviso de cierre de la conexión vieja no se tome como el anfitrión saliendo.
-  Object.assign(coop, { role: null, code: '', peer: null, conns: [], hostConn: null, players: [], ver: 0 });
+  Object.assign(coop, { role: null, code: '', peer: null, conns: [], hostConn: null, players: [], ver: 0, relay: null });
   try { old?.destroy(); } catch { /* ya cerrada */ }
+  try { oldRelay?.close(); } catch { /* ya cerrado */ }
+  if (oldConn && !old) { try { oldConn.close(); } catch { /* ya cerrada */ } }
   for (const k of Object.keys(drafts)) delete drafts[k];
   changed();
 }
