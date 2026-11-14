@@ -394,3 +394,10 @@ label.pick { background: rgba(255,255,255,.08); padding: .1rem .5rem; border-rad
 .acad-ctrls.n5 { grid-template-columns: repeat(3, 1fr); }
 .acad-ctrls.n5 .acad-ctrl { font-size: 1em; padding: .6rem .2rem; }
 .acad-ctrls.n5 [data-ctrl="send"] { grid-column: span 2; }
+/* Academia en el inicio de la versión completa (modal con las 6 pruebas). */
+#academia-lista .acad-lista { display: grid; grid-template-columns: repeat(auto-fill, minmax(125px, 1fr)); gap: .6rem; margin: .5rem 0; }
+.acad-carta { display: flex; flex-direction: column; align-items: center; gap: .2rem; padding: .7rem .4rem; white-space: normal; }
+.acad-carta.ok { border-color: var(--amber); }
+.acad-carta .acad-nombre { font-size: 1.1em; }
+.acad-carta .acad-st { color: var(--amber); font-size: 1.5em; letter-spacing: .15em; }
+#academia-lista .alas { text-align: center; color: var(--amber); font-size: 1.4em; margin: .3rem 0 .6rem; text-shadow: 0 0 10px var(--amber); }

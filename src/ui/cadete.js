@@ -5,7 +5,7 @@ import { h, modal } from './dom.js';
 import { beep } from './audio.js';
 import { say, hideGuide } from './guide.js';
 import { TRAININGS, ACADEMY_ORDER, hasWings } from '../core/academy.js';
-import { ADVANCED, ADVANCED_ORDER } from '../core/academy2.js';
+import { ADVANCED, ADVANCED_ORDER, PROTOCOL_SOURCES } from '../core/academy2.js';
 import { runTraining, academyRecord, saveAcademy } from './academy.js';
 import './academy2.js';
 import { ACHIEVEMENTS, loadAchievements } from '../core/achievements.js';
@@ -248,7 +248,8 @@ function dataView({ app }) {
     h('h2', {}, '🔭 Más lejos (expediciones con rango Comandante)'),
     ...Object.values(FAR).map((f) => h('div', { class: 'lesson' }, h('b', {}, `${f.icon} ${f.name}`), h('div', { class: 'small' }, `Gravedad ${f.grav} · ${f.temp} · Radiación: ${f.rad}`), h('div', { class: 'small dim' }, f.fact))),
     h('h2', {}, '📚 Fuentes'),
-    h('ul', { class: 'small fuentes' }, ...SOURCES.map(([n, u]) => h('li', {}, h('a', { href: u, target: '_blank', rel: 'noopener' }, n)))));
+    h('ul', { class: 'small fuentes' }, ...[...SOURCES, ...PROTOCOL_SOURCES].map(([n, u]) => h('li', {}, h('a', { href: u, target: '_blank', rel: 'noopener' }, n)))),
+    h('p', { class: 'small dim' }, 'Los protocolos de emergencia de la academia son pasos simplificados de esos casos reales, no la lista oficial de vuelo.'));
 }
 
 // ---------- Parches (logros) y récords por destino ----------

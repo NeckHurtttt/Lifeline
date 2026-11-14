@@ -10,7 +10,7 @@ export const ADVANCED = {
     fact: 'En 1984 un cosmonauta soldó metal fuera de la estación Salyut 7: es posible, pero las gotas de metal flotan.' },
   auxilios: { id: 'auxilios', icon: '🩹', name: 'Primeros auxilios', seconds: 45, where: [],
     goal: 'Cada astronauta tiene un problema: elige el tratamiento correcto.',
-    fact: 'En la Estación no hay médico de guardia: dos tripulantes por misión se entrenan como "oficiales médicos" y consultan a la Tierra por video.' },
+    fact: 'En la Estación no hay médico de guardia: dos tripulantes por misión se entrenan como "oficiales médicos" y consultan a la Tierra por video. (Los casos del juego son ejemplos simples, no protocolos médicos de NASA.)' },
   cultivo: { id: 'cultivo', icon: '🌱', name: 'Huerto espacial', seconds: 35, where: [],
     goal: 'Mantén el agua y la luz en la zona verde para que la lechuga crezca.',
     fact: 'En 2015 los astronautas de la Estación comieron por primera vez lechuga cultivada en el espacio, en el huerto Veggie.' },
@@ -22,7 +22,7 @@ export const ADVANCED = {
     fact: 'Las naves usan "rastreadores de estrellas": cámaras que reconocen constelaciones para saber hacia dónde apuntan.' },
   protocolo: { id: 'protocolo', icon: '🚨', name: 'Protocolos de emergencia', seconds: 45, where: [],
     goal: 'Fuego, amoníaco o fuga: toca los pasos en el orden del manual.',
-    fact: 'En la Estación hay 3 emergencias graves: fuego, despresurización y aire tóxico (amoníaco). Se practican una y otra vez.' },
+    fact: 'En la Estación hay 3 emergencias graves: fuego, despresurización y aire tóxico (amoníaco). Pasos simplificados de casos reales: el simulacro de incendio de ESA, la alarma de amoníaco de 2015 y la fuga de 2020.' },
   equipo: { id: 'equipo', icon: '🤝', name: 'Trabajo en equipo', seconds: 60, where: [],
     goal: 'Para 2 personas: una mira el MANUAL y la otra corta el cable que le digan. ¡Sin mirar las dos!',
     fact: 'En Control de Misión, quien lee el procedimiento y quien lo ejecuta son personas distintas: así se atrapan los errores.' },
@@ -31,11 +31,20 @@ export const ADVANCED_ORDER = ['eva', 'soldadura', 'auxilios', 'cultivo', 'radio
 
 export const EVA_ORDER = ['Ropa con tubos de agua fría', 'Pantalón del traje', 'Torso duro', 'Gorro con audífonos', 'Casco', 'Guantes', 'Revisar presión', 'Abrir la esclusa'];
 
+// Pasos simplificados para chicos a partir de fuentes públicas (ver PROTOCOL_SOURCES). No son la lista oficial de vuelo.
 export const PROTOCOLS = {
-  fuego: { name: '🔥 FUEGO en el laboratorio', steps: ['Avisar a toda la tripulación', 'Cortar la electricidad del módulo', 'Ponerse máscaras de oxígeno', 'Usar el extintor de CO₂', 'Revisar el aire con el sensor'] },
-  amoniaco: { name: '☠️ AMONÍACO en el aire', steps: ['Ponerse máscaras', 'Ir al segmento ruso (aire limpio)', 'Cerrar la escotilla', 'Revisar el aire de cada uno', 'Limpiar con filtros'] },
-  fuga: { name: '💨 FUGA de aire', steps: ['Juntarse en el módulo seguro', 'Ver cuánto baja la presión', 'Cerrar escotillas una por una', 'Encontrar el módulo con la fuga', 'Parchar la fuga'] },
+  fuego: { name: '🔥 FUEGO en el laboratorio', steps: ['Suena la alarma: la ventilación se apaga sola', 'Ponerse las máscaras', 'Cortar la electricidad del equipo', 'Usar el extintor de CO₂', 'Medir el aire antes de sacarse las máscaras'] },
+  amoniaco: { name: '☠️ AMONÍACO en el aire', steps: ['Suena la alarma de amoníaco', 'Ponerse las máscaras', 'Ir al segmento ruso', 'Cerrar la escotilla detrás', 'Volver solo cuando el aire esté limpio'] },
+  fuga: { name: '💨 FUGA de aire (lenta, como la de 2020)', steps: ['Juntarse todos en un mismo lugar', 'Cerrar escotillas para separar los módulos', 'Ver en qué módulo baja la presión', 'Buscar el agujero con el detector', 'Parchar la grieta'] },
 };
+
+/** De dónde salen los pasos (fuentes públicas de NASA y ESA). */
+export const PROTOCOL_SOURCES = [
+  ['NASA: historia de las operaciones de emergencia de la Estación (fuego, despresurización, aire tóxico)', 'https://ntrs.nasa.gov/citations/20220019247'],
+  ['ESA: simulacro de incendio en la Estación (máscaras, cortar energía, extintor)', 'https://blogs.esa.int/astronauts/?p=643'],
+  ['NASA: la tripulación vuelve al segmento de EE. UU. tras la alarma de amoníaco (2015)', 'https://www.nasa.gov/blogs/spacestation/2015/01/14/station-managers-allow-crew-back-in-u-s-segment/'],
+  ['NASA: la tripulación pasa días en el segmento ruso para aislar la fuga (2020)', 'https://www.nasa.gov/blogs/spacestation/2020/08/24/crew-spending-another-day-in-russian-segment'],
+];
 
 export const TRIAGE = [
   { who: 'Ada', sym: 'Se golpeó la cabeza con una escotilla y sangra un poco', ok: 'Presionar con gasa y vendar', bad: ['Darle agua', 'Que haga ejercicio'] },

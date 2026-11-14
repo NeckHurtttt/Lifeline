@@ -68,6 +68,7 @@ solo se ven 3 cosas que cuidar: soporte vital, energía y radiación.
 | NASA Human Research Program, Twins Study y Rodent Research (OSDR) | "Dato real de salud" en la misión | Explican por qué se hace ejercicio y se usa refugio: hueso, músculo y dosis del viaje a Marte. |
 | LRO, Perseverance MEDA | Sensores del destino (temperatura, presión, día) | Condiciones reales del lugar. Son datos fijos citados, no en vivo. |
 | APOD y posición de la ISS | Pestaña DATA | Ventana en vivo a la ciencia real. |
+| Informe de NASA sobre emergencias de la Estación, simulacro de incendio de ESA, alarma de amoníaco (2015) y fuga (2020) | Prueba "Protocolos de emergencia" | Pasos simplificados de casos reales (no la lista oficial de vuelo). Los primeros auxilios son ejemplos, no protocolos médicos de NASA. |
 
 Todo eso está también dentro del juego, en 🧑‍🚀 CADETE → DATA → "Para el jurado".
 
