@@ -3,14 +3,15 @@
 import { h, modal } from './dom.js';
 import { beep, clunk, alarm } from './audio.js';
 import { tr } from '../i18n/i18n.js';
+import { ADVANCED, TRAINING_QUIZ } from '../core/academy2.js';
 import { TRAININGS, starsFrom, roverLevel, runRover, ROVER_COLS, ROVER_ROWS } from '../core/academy.js';
 
-const W = 400, H = 300;
-const FG = '#4dff88', DIM = '#2fb35c', AMBER = '#ffc23d', RED = '#ff4b4b', BG = '#020a04', LINE = '#1c6b34';
-const rand = (a, b) => a + Math.random() * (b - a);
-const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+export const W = 400, H = 300;
+export const FG = '#4dff88', DIM = '#2fb35c', AMBER = '#ffc23d', RED = '#ff4b4b', BG = '#020a04', LINE = '#1c6b34';
+export const rand = (a, b) => a + Math.random() * (b - a);
+export const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 
-function text(ctx, t, x, y, { color = FG, size = 18, align = 'left' } = {}) {
+export function text(ctx, t, x, y, { color = FG, size = 18, align = 'left' } = {}) {
   ctx.fillStyle = color; ctx.font = `${size}px "VT323", monospace`; ctx.textAlign = align; ctx.fillText(tr(t), x, y);
 }
 
@@ -134,8 +135,8 @@ function brazo({ kids }) {
   };
 }
 
-function luna({ kids }) {
-  const total = 8, speed = kids ? 80 : 100, g = kids ? 100 : 120, jumpV = kids ? -120 : -110;
+function luna({ kids, short }) {
+  const total = short ? 4 : 8, speed = kids ? 80 : 100, g = kids ? 100 : 120, jumpV = kids ? -120 : -110;
   const craters = []; let at = 330;
   for (let i = 0; i < total; i++) { const w = kids ? rand(40, 70) : rand(50, 105); craters.push({ x: at, w, passed: false, fell: false }); at += w + rand(kids ? 230 : 190, kids ? 320 : 300); }
   let y = 0, vy = 0, ground = true, passed = 0, fell = 0, scroll = 0, flash = 0;
@@ -276,18 +277,61 @@ function rover({ kids }) {
   };
 }
 
-const GAMES = { flotar, acople, brazo, luna, centrifuga, rover };
+export const GAMES = { flotar, acople, brazo, luna, centrifuga, rover };
+
+/** Monta un minijuego en `box` y llama onEnd(score 0-1) al terminar. Devuelve stop() para cortarlo. Lo usan la academia y el Arcade. */
+export function mountGame(box, id, { kids = false, seconds, onEnd, header = null, timeLabel = null, short = false }) {
+  const def = TRAININGS[id] ?? ADVANCED[id];
+  let raf = 0, keyDown = null, keyUp = null;
+  const stop = () => { cancelAnimationFrame(raf); if (keyDown) { document.removeEventListener('keydown', keyDown); document.removeEventListener('keyup', keyUp); keyDown = null; } };
+    const g = GAMES[id]({ kids, seconds, short });
+    const input = {};
+    const canvas = h('canvas', { class: 'acad-canvas', width: W * 2, height: H * 2 });
+    const ctx = canvas.getContext('2d');
+    ctx.setTransform(2, 0, 0, 2, 0, 0);
+    const timeEl = h('b', {}, '');
+    const ctrl = (g.controls ?? []).map(([label, key, once]) => {
+      const on = (e) => { e.preventDefault(); input[key] = true; };
+      const off = () => { if (!once) input[key] = false; };
+      return h('button', { class: 'big acad-ctrl', 'data-ctrl': key, onpointerdown: on, onpointerup: off, onpointerleave: off, onpointercancel: off, oncontextmenu: (e) => e.preventDefault() }, label);
+    });
+    const KEYS = { ArrowLeft: ['left', 'L'], a: ['left', 'L'], ArrowRight: ['right', 'R'], d: ['right', 'R'], ArrowUp: ['up', 'F'], w: ['up', 'F'], ArrowDown: 'down', s: 'down', ' ': ['grab', 'jump', 'strain'], Enter: ['grab', 'jump', 'strain', 'send'], Backspace: ['del'] };
+    keyDown = (e) => { const k = KEYS[e.key]; if (!k) return; e.preventDefault(); if (e.repeat && !Array.isArray(k)) return; [].concat(k).forEach((q) => { if (!(e.repeat && q !== 'strain')) input[q] = true; }); };
+    keyUp = (e) => { const k = KEYS[e.key]; if (!k) return; [].concat(k).forEach((q) => { if (!['grab', 'jump', 'send', 'del', 'F', 'L', 'R'].includes(q)) input[q] = false; }); };
+    document.addEventListener('keydown', keyDown); document.addEventListener('keyup', keyUp);
+    if (g.tap) canvas.addEventListener('pointerdown', (e) => { const r = canvas.getBoundingClientRect(); g.tap((e.clientX - r.left) * W / r.width, (e.clientY - r.top) * H / r.height); });
+
+    box.replaceChildren(
+      header ?? h('div', { class: 'acad-top' }, h('span', {}, `${def.icon} ${def.name}`), timeEl),
+      canvas,
+      h('p', { class: 'small dim acad-hint' }, g.hint),
+      ...(ctrl.length ? [h('div', { class: `acad-ctrls n${ctrl.length}` }, ...ctrl)] : []));
+
+    let left = seconds, last = performance.now();
+    const loop = (now) => {
+      const dt = Math.min(0.05, (now - last) / 1000); last = now;
+      left -= dt;
+      g.step(dt, input);
+      if (id !== 'rover') input.F = input.L = input.R = false;
+      ctx.fillStyle = BG; ctx.fillRect(0, 0, W, H);
+      g.draw(ctx);
+      timeEl.textContent = `${Math.max(0, Math.ceil(left))} s`; timeLabel?.(left);
+      if (g.done || left <= 0) { stop(); onEnd(g.score()); return; }
+      raf = requestAnimationFrame(loop);
+    };
+    raf = requestAnimationFrame(loop);
+    return stop;
+}
 
 /** Abre la prueba `id`. Resuelve { stars, score } al terminar, o null si se cierra antes de empezar. */
 export function runTraining(id, { kids = false, intro = '' } = {}) {
-  const def = TRAININGS[id];
+  const def = TRAININGS[id] ?? ADVANCED[id];
   const seconds = def.seconds + (kids ? 5 : 0);
   return new Promise((resolve) => {
     const box = h('div', { class: 'academia' });
     const close = modal(box);
     const finish = (res) => { cleanup(); close(); resolve(res); };
-    let raf = 0, keyDown = null, keyUp = null;
-    const cleanup = () => { cancelAnimationFrame(raf); if (keyDown) { document.removeEventListener('keydown', keyDown); document.removeEventListener('keyup', keyUp); } };
+    const cleanup = () => stopGame?.();
 
     const introView = () => box.replaceChildren(
       h('h2', {}, `${def.icon} ENTRENAMIENTO: ${def.name.toUpperCase()}`),
@@ -298,44 +342,8 @@ export function runTraining(id, { kids = false, intro = '' } = {}) {
         h('button', { class: 'big', id: 'acad-empezar', onclick: play }, '▶ EMPEZAR'),
         h('button', { id: 'acad-saltar', onclick: () => finish(null) }, 'Saltar')));
 
-    function play() {
-      const g = GAMES[id]({ kids, seconds });
-      const input = {};
-      const canvas = h('canvas', { class: 'acad-canvas', width: W * 2, height: H * 2 });
-      const ctx = canvas.getContext('2d');
-      ctx.setTransform(2, 0, 0, 2, 0, 0);
-      const timeEl = h('b', {}, '');
-      const ctrl = (g.controls ?? []).map(([label, key, once]) => {
-        const on = (e) => { e.preventDefault(); input[key] = true; };
-        const off = () => { if (!once) input[key] = false; };
-        return h('button', { class: 'big acad-ctrl', 'data-ctrl': key, onpointerdown: on, onpointerup: off, onpointerleave: off, onpointercancel: off, oncontextmenu: (e) => e.preventDefault() }, label);
-      });
-      const KEYS = { ArrowLeft: ['left', 'L'], a: ['left', 'L'], ArrowRight: ['right', 'R'], d: ['right', 'R'], ArrowUp: ['up', 'F'], w: ['up', 'F'], ArrowDown: 'down', s: 'down', ' ': ['grab', 'jump', 'strain'], Enter: ['grab', 'jump', 'strain', 'send'], Backspace: ['del'] };
-      keyDown = (e) => { const k = KEYS[e.key]; if (!k) return; e.preventDefault(); if (e.repeat && !Array.isArray(k)) return; [].concat(k).forEach((q) => { if (!(e.repeat && q !== 'strain')) input[q] = true; }); };
-      keyUp = (e) => { const k = KEYS[e.key]; if (!k) return; [].concat(k).forEach((q) => { if (!['grab', 'jump', 'send', 'del', 'F', 'L', 'R'].includes(q)) input[q] = false; }); };
-      document.addEventListener('keydown', keyDown); document.addEventListener('keyup', keyUp);
-      if (g.tap) canvas.addEventListener('pointerdown', (e) => { const r = canvas.getBoundingClientRect(); g.tap((e.clientX - r.left) * W / r.width, (e.clientY - r.top) * H / r.height); });
-
-      box.replaceChildren(
-        h('div', { class: 'acad-top' }, h('span', {}, `${def.icon} ${def.name}`), timeEl),
-        canvas,
-        h('p', { class: 'small dim acad-hint' }, g.hint),
-        ...(ctrl.length ? [h('div', { class: `acad-ctrls n${ctrl.length}` }, ...ctrl)] : []));
-
-      let left = seconds, last = performance.now();
-      const loop = (now) => {
-        const dt = Math.min(0.05, (now - last) / 1000); last = now;
-        left -= dt;
-        g.step(dt, input);
-        if (id !== 'rover') input.F = input.L = input.R = false;
-        ctx.fillStyle = BG; ctx.fillRect(0, 0, W, H);
-        g.draw(ctx);
-        timeEl.textContent = `${Math.max(0, Math.ceil(left))} s`;
-        if (g.done || left <= 0) { result(g.score()); return; }
-        raf = requestAnimationFrame(loop);
-      };
-      raf = requestAnimationFrame(loop);
-    }
+    let stopGame = null;
+    function play() { stopGame?.(); stopGame = mountGame(box, id, { kids, seconds, onEnd: result }); }
 
     function result(score) {
       cleanup();
@@ -348,7 +356,22 @@ export function runTraining(id, { kids = false, intro = '' } = {}) {
         h('p', { class: 'small dim' }, def.fact),
         h('div', { class: 'acad-botones' },
           h('button', { class: 'big', id: 'acad-seguir', onclick: () => finish({ stars, score }) }, 'SEGUIR'),
+          TRAINING_QUIZ[id] ? h('button', { id: 'acad-quiz', onclick: () => quiz(stars, score) }, '🧠 Pregunta rápida') : null,
           h('button', { id: 'acad-otra', onclick: () => play() }, 'Otra vez')));
+    }
+
+    // Pregunta del entrenamiento: refuerza lo aprendido (no cambia las estrellas).
+    function quiz(stars, score) {
+      const q = TRAINING_QUIZ[id][Math.floor(Math.random() * TRAINING_QUIZ[id].length)];
+      const out = h('p', { class: 'acad-meta' }, '');
+      const btns = q.a.map((a, i) => h('button', { class: 'acad-op', 'data-op': i, onclick: () => {
+        btns.forEach((b, k) => { b.disabled = true; if (k === q.ok) b.classList.add('sel'); });
+        const ok = i === q.ok; beep(ok ? 1100 : 260, 120, 'sine');
+        out.textContent = ok ? '¡Correcto! 🎉' : `Era: ${q.a[q.ok]}`;
+      } }, a));
+      box.replaceChildren(h('h2', {}, `🧠 ${def.name.toUpperCase()}`), h('p', { class: 'acad-meta' }, q.q),
+        h('div', { class: 'acad-ops' }, ...btns), out,
+        h('div', { class: 'acad-botones' }, h('button', { class: 'big', id: 'acad-seguir', onclick: () => finish({ stars, score }) }, 'SEGUIR')));
     }
 
     introView();

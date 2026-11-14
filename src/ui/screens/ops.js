@@ -34,6 +34,13 @@ import { digPanel, digAvailable } from '../panels/dig.js';
 import { autoAssign } from '../../core/autoplan.js';
 import { CARGO_PLANS, cleanPanels, replaceBatteries, batteryHealth, gardenStage, BATTERY_PARTS, AUTO_RATION_DAYS } from '../../core/extras.js';
 import { inCoop, coopInfo, shareDraft, onDraft, allDrafts } from '../coop.js';
+import { radarCanvas, pulseCanvas, liveCanvas, drawBase, icon } from '../viz.js';
+import { runTraining } from '../academy.js';
+import '../academy2.js';
+import { SENSORS } from '../../data/nasa.js';
+import { glitch } from '../fx.js';
+import { stormDue, stormDecision, recentFlare } from '../spaceweather.js';
+import { HEALTH_FINDINGS, osdUrl } from '../../core/spaceweather.js';
 import { placeOf, FLASH_TYPES, CABLE_COLORS, closeDoor, resolveFlash, modName, allDone, stepDone, flashLeft, leakReading, probeLeak, turnValve, connectCable, pressProtocol, protocolOrder, pressCode, peekCode, adjustPower, timingPress, timingPos, timingZone } from '../../core/flash.js';
 
 // Modo niños: menos trabajos, energía en una barra y Nova reparte sola cada día.
@@ -202,7 +209,8 @@ export function render(root, app, go) {
   // Todo se calcula desde app.state.flash (con la hora límite adentro), así se puede redibujar cuando llega
   // un cambio de otro jugador sin perder la cuenta. Solo el anfitrión (o quien juega solo) cierra el evento.
   let flashTimer = null; let flashKey = null; let flashAlarm = ''; let cableSel = null; let codeSeen = {}; let codeUntil = {}; let flashRaf = null;
-  const flashClose = () => document.getElementById('relampago')?.closest('.modal-bg')?.remove();
+  let flashRadar = null;
+  const flashClose = () => { flashRadar = null; document.getElementById('relampago')?.closest('.modal-bg')?.remove(); };
   const flashOff = () => { clearInterval(flashTimer); if (flashKey) document.removeEventListener('keydown', flashKey); flashKey = null; };
   const VALVE_ARROW = ['↑', '→', '↓', '←'];
   const CABLE_HEX = { rojo: '#ff4b4b', azul: '#4b9dff', amarillo: '#ffd23d', verde: '#4dff88', blanco: '#e8e8e8' };
@@ -242,8 +250,12 @@ export function render(root, app, go) {
       flashClose(); cableSel = null;
       hiss(false);
       document.body.classList.remove('alarma-roja');
-      commit(r.state);
-      banner = { text: r.log.join(' '), cls: r.success ? '' : 'red' };
+      // COMBO: emergencias resueltas seguidas dan fama extra (+1, +2, +3…).
+      const combo = r.success ? (s.flashCombo ?? 0) + 1 : 0;
+      const bonus = combo >= 2 ? combo - 1 : 0;
+      commit({ ...r.state, flashCombo: combo, reputation: (r.state.reputation ?? 0) + bonus });
+      banner = { text: `${bonus ? `⚡ COMBO ×${combo}: +${bonus} fama. ` : ''}${r.log.join(' ')}`, cls: r.success ? '' : 'red' };
+      if (bonus) document.body.classList.add('combo-flash'), setTimeout(() => document.body.classList.remove('combo-flash'), 900);
       if (r.success) [0, 120, 240].forEach((d, k) => setTimeout(() => beep([660, 880, 1320][k], 140, 'triangle', 0.06), d)); else alarm('emergencia');
       if (app.state.phase === 'report') handle({ kind: 'fin' });
       draw();
@@ -412,7 +424,7 @@ export function render(root, app, go) {
     const stepsDone = f.steps.filter((st) => stepDone(f, st)).length;
 
     const content = [
-      h('div', { class: 'big-ico code alerta' }, '⚡ EVENTO RELÁMPAGO'),
+      h('div', { class: 'radar-caja' }, h('div', { class: 'big-ico code alerta' }, '⚡ EVENTO RELÁMPAGO'), flashRadar ??= radarCanvas([{ ang: Math.random() * 6, dist: 1, label: T.name.split(' ')[0].toUpperCase(), speed: 0.95 / f.seconds }], 130)),
       h('h2', { class: 'red' }, `${T.icon} ${T.name}`),
       h('p', { style: { fontSize: '1.05rem' } }, T.text(modName(target))),
       h('div', { class: 'flash-tiempo' }, h('div', { class: 'flash-barra', id: 'flash-barra' }), h('b', { id: 'flash-seg' }, `${Math.ceil(left())} s`)),
@@ -694,23 +706,29 @@ export function render(root, app, go) {
         ]));
   }
 
-  /** Niños: lo que necesitan los astronautas, en palabras grandes. */
-  function kidsResources() {
-    const s = app.state; const left = daysLeft(s);
-    const bat = s.resources.batteryMax ? s.resources.battery / s.resources.batteryMax : 1;
-    const rows = [
-      ['AIRE', left.o2, 'para respirar'], ['AGUA', left.water, 'para tomar'], ['COMIDA', left.food, 'para comer'],
-    ];
-    const card = (name, [word, cls], detail, frac) => h('div', { class: `kid-res ${cls}` },
-      h('div', { class: 'kid-res-nombre' }, name), h('div', { class: 'kid-res-estado' }, word), bar(frac), h('div', { class: 'small dim' }, detail));
+  // Modo niños: solo 3 recursos centrales (lo que pide el desafío): soporte vital, energía y radiación.
+  function resourcesKids() {
+    const s = app.state; const r = s.resources; const left = daysLeft(s);
+    const life = Math.min(...['o2', 'water', 'food'].map((k) => (Number.isFinite(left[k]) ? left[k] : 999)));
+    const rad = Math.max(0, ...living().map((c) => c.radiation ?? 0));
+    const card = (cls, ico, name, val, frac, opts, help) => h('div', { class: `res-card kid ${cls}`, title: name },
+      h('div', { class: 'res-ico code' }, icon(ico)),
+      h('div', {}, h('div', { class: 'res-name' }, name), h('div', { class: 'res-val' }, val), bar(frac, opts), h('div', { class: 'small dim' }, help)));
     return h('div', { class: 'panel c-blue', id: 'recursos' },
-      h('h2', {}, '¿QUÉ NECESITAN LOS ASTRONAUTAS?'),
-      h('div', { class: 'kid-res-grid' },
-        ...rows.map(([name, d, why]) => card(name, nivel(d), Number.isFinite(d) ? `${why}: alcanza ${fmt(d)} días` : `${why}: se recicla solo`, Number.isFinite(d) ? d / 60 : 1)),
-        card('LUZ', bat < 0.15 ? ['¡SE ACABA!', 'bad'] : bat < 0.4 ? ['POCO', 'warn'] : ['BIEN', 'ok'], 'batería de la nave', bat)),
-      h('div', { class: 'row', style: { marginTop: '.5rem' } },
-        h('span', { class: 'pill violet' }, `DESCUBRIMIENTOS: ${fmt(s.science)}`),
-        s.nextResupply != null && s.nextResupply < s.totalDays ? h('span', { class: 'pill blue' }, `LLEGA COMIDA NUEVA EL DÍA ${s.nextResupply}`) : null));
+      h('h2', {}, '📦 Lo que hay que cuidar'),
+      h('div', { class: 'res-grid tres' },
+        card(life < 15 ? 'low' : '', 'o2', '🫁 Soporte vital', life >= 999 ? 'se recicla' : `${fmt(life)} días`, Math.min(1, life / 60), {}, 'Aire, agua y comida: lo que se acabe primero.'),
+        card(r.battery / (r.batteryMax || 1) < 0.15 ? 'low' : '', 'battery', '⚡ Energía', `${fmt(r.battery)} kWh`, r.battery / (r.batteryMax || 1), {}, 'Sin energía, el soporte vital se apaga.'),
+        card(rad >= 480 ? 'low' : '', 'meds', '☢️ Radiación', `${fmt(rad)} de 600 mSv`, rad / 600, { invert: true, warn: 0.5, danger: 0.8 }, 'Se suma y no se borra. 600 = límite de NASA.')),
+      h('div', { class: 'row', style: { marginTop: '.5rem' } }, h('span', { class: 'pill violet' }, `🧪 Ciencia ${fmt(s.science)}`)));
+  }
+
+  // Un hallazgo real de salud de astronautas (cambia cada 5 días).
+  function healthFact() {
+    const f = HEALTH_FINDINGS[Math.floor(app.state.day / 5) % HEALTH_FINDINGS.length];
+    return h('div', { class: 'panel c-cyan', id: 'dato-salud' }, h('h2', {}, '🔬 Dato real de salud'),
+      h('p', {}, `${f.icon} ${f.text}`), h('div', { class: 'small dim' }, `Fuente: ${f.src}`),
+      f.osd ? h('a', { class: 'small', href: osdUrl(f.osd), target: '_blank', rel: 'noopener' }, `Ver ${f.osd} en OSDR`) : null);
   }
 
   /** Niños: caras de los astronautas y cómo se sienten. */
@@ -727,7 +745,7 @@ export function render(root, app, go) {
   }
 
   function resources() {
-    if (kids()) return kidsResources();
+    if (kids()) return resourcesKids();
     const s = app.state; const r = s.resources; const left = daysLeft(s); const n = living().length || 1;
     const max = { meds: 20 * n, parts: 30, fuel: 100, battery: r.batteryMax || 1, dataStored: 500 };
     return h('div', { class: 'panel c-blue', id: 'recursos' },
@@ -737,7 +755,7 @@ export function render(root, app, go) {
         const frac = days !== null ? (Number.isFinite(days) ? days / 60 : 1) : r[k] / max[k];
         const low = k === 'dataStored' ? frac > 0.8 : frac < 0.15;
         return h('div', { class: `res-card ${low ? 'low' : ''}`, title: name },
-          h('div', { class: 'res-ico code' }, RES_CODE[k]),
+          h('div', { class: 'res-ico code', title: RES_CODE[k] }, icon(k)),
           h('div', {}, h('div', { class: 'res-name' }, name),
             h('div', { class: 'res-val' }, days !== null ? (Number.isFinite(days) ? `${fmt(days)} días` : '♻️ se recicla') : `${fmt(r[k])}${k === 'battery' ? ` / ${fmt(r.batteryMax)}` : ''}`),
             bar(frac, k === 'dataStored' ? { invert: true } : {})));
@@ -815,12 +833,49 @@ export function render(root, app, go) {
         h('div', { class: 'small dim' }, 'Crece solo con la luz, pero mucho más rápido si alguien hace 🌱 Cultivo. Al 100 % se cosechan 45 kg.')) : null);
   }
 
+  // Sensores reales del destino (gravedad, temperatura, radiación).
+  function sensorsMini() {
+    const sen = SENSORS[app.state.scenarioId] ?? SENSORS.estacion;
+    return h('div', { class: 'panel c-cyan', id: 'sensores' }, h('h2', {}, '📡 Sensores (datos reales)'),
+      h('div', { class: 'sensores-mini' }, ...[['Gravedad', sen.grav], ['Temperatura', sen.temp], ['Radiación', sen.rad], ['Día', sen.dia]].map(([k, v]) => h('div', {}, h('b', {}, `${k}: `), v))),
+      h('div', { class: 'small dim' }, `Fuente: ${sen.src}`));
+  }
+
+  // Esquema vivo de la base: día/noche, tripulación caminando, huerto creciendo y polvo.
+  let baseCanvas = null;
+  function baseLive() {
+    baseCanvas ??= liveCanvas(520, 170, (ctx, w, hh, t) => {
+      const s = app.state; if (!s) return;
+      const site = siteOf(s);
+      const night = site?.nightDays ? (isNight(site, s.day) ? 1 : 0) : (Math.sin(t * (2 * Math.PI / 9.2)) > 0 ? 0 : 0.8); // la Estación: amanecer cada 92 min (aquí cada 9 s)
+      drawBase(ctx, w, hh, t, { modules: s.modules.map((m) => ({ ...m, code: MOD_CODE[m.type] })), crew: s.crew, night, day: s.day, dust: (s.dust ?? 0) > 0.25, plants: Math.min(1, (s.garden?.growth ?? 0) / 100) });
+    });
+    return h('div', { class: 'esquema' }, baseCanvas);
+  }
+
+  // Reparación por fuera: minijuego de soldadura; cada estrella repara 15 % y gasta 1 pieza.
+  async function evaRepair(id) {
+    if ((app.state.resources.parts ?? 0) < 1) { banner = { text: '🔧 No quedan piezas para la EVA.', cls: 'red' }; draw(); return; }
+    const name = modName(app.state.modules.find((q) => q.id === id));
+    const r = await runTraining('soldadura', { kids: kids(), intro: `EVA de reparación: ${name}. Suelda la grieta del casco.` });
+    if (!r) return;
+    const st = structuredClone(app.state);
+    const m = st.modules.find((q) => q.id === id);
+    st.resources.parts -= 1;
+    const fix = r.stars * 15;
+    m.health = Math.min(100, m.health + fix);
+    commit(st); glitch(200);
+    banner = { text: r.stars ? `🧑‍🚀 EVA lista: ${name} +${fix} % (1 pieza).` : '🧑‍🚀 La EVA no logró soldar la grieta. Se gastó 1 pieza.', cls: r.stars ? '' : 'red' };
+    draw();
+  }
+
   function ship() {
     const s = app.state;
     const cols = Math.max(...s.modules.map((m) => m.x)) + 1;
     const who = whoDecides(app, 'ingeniero');
     return h('div', { class: 'panel c-violet', id: 'estacion' },
       h('h2', {}, `${DEST} ${HOME} `, who ? h('span', { class: 'tag' }, `decide ${who}`) : null),
+      baseLive(),
       h('div', { class: 'help' }, kids() ? 'Toca un módulo para prenderlo o apagarlo. 🟢 prendido · ⚫ apagado.' : 'Toca un módulo para prenderlo o apagarlo. El número es su turno para apagarse si falta electricidad (el más bajo, primero).'),
       h('div', { class: 'ship', style: { gridTemplateColumns: `repeat(${cols}, 1fr)` } },
         ...s.modules.slice().sort((a, b) => a.y - b.y || a.x - b.x).map((m) => h('div', {
@@ -835,7 +890,7 @@ export function render(root, app, go) {
           },
         }, h('div', { class: 'ico code' }, MOD_CODE[m.type]), h('b', {}, MODULES[m.type].name),
         m.offDays ? h('div', { class: 'amber small' }, `⏸️ ${m.offDays} días`) : null,
-        bar(m.health / 100), h('div', { class: 'row small' }, m.on ? '🟢' : '⚫',
+        bar(m.health / 100), m.health < 60 && !isGuest() ? h('button', { class: 'eva-btn', 'data-eva': m.id, title: 'Sal en EVA y suelda el daño: cada estrella repara 15 % (gasta 1 pieza).', onclick: (e) => { e.stopPropagation(); evaRepair(m.id); } }, '🧑‍🚀 EVA') : null, h('div', { class: 'row small' }, m.on ? '🟢' : '⚫',
           kids() ? null : h('input', { type: 'number', min: 1, max: 10, value: m.priority, style: { width: '3.4rem' }, title: 'Turno para apagarse', onchange: (e) => { commit(setPriority(app.state, m.id, Number(e.target.value))); } }))))),
       s.design.instruments.length ? h('div', { class: 'small', style: { marginTop: '.4rem' } }, '🔬 ', s.design.instruments.map((i) => `${INSTRUMENTS[i].icon} ${INSTRUMENTS[i].name}`).join(' · ')) : null);
   }
@@ -943,7 +998,7 @@ export function render(root, app, go) {
         const mood = moodOf(c);
         return h('div', { class: `crew-card ${['enfermo', 'radiacion', 'agotado', 'hambre', 'triste', 'muerto'].includes(mood) || sleeping ? 'mal' : ''}`, 'data-crew': c.id },
           h('div', { class: 'top' },
-            crewAvatar(c, { size: 80 }),
+            h('div', {}, crewAvatar(c, { size: 80 }), pulseCanvas(() => app.state.crew.find((x) => x.id === c.id) ?? c)),
             h('div', {},
               h('div', { class: 'name' }, c.name),
               h('div', { class: 'small' }, h('span', { class: 'pill role' }, ROLES[c.role]?.name ?? c.role)),
@@ -1116,6 +1171,9 @@ export function render(root, app, go) {
         el('text', { x, y: up ? Y - 7 : Y + 12, 'text-anchor': 'middle', class: `tm-txt tm-${kind}` }, tr(label)));
     });
     const sx = xOf(s.day);
+    for (let k = 1; k <= 3; k++) svg.append(el('circle', { cx: sx - k * 4, cy: Y, r: 1.2 - k * 0.25, class: 'tm-estela', style: `animation-delay:${k * 0.2}s` }));
+    // estrellas de fondo que pasan
+    for (let k = 0; k < 7; k++) svg.append(el('circle', { cx: (k * 37) % W, cy: 3 + (k * 11) % 32, r: 0.5, class: 'tm-estrella', style: `animation-delay:${-k * 0.9}s` }));
     svg.append(el('polygon', { points: `${sx - 3},${Y + 3} ${sx + 3},${Y + 3} ${sx},${Y - 3}`, class: 'tm-nave' }),
       el('text', { x: X0, y: 36, class: 'tm-txt' }, 'T-0'), el('text', { x: X1, y: 36, 'text-anchor': 'end', class: 'tm-txt' }, tr(isMars(s) || !SCENARIOS[s.scenarioId]?.orbital ? 'TIERRA' : 'FIN')));
     return h('div', { class: 'trip-wrap', title: 'Mapa de la misión: ▲ es tu nave. Rojo = peligro avisado; CARGA = próxima nave de carga.' }, svg);
@@ -1197,7 +1255,7 @@ export function render(root, app, go) {
 
   // Modo jurado: un cartel con el paso del recorrido y un solo botón para seguir.
   const JURADO_TXT = {
-    3: ['Paso 3 de 5 · La misión', 'Así se ve un día en la estación: recursos, tripulación y turnos. Toquen ⏩ y en unos segundos salta una emergencia relámpago: hay que resolverla contra reloj.', '⏩ Adelantar hasta la emergencia'],
+    3: ['Paso 3 de 5 · La misión', 'Así se ve un día en la estación: recursos, tripulación y turnos. Al avanzar llega el CLIMA ESPACIAL REAL de NASA DONKI: ¿refugio o ciencia? Esa es la restricción central del juego. Después toquen ⏩ y salta una emergencia relámpago contra reloj.', '⏩ Adelantar hasta la emergencia'],
     4: ['Paso 4 de 5 · El resto del año', 'Ya vieron una emergencia. El resto del año (eventos, cargas, reparaciones) se juega igual. Toquen ⏩ y Nova lo juega por ustedes eligiendo lo recomendado.', '⏩ Adelantar el año y volver a la Tierra'],
   };
   function juradoPanel() {
@@ -1263,7 +1321,7 @@ export function render(root, app, go) {
         ...((canExplore(s) || s.map) && !kids() ? [{ id: 'mapa', label: '🗺️ Exploración', color: 'c-green', badge: s.expedition ? 0 : (s.map ?? []).filter((n) => n.known && !n.done).length }] : []),
         ...(kids() ? [] : [{ id: 'diario', label: '📖 Diario', color: 'c-cyan' }]),
       ], tab, pick),
-      tab === 'resumen' ? h('div', { class: 'grid2' }, h('div', {}, resources()), h('div', {}, kids() ? kidsCrew() : monitor(), alerts())) : null,
+      tab === 'resumen' ? h('div', { class: 'grid2' }, h('div', {}, resources(), healthFact(), kids() ? null : sensorsMini()), h('div', {}, kids() ? kidsCrew() : monitor(), alerts())) : null,
       tab === 'tripulacion' ? crewCards() : null,
       tab === 'estacion' ? h('div', { class: 'grid-base' }, ship(), h('div', {}, energyPanel(), kids() ? null : operaciones())) : null,
       tab === 'misiones' ? h('div', { class: 'grid2' }, alerts(), minis()) : null,
@@ -1275,7 +1333,8 @@ export function render(root, app, go) {
     if (kids()) {
       const left = daysLeft(s);
       const low = [['AIRE', left.o2], ['AGUA', left.water], ['COMIDA', left.food]].find(([, d]) => d < 10);
-      if (s.flash) setNow('¡ALARMA! Haz lo que dice el cuadro antes de que se acabe el tiempo.', true);
+      if (s.flags?.realStorm === 'abierta') setNow('☀️ El Sol lanzó una llamarada DE VERDAD. Decide: ¿refugio o ciencia?', true);
+      else if (s.flash) setNow('¡ALARMA! Haz lo que dice el cuadro antes de que se acabe el tiempo.', true);
       else if (s.pending) setNow('Pasó algo. Lee y toca un botón. El RECOMENDADO es el más seguro.');
       else if (phaseDue(s)) setNow('Toca el botón grande del cuadro.');
       else if (s.phase === 'reentry') setNow('¡Se terminó el año! Toca INICIAR REENTRADA para volver a la Tierra.');
@@ -1284,6 +1343,7 @@ export function render(root, app, go) {
     }
     if (phaseDue(s) && s.phase === 'ops') { if (!document.getElementById('fase')) phaseModal(); }
     else if (s.flash) flashModal();
+    else if (stormDue(s) && !isGuest() && !document.getElementById('clima-real') && app.practice == null) { stopClock(); stormDecision(app, commit, draw); }
     else if (s.pending && !document.getElementById('evento')) eventModal();
     else if (!s.pending && app.practice != null) practiceStep();
     else if (!s.pending && s.jurado && JURADO_TXT[juradoStep(s, 'ops')]) say(JURADO_TXT[juradoStep(s, 'ops')][1], { mood: 'feliz', target: '#jurado-seguir', quiet: true });
@@ -1295,6 +1355,7 @@ export function render(root, app, go) {
     }
   }
 
+  recentFlare(); // se pide a NASA DONKI apenas empieza la misión
   draw();
   // Contrarreloj: la misión termina cuando se acaba el tiempo real; gana el equipo con más puntaje.
   const contra = setInterval(() => {

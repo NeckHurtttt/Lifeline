@@ -1,4 +1,5 @@
 import { h, mount, modal } from '../dom.js';
+import { secretCalmButton } from '../easter-egg.js';
 import { HISTORICAS } from '../../data/historicas.js';
 import { ACHIEVEMENTS, loadAchievements } from '../../core/achievements.js';
 import { SUGGESTED } from './design.js';
@@ -19,6 +20,11 @@ import { beep } from '../audio.js';
 import { say } from '../guide.js';
 import { crewAvatar } from '../avatar.js';
 import { decodeMission } from '../../core/share.js';
+import { TRAININGS, ACADEMY_ORDER, hasWings } from '../../core/academy.js';
+import { runTraining, academyRecord, saveAcademy } from '../academy.js';
+import { openCenter, openAcademy as openAcademyCenter, startDaily, attractDemo, profile } from '../cadete.js';
+import { openArcade, arcadeBest } from '../arcade.js';
+import { dailyChallenge } from '../../core/cadete.js';
 
 const MODES = {
   campana: { icon: '🗺️', name: 'Campaña', desc: 'Estación → Luna → Marte. Cada misión cumplida abre la siguiente y da puntos para mejoras.' },
@@ -106,7 +112,14 @@ export function render(root, app, go) {
         h('div', { class: 'capsule', style: { marginBottom: '.4rem' } },
           ...['Ada Sol', 'Leo Mar', 'Iris Luz', 'Tomás Rey'].map((n, i) => crewAvatar({ name: n, role: ['comandante', 'piloto', 'ingeniero', 'medico'][i], alive: true, health: 100, morale: 90, fatigue: 0, radiation: 0, hunger: 0, thirst: 0 }, { size: 70 }))),
         h('h1', {}, 'LIFELINE'),
-        h('div', { class: 'dim', style: { fontSize: '1.1rem' } }, '🛠️ Diseña tu nave · 🚀 Despega · 🛰️ Sobrevive un año en el espacio · 🌊 Vuelve a casa')),
+        h('div', { class: 'dim', style: { fontSize: '1.1rem' } }, '🛠️ Diseña tu nave · 🚀 Despega · 🛰️ Sobrevive un año en el espacio · 🌊 Vuelve a casa'),
+        h('div', { class: 'rapido', style: { marginTop: '1rem' } },
+          h('button', { class: 'big arcade-btn', id: 'arcade-btn', onclick: () => openArcade() }, `🕹️ ARCADE · récord ${arcadeBest().best}`),
+          h('button', { class: 'big', id: 'expres', title: 'Misión completa en 5 minutos reales, con más emergencias. Ideal para clase.', onclick: () => {
+            Object.assign(app, { mode: 'demo', scenario: app.scenario ?? 'estacion', difficulty: 'facil', objective: 'ciencia', historica: null, reto: null, practice: null, state: null, lastDesign: null, lastSeed: null, budgetMult: 1, expres: true });
+            beep(990, 80); go('design', { design: SUGGESTED(app.scenario) });
+            say('⏱️ Misión exprés: 5 minutos reales y más emergencias. La nave ya está lista: toca 🚀 LANZAR y pongan el tiempo en 12×.', { mood: 'alerta', target: '#lanzar' });
+          } }, '⏱️ MISIÓN EXPRÉS · 5 min'))),
       saved ? h('div', { class: 'panel c-green', style: { textAlign: 'center' } },
         h('button', { class: 'big', id: 'continuar', onclick: () => { app.state = saved; app.difficulty = saved.difficulty; app.mode = saved.mode ?? app.mode; go(saved.phase === 'reentry' ? 'reentry' : 'ops'); } },
           `▶ SEGUIR MI MISIÓN · DÍA ${saved.day}`)) : null,
@@ -181,6 +194,7 @@ export function render(root, app, go) {
           beep(990, 80); go('design', { design: SUGGESTED('estacion') });
           say('🎓 Práctica guiada: la nave ya está armada. Toca 🚀 LANZAR y te explico todo en la misión.', { mood: 'feliz', target: '#lanzar' });
         } }, '🎓 Práctica guiada'),
+        ' ', h('button', { id: 'academia', title: 'Las 6 pruebas de entrenamiento de astronauta. Con 2 estrellas en todas ganas tus alas.', onclick: () => openAcademyCenter(app, go) }, '🎓 Academia de astronautas'),
         ' ', h('button', { id: 'jurado', title: 'Recorrido de 3 minutos por lo principal: nave, despegue, una emergencia y el informe.', onclick: () => startJurado(app, go) }, '🏛️ Modo jurado (3 min)'),
         ' ', h('button', { id: 'simulacro', title: 'Misión fácil con muchas emergencias relámpago para practicar los minijuegos.', onclick: () => {
           Object.assign(app, { mode: 'demo', scenario: 'estacion', difficulty: 'facil', objective: 'ciencia', historica: null, reto: null, practice: null, state: null, lastDesign: null, lastSeed: null, budgetMult: 1, simulacro: true });
@@ -200,17 +214,39 @@ export function render(root, app, go) {
               } }, '▶ Jugar esta misión'))),
             h('button', { onclick: () => close() }, 'Cerrar')));
         } }, '📜 Misiones históricas'),
-        ' ', h('button', { id: 'ver-logros', onclick: () => {
-          const got = loadAchievements();
-          const close = modal(h('div', {}, h('h2', {}, `🏅 Logros (${Object.keys(got).length} de ${ACHIEVEMENTS.length})`),
-            ...ACHIEVEMENTS.map((a) => h('div', { class: got[a.id] ? '' : 'dim' }, `${got[a.id] ? '✅' : '⬜'} ${a.icon} ${a.name}: ${a.desc}${got[a.id] ? ` (${got[a.id]})` : ''}`)),
-            h('button', { onclick: () => close() }, 'Cerrar')));
-        } }, '🏅 Logros')),
+        ' ', h('button', { id: 'centro', class: 'warn', onclick: () => openCenter(app, go) }, (() => { const p = profile(); return `🧑‍🚀 Mi ficha · ${p.rank.name}${p.streak.now ? ` · 🔥${p.streak.now}` : ''}`; })()),
+        ' ', h('button', { id: 'diario', title: 'La misma misión para todos hoy: comparen puntajes.', onclick: () => startDaily(app, go, SUGGESTED) }, `📅 Reto diario · ${{ estacion: 'Estación', gateway: 'Gateway', luna: 'Luna', marte: 'Marte' }[dailyChallenge().scenario]}`),
+        ' ', h('button', { id: 'datos-nasa', onclick: () => openCenter(app, go, 'data') }, '📡 Datos NASA en vivo'),
+        ' ', h('button', { id: 'escuelas', onclick: () => openCenter(app, go, 'clase') }, '🏫 Para escuelas'),
+        ' ', h('button', { id: 'demo-auto-btn', title: 'Presentación sola de 60 segundos (para el stand).', onclick: () => attractDemo() }, '🎬 Demo automática'),
+        ' ', h('button', { id: 'ver-logros', onclick: () => openCenter(app, go, 'parches') }, '🎖️ Parches y récords')),
       h('div', { class: 'small dim', style: { textAlign: 'center' } },
-        'Agencia ficticia. Inspirado en procedimientos y datos abiertos de NASA. Hecho para NASA Space Apps 2026 · desafío Space Mission Design Game.'),
+        'Agencia ficticia. Inspirado en procedimientos y datos abiertos de NASA. Hecho para NASA Space Apps 2026 · desafío Junior Astronaut Mission Trainer.',
+        secretCalmButton()),
     );
   };
+  // ACADEMIA: las 6 pruebas sueltas; guarda las mejores estrellas y da las alas con 2+ en todas.
+  const WHERE = { estacion: 'la Estación', luna: 'la Luna', marte: 'Marte', gateway: 'Gateway' };
+  const openAcademy = () => {
+    const rec = academyRecord(), wings = hasWings(rec);
+    const close = modal(h('div', { id: 'academia-lista' }, h('h2', {}, '🎓 Academia de astronautas'),
+      h('p', { class: 'small' }, wings ? '¡Ganaste tus ALAS DE ASTRONAUTA!' : 'Entrena como los astronautas de verdad. Con 2 estrellas en cada prueba ganas tus ALAS. Antes de cada misión, la prueba de su destino ayuda a la tripulación.'),
+      wings ? h('div', { class: 'alas' }, '— ★ ALAS DE ASTRONAUTA ★ —') : null,
+      h('div', { class: 'acad-lista' }, ...ACADEMY_ORDER.map((id) => {
+        const t = TRAININGS[id], st = rec[id] ?? 0;
+        return h('button', { class: `acad-carta ${st >= 2 ? 'ok' : ''}`, 'data-acad': id, onclick: async () => {
+          beep(820, 40); close();
+          const r = await runTraining(id);
+          if (r) saveAcademy(id, r.stars);
+          openAcademy();
+          if (hasWings(academyRecord()) && !wings) say('¡Felicidades! Ganaste tus ALAS DE ASTRONAUTA.', { mood: 'feliz' });
+        } }, h('div', { class: 'acad-nombre' }, h('span', {}, t.icon), ' ', h('span', {}, t.name)), h('div', { class: 'acad-st' }, '★'.repeat(st) + '☆'.repeat(3 - st)),
+          t.where.length ? h('div', { class: 'small dim' }, `Ayuda en ${WHERE[t.where[0]]}`) : null);
+      })),
+      h('button', { onclick: () => close() }, 'Cerrar')));
+  };
   redrawTitle = draw;
+  app.suggested = SUGGESTED;
   // ?jurado en la dirección: entra directo al recorrido de 3 minutos (para el link del jurado).
   if (new URLSearchParams(location.search).has('jurado') && !app.juradoAuto && !coopInfo().role) { app.juradoAuto = true; startJurado(app, go); return () => {}; }
   app.jurado = null;

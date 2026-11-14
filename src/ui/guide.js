@@ -1,4 +1,5 @@
 // Guía animada de Control de Misión: habla, cambia de cara y señala con una flecha qué tocar.
+import { speak, readAloud } from './fx.js';
 import { tr } from '../i18n/i18n.js';
 import { guideSvg } from './avatar.js';
 import { plain } from './dom.js';
@@ -100,9 +101,11 @@ export function say(text, { mood = 'normal', target = null, buttons = [], quiet 
   box.classList.add('talking');
   let i = 0;
   out.textContent = '';
+  if (readAloud()) speak(text, { interrupt: true, rate: 0.95 });
   typing = setInterval(() => {
     i += 2;
     out.textContent = text.slice(0, i);
+    if (!quiet && i % 8 === 0) beep(1700 + (i % 3) * 120, 6, 'square', 0.01); // tecleo de terminal
     if (i >= text.length) { clearInterval(typing); box.classList.remove('talking'); }
   }, 18);
   if (!quiet) beep(mood === 'alerta' ? 520 : 980, 40, 'sine', 0.03);

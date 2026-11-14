@@ -9,6 +9,8 @@ import { beep } from './audio.js';
 import { load } from '../core/save.js';
 import { crewAvatar } from './avatar.js';
 import { SUGGESTED } from './screens/design.js';
+import { openArcade } from './arcade.js';
+import { openCenter, markPlayed, checkRankUp } from './cadete.js';
 
 export const STEPS = [
   ['ARMA LA NAVE', 'design'],
@@ -83,8 +85,8 @@ export function kidsTitle(root, app, go) {
         return h('button', { class: `acad-carta ${st >= 2 ? 'ok' : ''}`, 'data-acad': id, onclick: async () => {
           beep(820, 40);
           const r = await runTraining(id, { kids: true });
-          if (r) saveAcademy(id, r.stars);
-          draw();
+          if (r) { saveAcademy(id, r.stars); markPlayed(); }
+          draw(); checkRankUp();
           if (hasWings(academyRecord()) && !wings) say('¡Felicidades! Ganaste tus ALAS DE ASTRONAUTA. Ahora vuela en una MISIÓN.', { mood: 'feliz', target: '#jugar' });
         } }, h('div', { class: 'acad-nombre' }, t.name), h('div', { class: 'acad-st' }, '★'.repeat(st) + '☆'.repeat(3 - st)),
           t.where.length ? h('div', { class: 'small dim' }, `Ayuda en ${{ estacion: 'la Estación', luna: 'la Luna', marte: 'Marte', gateway: 'Gateway' }[t.where[0]]}`) : null);
@@ -102,14 +104,17 @@ export function kidsTitle(root, app, go) {
     academy(),
     places(),
     h('div', { style: { textAlign: 'center', margin: '1rem 0' } },
-      h('button', { class: 'big', id: 'jugar', onclick: start }, '▶ MISIÓN')),
+      h('button', { class: 'big', id: 'jugar', onclick: start }, '▶ MISIÓN'),
+      h('div', { class: 'row', style: { justifyContent: 'center', marginTop: '.6rem' } },
+        h('button', { class: 'big arcade-btn', id: 'arcade-btn', onclick: () => openArcade() }, '🕹️ ARCADE'),
+        h('button', { id: 'mi-ficha', onclick: () => openCenter(app, go) }, '🧑‍🚀 MI FICHA'))),
     h('div', { class: 'panel c-blue', id: 'como' },
       h('h2', {}, 'ASÍ SE JUEGA'),
       h('ol', { class: 'como-ninos' },
         h('li', {}, h('b', {}, 'ENTRÉNATE. '), 'Juega las pruebas de la ACADEMIA y gana estrellas.'),
         h('li', {}, h('b', {}, 'ARMA LA NAVE. '), 'Nova ya la armó. Solo toca LANZAR.'),
         h('li', {}, h('b', {}, 'DESPEGA. '), 'Mira el cohete subir. Si te preguntan, di GO.'),
-        h('li', {}, h('b', {}, 'VIVE EN EL ESPACIO. '), 'Toca AVANZAR. Que no falte AIRE, AGUA, COMIDA ni LUZ. Si suena una alarma, arréglala rápido.'),
+        h('li', {}, h('b', {}, 'VIVE EN EL ESPACIO. '), 'Toca AVANZAR. Cuida 3 cosas: SOPORTE VITAL, ENERGÍA y RADIACIÓN. Cuando el Sol lance una llamarada de verdad, decide: ¿refugio o ciencia? Si suena una alarma, arréglala rápido.'),
         h('li', {}, h('b', {}, 'VUELVE A CASA. '), 'Mira cuántas estrellas ganaste.')),
       h('p', { class: 'metas-titulo' }, h('b', {}, 'GANA LAS 3 ESTRELLAS: '), '★ vuelve a casa · ★ elige bien en los problemas · ★ gana las alarmas')),
     h('div', { class: 'small dim', style: { textAlign: 'center' } },

@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🚀</text></svg>">
+  <title>LIFELINE · Niños</title>
+  <script>
+    // Para teléfonos viejos (iOS < 15.4, Chrome < 98): funciones que el juego usa.
+    if (!window.structuredClone) window.structuredClone = function (v) { return v === undefined ? v : JSON.parse(JSON.stringify(v)); };
+    [Array, String].forEach(function (T) { if (!T.prototype.at) Object.defineProperty(T.prototype, 'at', { configurable: true, writable: true, value: function (i) { i = Math.trunc(i) || 0; if (i < 0) i += this.length; return this[i]; } }); });
+    // Si algo falla al cargar, mostrarlo en vez de dejar la pantalla negra.
+    window.addEventListener('error', function (e) { var a = document.getElementById('app'); if (a && !a.children.length) a.innerHTML = '<pre style="color:#7f7;padding:1em;white-space:pre-wrap">No se pudo cargar el juego en este navegador.\nActualiza el navegador o usa Chrome.\n\n' + (e.message || '') + '</pre>'; });
+  </script>
+  <link rel="stylesheet" href="styles/console.css">
+  <link rel="stylesheet" href="styles/terminal.css">
+  <link rel="stylesheet" href="styles/ninos.css">
+</head>
+<body>
+  <header id="barra">
+    <span class="logo">◢ LIFELINE</span>
+    <span id="barra-info"></span>
+    <button id="idioma" title="Español / English">ES | EN</button>
+    <button id="silencio" title="Silenciar sonido">SONIDO: SÍ</button>
+    <button id="musica" title="Música original (CC0)">MÚSICA: NO</button>
+    <button id="glosario" title="Glosario: palabras del espacio">📖</button>
+    <button id="letra-menos" title="Letra más chica">A−</button>
+    <button id="letra-mas" title="Letra más grande (para proyectar)">A+</button>
+    <button id="daltonico" title="Colores para daltonismo">👁️</button>
+  </header>
+  <main id="app"></main>
+  <script src="juego.js" defer></script>
+</body>
+</html>
