@@ -36,7 +36,7 @@ import '../academy2.js';
 import { SENSORS } from '../../data/nasa.js';
 import { glitch } from '../fx.js';
 import { stormDue, stormDecision, recentFlare } from '../spaceweather.js';
-import { HEALTH_FINDINGS } from '../../core/spaceweather.js';
+import { HEALTH_FINDINGS, osdUrl } from '../../core/spaceweather.js';
 import { placeOf, FLASH_TYPES, CABLE_COLORS, closeDoor, resolveFlash, modName, allDone, stepDone, flashLeft, leakReading, probeLeak, turnValve, connectCable, pressProtocol, protocolOrder, pressCode, peekCode, adjustPower, timingPress, timingPos, timingZone } from '../../core/flash.js';
 
 // Modo niños: menos trabajos, energía en una barra y Nova reparte sola cada día.
@@ -692,7 +692,8 @@ export function render(root, app, go) {
   function healthFact() {
     const f = HEALTH_FINDINGS[Math.floor(app.state.day / 5) % HEALTH_FINDINGS.length];
     return h('div', { class: 'panel c-cyan', id: 'dato-salud' }, h('h2', {}, '🔬 Dato real de salud'),
-      h('p', {}, `${f.icon} ${f.text}`), h('div', { class: 'small dim' }, `Fuente: ${f.src}`));
+      h('p', {}, `${f.icon} ${f.text}`), h('div', { class: 'small dim' }, `Fuente: ${f.src}`),
+      f.osd ? h('a', { class: 'small', href: osdUrl(f.osd), target: '_blank', rel: 'noopener' }, `Ver ${f.osd} en OSDR`) : null);
   }
 
   function resources() {
@@ -1206,7 +1207,7 @@ export function render(root, app, go) {
 
   // Modo jurado: un cartel con el paso del recorrido y un solo botón para seguir.
   const JURADO_TXT = {
-    3: ['Paso 3 de 5 · La misión', 'Así se ve un día en la estación: recursos, tripulación y turnos. Toquen ⏩ y en unos segundos salta una emergencia relámpago: hay que resolverla contra reloj.', '⏩ Adelantar hasta la emergencia'],
+    3: ['Paso 3 de 5 · La misión', 'Así se ve un día en la estación: recursos, tripulación y turnos. Al avanzar llega el CLIMA ESPACIAL REAL de NASA DONKI: ¿refugio o ciencia? Esa es la restricción central del juego. Después toquen ⏩ y salta una emergencia relámpago contra reloj.', '⏩ Adelantar hasta la emergencia'],
     4: ['Paso 4 de 5 · El resto del año', 'Ya vieron una emergencia. El resto del año (eventos, cargas, reparaciones) se juega igual. Toquen ⏩ y Nova lo juega por ustedes eligiendo lo recomendado.', '⏩ Adelantar el año y volver a la Tierra'],
   };
   function juradoPanel() {

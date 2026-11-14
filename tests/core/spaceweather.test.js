@@ -27,3 +27,17 @@ test('ninguna opción es gratis', () => {
   assert.ok(limitShare(60) === 0.1);
   assert.ok(HEALTH_FINDINGS.length >= 4);
 });
+
+import { strongestFlares, stormDays, stormIndexDue, ARCHIVED_FLARES, osdUrl } from '../../src/core/spaceweather.js';
+test('3 decisiones por misión y las 3 llamaradas más fuertes', () => {
+  assert.deepEqual(stormDays(60), [1, 20, 40]);
+  assert.equal(stormIndexDue(0, 60, 0), -1);
+  assert.equal(stormIndexDue(1, 60, 0), 0);
+  assert.equal(stormIndexDue(5, 60, 1), -1);
+  assert.equal(stormIndexDue(25, 60, 1), 1);
+  assert.equal(stormIndexDue(59, 60, 3), -1);
+  const top = strongestFlares([{ classType: 'M1', beginTime: '2026-11-01T00:00Z' }, { classType: 'X1', beginTime: '2026-11-02T00:00Z' }, { classType: 'X2', beginTime: '2026-11-02T05:00Z' }, { classType: 'C3', beginTime: '2026-11-03' }], 3);
+  assert.deepEqual(top.map((f) => f.cls), ['X2', 'M1', 'C3']); // misma fecha no se repite
+  assert.equal(ARCHIVED_FLARES.length, 3);
+  assert.match(osdUrl('OSD-342'), /osdr\.nasa\.gov.*OSD-342/);
+});

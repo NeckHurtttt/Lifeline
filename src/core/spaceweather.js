@@ -2,8 +2,13 @@
 // protegerse de la radiación cuesta ciencia y energía; no protegerse cuesta dosis que nunca se borra.
 // Datos: NASA DONKI (llamaradas de los últimos 30 días). Sin internet: una llamarada real archivada.
 
-/** Llamarada real archivada (NASA DONKI): la más fuerte del ciclo solar 25 hasta entonces. */
-export const ARCHIVED_FLARE = { cls: 'X8.7', date: '2024-05-14', source: 'archivo' };
+/** Llamaradas reales archivadas de NASA DONKI (2024, las más fuertes del ciclo solar 25), para jugar sin internet. */
+export const ARCHIVED_FLARES = [
+  { cls: 'X8.7', date: '2024-05-14', source: 'archivo' },
+  { cls: 'X9.0', date: '2024-10-03', source: 'archivo' },
+  { cls: 'X7.1', date: '2024-10-01', source: 'archivo' },
+];
+export const ARCHIVED_FLARE = ARCHIVED_FLARES[0];
 
 /** Letra y número de la clase (C, M, X) → intensidad comparable. */
 export function flareRank(cls) {
@@ -16,6 +21,22 @@ export function strongestFlare(list) {
   let best = null;
   for (const f of list ?? []) if (f?.classType && (!best || flareRank(f.classType) > flareRank(best.classType))) best = f;
   return best ? { cls: best.classType, date: String(best.beginTime ?? best.peakTime ?? '').slice(0, 10), source: 'donki' } : null;
+}
+
+/** Las n más fuertes, de mayor a menor (sin repetir fecha). */
+export function strongestFlares(list, n = 3) {
+  const seen = new Set();
+  return [...(list ?? [])].filter((f) => f?.classType).sort((a, b) => flareRank(b.classType) - flareRank(a.classType))
+    .map((f) => ({ cls: f.classType, date: String(f.beginTime ?? f.peakTime ?? '').slice(0, 10), source: 'donki' }))
+    .filter((f) => !seen.has(f.date) && seen.add(f.date)).slice(0, n);
+}
+
+/** Días de la misión en que llega una decisión de clima espacial: al empezar, a un tercio y a dos tercios. */
+export const stormDays = (totalDays) => [1, Math.max(2, Math.round(totalDays / 3)), Math.max(3, Math.round((2 * totalDays) / 3))];
+/** Índice de la decisión que toca hoy (o -1). done = cuántas ya se tomaron. */
+export function stormIndexDue(day, totalDays, done = 0) {
+  const days = stormDays(totalDays);
+  return done < days.length && day >= days[done] ? done : -1;
 }
 
 /**
@@ -57,6 +78,13 @@ export const HEALTH_FINDINGS = [
   { id: 'hueso', icon: '🦴', text: 'Sin gravedad, los huesos de cadera y piernas pierden cerca de 1 a 1,5 % por MES. Por eso se hace ejercicio 2 horas al día.', src: 'NASA Human Research Program' },
   { id: 'musculo', icon: '💪', text: 'En vuelos cortos, sin ejercicio, se puede perder hasta 20 % de músculo en 1 a 2 semanas.', src: 'NASA Human Research Program' },
   { id: 'radiacion', icon: '☢️', text: 'Un viaje de ida y vuelta a Marte daría ~660 mSv solo de radiación de fondo: más que el límite de toda la carrera (600 mSv).', src: 'Curiosity RAD (Zeitlin et al., 2013) · NASA' },
-  { id: 'gemelos', icon: '🧬', text: 'Estudio de los Gemelos: tras casi un año en la Estación, Scott Kelly tuvo cambios en genes y en el cuerpo; la mayoría volvió a la normalidad meses después.', src: 'NASA Twins Study (2019) · datos en OSDR' },
-  { id: 'ratones', icon: '🐭', text: 'Ratones que vivieron en la Estación perdieron hueso y músculo rápido: así se prueban medicinas antes de usarlas en personas.', src: 'NASA Rodent Research · OSDR' },
+  { id: 'gemelos', icon: '🧬', text: 'Estudio de los Gemelos: tras casi un año en la Estación, Scott Kelly tuvo cambios en genes y en el cuerpo; la mayoría volvió a la normalidad meses después.', src: 'NASA Twins Study (2019)' },
+  // Estudios reales del repositorio OSDR de NASA (osdr.nasa.gov), elegidos y resumidos para chicos.
+  { id: 'osd342', icon: '🐭', osd: 'OSD-342', text: 'Ratones que viajaron a la Estación (misión SpaceX-19) perdieron músculo y hueso. Un remedio experimental que bloquea la "miostatina" los protegió.', src: 'NASA OSDR · OSD-342' },
+  { id: 'osd417', icon: '🦠', osd: 'OSD-417', text: 'En ratones de la Estación (SpaceX-11) cambiaron las bacterias del intestino, y esos cambios se relacionan con la pérdida de hueso.', src: 'NASA OSDR · OSD-417' },
+  { id: 'osd340', icon: '☢️', osd: 'OSD-340', text: 'Ratones expuestos a radiación como la del espacio profundo (simulada en laboratorio) tuvieron más riesgo de cáncer de la sangre. Por eso NASA limita la dosis.', src: 'NASA OSDR · OSD-340' },
+  { id: 'osd174', icon: '🧑‍🚀', osd: 'OSD-174', text: 'Analizaron pelos de astronautas en la Estación: vivir meses en un lugar cerrado cambia cómo trabajan algunos genes.', src: 'NASA OSDR · OSD-174 (JAXA)' },
 ];
+
+/** Enlace al estudio en OSDR. */
+export const osdUrl = (osd) => `https://osdr.nasa.gov/bio/repo/data/studies/${osd}`;
