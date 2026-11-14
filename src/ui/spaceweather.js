@@ -88,7 +88,7 @@ export async function stormDecision(app, commit, draw) {
 
   box.replaceChildren(
     h('h2', {}, `☀️ CLIMA ESPACIAL REAL · ${idx + 1} de 3`),
-    h('p', { class: 'clima-dato' }, calm ? `Datos REALES de NASA DONKI: el último mes no hubo ${idx ? 'más ' : ''}llamaradas fuertes. Para entrenar usamos una real archivada: clase ${f.cls} del ${f.date}.` : flareText(f)),
+    h('p', { class: 'clima-dato' }, kids ? `${f.source === 'donki' && !calm ? 'Dato de HOY' : 'Dato real guardado'} de NASA: el Sol lanzó una llamarada clase ${f.cls} (${f.date}).` : calm ? `Datos REALES de NASA DONKI: el último mes no hubo ${idx ? 'más ' : ''}llamaradas fuertes. Para entrenar usamos una real archivada: clase ${f.cls} del ${f.date}.` : flareText(f)),
     h('p', {}, kids
       ? `Una llamarada es una explosión en el Sol. ${CLASS_TXT(f.cls)}. Si tira partículas hacia ${sc.home ?? 'la base'}, son como rayos invisibles que dañan el cuerpo.`
       : `Una llamarada clase ${f.cls} (${CLASS_TXT(f.cls)}) puede venir con una tormenta de partículas. Si llegara hoy a ${sc.home ?? 'la base'}, cada astronauta sin protección recibiría unos ${opts[2].dose} mSv${shield < 1 ? ' (tu escudo ya la baja)' : ''}.`),
