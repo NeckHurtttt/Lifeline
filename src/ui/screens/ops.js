@@ -35,6 +35,8 @@ import { runTraining } from '../academy.js';
 import '../academy2.js';
 import { SENSORS } from '../../data/nasa.js';
 import { glitch } from '../fx.js';
+import { stormDue, stormDecision, recentFlare } from '../spaceweather.js';
+import { HEALTH_FINDINGS } from '../../core/spaceweather.js';
 import { placeOf, FLASH_TYPES, CABLE_COLORS, closeDoor, resolveFlash, modName, allDone, stepDone, flashLeft, leakReading, probeLeak, turnValve, connectCable, pressProtocol, protocolOrder, pressCode, peekCode, adjustPower, timingPress, timingPos, timingZone } from '../../core/flash.js';
 
 // Modo niños: menos trabajos, energía en una barra y Nova reparte sola cada día.
@@ -669,7 +671,32 @@ export function render(root, app, go) {
         ]));
   }
 
+  // Modo niños: solo 3 recursos centrales (lo que pide el desafío): soporte vital, energía y radiación.
+  function resourcesKids() {
+    const s = app.state; const r = s.resources; const left = daysLeft(s);
+    const life = Math.min(...['o2', 'water', 'food'].map((k) => (Number.isFinite(left[k]) ? left[k] : 999)));
+    const rad = Math.max(0, ...living().map((c) => c.radiation ?? 0));
+    const card = (cls, ico, name, val, frac, opts, help) => h('div', { class: `res-card kid ${cls}`, title: name },
+      h('div', { class: 'res-ico code' }, icon(ico)),
+      h('div', {}, h('div', { class: 'res-name' }, name), h('div', { class: 'res-val' }, val), bar(frac, opts), h('div', { class: 'small dim' }, help)));
+    return h('div', { class: 'panel c-blue', id: 'recursos' },
+      h('h2', {}, '📦 Lo que hay que cuidar'),
+      h('div', { class: 'res-grid tres' },
+        card(life < 15 ? 'low' : '', 'o2', '🫁 Soporte vital', life >= 999 ? 'se recicla' : `${fmt(life)} días`, Math.min(1, life / 60), {}, 'Aire, agua y comida: lo que se acabe primero.'),
+        card(r.battery / (r.batteryMax || 1) < 0.15 ? 'low' : '', 'battery', '⚡ Energía', `${fmt(r.battery)} kWh`, r.battery / (r.batteryMax || 1), {}, 'Sin energía, el soporte vital se apaga.'),
+        card(rad >= 480 ? 'low' : '', 'meds', '☢️ Radiación', `${fmt(rad)} de 600 mSv`, rad / 600, { invert: true, warn: 0.5, danger: 0.8 }, 'Se suma y no se borra. 600 = límite de NASA.')),
+      h('div', { class: 'row', style: { marginTop: '.5rem' } }, h('span', { class: 'pill violet' }, `🧪 Ciencia ${fmt(s.science)}`)));
+  }
+
+  // Un hallazgo real de salud de astronautas (cambia cada 5 días).
+  function healthFact() {
+    const f = HEALTH_FINDINGS[Math.floor(app.state.day / 5) % HEALTH_FINDINGS.length];
+    return h('div', { class: 'panel c-cyan', id: 'dato-salud' }, h('h2', {}, '🔬 Dato real de salud'),
+      h('p', {}, `${f.icon} ${f.text}`), h('div', { class: 'small dim' }, `Fuente: ${f.src}`));
+  }
+
   function resources() {
+    if (kids()) return resourcesKids();
     const s = app.state; const r = s.resources; const left = daysLeft(s); const n = living().length || 1;
     const max = { meds: 20 * n, parts: 30, fuel: 100, battery: r.batteryMax || 1, dataStored: 500 };
     return h('div', { class: 'panel c-blue', id: 'recursos' },
@@ -1244,7 +1271,7 @@ export function render(root, app, go) {
         ...((canExplore(s) || s.map) && !kids() ? [{ id: 'mapa', label: '🗺️ Exploración', color: 'c-green', badge: s.expedition ? 0 : (s.map ?? []).filter((n) => n.known && !n.done).length }] : []),
         ...(kids() ? [] : [{ id: 'diario', label: '📖 Diario', color: 'c-cyan' }]),
       ], tab, pick),
-      tab === 'resumen' ? h('div', { class: 'grid2' }, h('div', {}, resources(), sensorsMini()), h('div', {}, monitor(), alerts())) : null,
+      tab === 'resumen' ? h('div', { class: 'grid2' }, h('div', {}, resources(), healthFact(), sensorsMini()), h('div', {}, monitor(), alerts())) : null,
       tab === 'tripulacion' ? crewCards() : null,
       tab === 'estacion' ? h('div', { class: 'grid-base' }, ship(), h('div', {}, energyPanel(), kids() ? null : operaciones())) : null,
       tab === 'misiones' ? h('div', { class: 'grid2' }, alerts(), minis()) : null,
@@ -1255,6 +1282,7 @@ export function render(root, app, go) {
     );
     if (phaseDue(s) && s.phase === 'ops') { if (!document.getElementById('fase')) phaseModal(); }
     else if (s.flash) flashModal();
+    else if (stormDue(s) && !isGuest() && !document.getElementById('clima-real') && app.practice == null) { stopClock(); stormDecision(app, commit, draw); }
     else if (s.pending && !document.getElementById('evento')) eventModal();
     else if (!s.pending && app.practice != null) practiceStep();
     else if (!s.pending && s.jurado && JURADO_TXT[juradoStep(s, 'ops')]) say(JURADO_TXT[juradoStep(s, 'ops')][1], { mood: 'feliz', target: '#jurado-seguir', quiet: true });
@@ -1266,6 +1294,7 @@ export function render(root, app, go) {
     }
   }
 
+  recentFlare(); // se pide a NASA DONKI apenas empieza la misión
   draw();
   // Contrarreloj: la misión termina cuando se acaba el tiempo real; gana el equipo con más puntaje.
   const contra = setInterval(() => {

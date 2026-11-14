@@ -218,7 +218,23 @@ function dataView({ app }) {
         h('div', { class: 'small dim' }, `${d.date}${d.copyright ? ` · © ${d.copyright.trim()}` : ''}`));
     } catch { apod.textContent = 'Sin conexión con NASA APOD ahora (o se acabó el límite de la llave DEMO). Las demás lecturas funcionan sin internet.'; }
   })();
+  const flare = h('div', { class: 'small' }, 'Consultando NASA DONKI…');
+  const paintFlare = () => import('./spaceweather.js').then(({ recentFlare }) => recentFlare()).then((f) => { flare.textContent = f.source === 'donki' ? `☀️ EN VIVO (DONKI): llamarada más fuerte de los últimos 30 días: ${f.cls}, el ${f.date}.` : f.source === 'donki-calma' ? '☀️ EN VIVO (DONKI): el último mes no hubo llamaradas.' : `☀️ No se pudo consultar a NASA (sin internet o la llave de prueba se agotó): se usa la llamarada real archivada ${f.cls} del ${f.date}.`; });
+  paintFlare();
+  const keyInput = h('input', { placeholder: 'Llave de api.nasa.gov (opcional)', size: 28, value: (() => { try { return localStorage.getItem('vdl-nasa-key') ?? ''; } catch { return ''; } })() });
+  const keyRow = h('div', { class: 'row small' }, keyInput, h('button', { class: 'small', onclick: () => import('./spaceweather.js').then(({ setNasaKey }) => { setNasaKey(keyInput.value); flare.textContent = 'Consultando NASA DONKI…'; paintFlare(); }) }, 'Usar llave'),
+    h('span', { class: 'dim' }, 'Gratis en api.nasa.gov: la de prueba se agota rápido.'));
   return h('div', { class: 'data' },
+    h('div', { class: 'panel c-amber', id: 'jurado-datos' },
+      h('h2', {}, '🏛️ Para el jurado: la restricción y los datos'),
+      h('p', {}, h('b', {}, 'Restricción central: '), 'protegerse de la radiación cuesta ciencia y energía hoy; no protegerse suma una dosis que el cuerpo nunca borra. Y la energía es la que mantiene vivo el soporte vital. Ninguna opción es gratis.'),
+      h('ul', { class: 'small' },
+        h('li', {}, h('b', {}, 'NASA DONKI: '), 'la llamarada más fuerte del último mes se convierte en una decisión en cada misión (refugio, mitad o seguir). También el calendario de tormentas solares de la misión. Si no hay internet se usa un evento real archivado y se dice que no es en vivo.'),
+        h('li', {}, h('b', {}, 'Límite de NASA (600 mSv en la carrera): '), 'es la meta de radiación del juego; cada decisión muestra cuánto de ese límite se gasta.'),
+        h('li', {}, h('b', {}, 'Salud de astronautas (NASA HRP, Twins Study, Rodent Research en OSDR): '), 'pérdida de hueso y músculo, dosis del viaje a Marte (Curiosity RAD). Explican por qué hay que hacer ejercicio y usar refugio.'),
+        h('li', {}, h('b', {}, 'Sensores del destino (LRO, Perseverance MEDA, Curiosity RAD, ISS): '), 'gravedad, temperatura, radiación y duración del día. Son datos fijos citados, no en vivo.'),
+        h('li', {}, h('b', {}, 'En vivo: '), 'posición de la Estación (wheretheiss.at), foto del día (APOD) y el retraso de la señal a Marte calculado con la fecha de hoy.')),
+      flare, keyRow),
     h('h2', {}, `📡 SENSORES · ${DEST[scn] ?? scn}`),
     h('table', { class: 'sensores' },
       ...[['Gravedad', sen.grav], ['Temperatura', sen.temp], ['Radiación', sen.rad], ['Día', sen.dia], ['Presión', sen.pres]].map(([k, v]) => h('tr', {}, h('td', { class: 'dim' }, k), h('td', {}, v)))),

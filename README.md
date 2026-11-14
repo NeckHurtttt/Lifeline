@@ -47,6 +47,30 @@ otro mira los datos. El que dice «yo pensé que vos te estabas encargando» tam
 
 > **La misión:** que vuelvan todos. Aunque la nave vuelva medio parchada.
 
+## La restricción real que enseña
+
+Hecho para el desafío **Build a Junior Astronaut Mission Trainer** (NASA Space Apps 2026), para chicos de 7 a 12 años.
+
+**Protegerse de la radiación cuesta ciencia y energía hoy. No protegerse suma una dosis que el cuerpo nunca borra.**
+Y la energía es la que mantiene vivo el soporte vital. Ninguna opción es gratis.
+
+En cada misión, la **llamarada solar más fuerte del último mes** (datos reales de NASA DONKI) se vuelve una decisión:
+todos al refugio (casi sin radiación, pero sin ciencia y gastando energía), la mitad, o seguir trabajando
+(más ciencia, más dosis). Después el juego muestra la dosis de cada astronauta frente al **límite real de NASA:
+600 mSv en toda la carrera**, y cómo lo resuelven de verdad en la Estación y en la nave Orion. En el modo niños
+solo se ven 3 cosas que cuidar: soporte vital, energía y radiación.
+
+| Dato de NASA | Dónde se usa | Por qué |
+| :--- | :--- | :--- |
+| DONKI (llamaradas, últimos 30 días; también el calendario de tormentas) | Decisión de clima espacial y tormentas de la misión | Que el riesgo de radiación venga del Sol real, no de un número inventado. Sin internet usa un evento real archivado (X8.7, 14/05/2024) y lo dice. |
+| Límite de carrera de NASA (600 mSv) | Meta de radiación de cada astronauta | Es la regla real con la que NASA decide quién puede volar. |
+| Curiosity RAD, Chang'E-4 LND, ISS | Radiación de fondo por día en cada destino | Medidas reales en el viaje a Marte, en la Luna y en órbita. |
+| NASA Human Research Program, Twins Study y Rodent Research (OSDR) | "Dato real de salud" en la misión | Explican por qué se hace ejercicio y se usa refugio: hueso, músculo y dosis del viaje a Marte. |
+| LRO, Perseverance MEDA | Sensores del destino (temperatura, presión, día) | Condiciones reales del lugar. Son datos fijos citados, no en vivo. |
+| APOD y posición de la ISS | Pestaña DATA | Ventana en vivo a la ciencia real. |
+
+Todo eso está también dentro del juego, en 🧑‍🚀 CADETE → DATA → "Para el jurado".
+
 <a id="como-se-juega"></a>
 
 ## Primero armala. Después vemos si vuela.
@@ -196,7 +220,9 @@ Space Apps pide documentar el software y los servicios de terceros. Este es el d
 | [PeerJS](https://peerjs.com/) 1.5.4, desde jsDelivr | Cooperativo en línea con WebRTC | MIT. Se carga solo al crear o unirse a una sala. |
 | [MQTT.js](https://github.com/mqttjs/MQTT.js) 5.10.1, desde jsDelivr, con los brokers públicos de EMQX, HiveMQ y Mosquitto | Relevo del cooperativo cuando la red no deja conectar directo | MIT. Solo se usa si falla la conexión directa; los datos de la partida no son privados. |
 | [esbuild](https://esbuild.github.io/), vía `npx` | Empaquetar `Jugar.html` | MIT. Solo en desarrollo. |
-| API DONKI de NASA | Fechas reales de llamaradas solares | Datos abiertos de NASA, con respaldo de 2024 sin conexión. |
+| API DONKI de NASA (api.nasa.gov y CCMC) | Llamaradas reales: calendario de tormentas y la decisión de clima espacial del último mes | Datos abiertos de NASA, con respaldo real archivado sin conexión. |
+| NASA APOD y wheretheiss.at | Foto del día y posición de la Estación en la pestaña DATA | Datos abiertos; solo se piden al abrir DATA. |
+| qrcode-generator 1.4.4, desde cdnjs | Código QR para abrir el juego en el celular | MIT. |
 | Fuente VT323 | Tipografía de consola | SIL Open Font License. |
 | Claude (Anthropic) | Asistente de IA usado para programar y redactar con el equipo | El equipo toma las decisiones de diseño y realiza las pruebas. |
 | OpenAI Codex | Asistencia para el diseño y la redacción de este README | Cambio limitado a documentación. |
