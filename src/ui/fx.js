@@ -1,5 +1,6 @@
 // EFECTOS DE CONSOLA: CRT, arranque "LIFELINE OS", transiciones con estática y "¿Sabías que…?", números que cuentan,
 // glitch con daño, bips por recurso, ambiente por destino, voz de Control y silencio antes de una emergencia.
+import { tr } from '../i18n/i18n.js';
 import { beep, isMuted } from './audio.js';
 import { music } from './music.js';
 import { FACTS } from '../data/nasa.js';
@@ -47,7 +48,7 @@ export function boot() {
     const tick = () => {
       if (done) return;
       if (line >= BOOT.length) { timer = setTimeout(end, 900); return; }
-      const [txt, cls] = BOOT[line];
+      const [raw, cls] = BOOT[line]; const txt = tr(raw);
       if (ch === 0) pre.append(h('div', { class: `bl ${cls}` }, ''));
       const row = pre.lastChild; ch = Math.min(txt.length, ch + 3); row.textContent = txt.slice(0, ch);
       if (ch % 6 === 0 && !isMuted()) beep(1600 + Math.random() * 400, 6, 'square', 0.012);
