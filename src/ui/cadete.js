@@ -13,6 +13,7 @@ import { cadetPoints, rankOf, RANKS, dailyChallenge, todayKey, addDestRecord, en
 import { SENSORS, FACTS, SOURCES, FAR } from '../data/nasa.js';
 import { liveCanvas, drawRocket, drawRadar, drawBase, drawPulse } from './viz.js';
 import { speak } from './fx.js';
+import { tr } from '../i18n/i18n.js';
 import { updateStreak, liveStreak, PHOSPHORS, unlockedPhosphors, rankedUp } from '../core/arcade.js';
 
 const get = (k, d) => { try { const v = localStorage.getItem(k); return v == null ? d : JSON.parse(v); } catch { return d; } };
@@ -95,10 +96,10 @@ export function pixelAvatar(name, px = 8) {
 function rankBar(p) {
   const r = p.rank;
   return h('div', { class: 'rango' },
-    h('div', { class: 'rango-nombre' }, `${r.icon} ${r.name.toUpperCase()}`),
+    h('div', { class: 'rango-nombre' }, `${r.icon} ${tr(r.name).toUpperCase()}`),
     h('div', { class: 'bar' }, h('i', { style: { width: `${Math.round(r.frac * 100)}%` } })),
     h('div', { class: 'small dim' }, r.next ? `${p.points} puntos · faltan ${r.toNext} para ${r.next.name}` : `${p.points} puntos · ¡rango máximo!`),
-    h('div', { class: 'rangos' }, ...RANKS.map((x, i) => h('span', { class: i <= r.index ? 'on' : '' }, `${x.icon} ${x.name}`))));
+    h('div', { class: 'rangos' }, ...RANKS.map((x, i) => h('span', { class: i <= r.index ? 'on' : '' }, `${x.icon} ${tr(x.name)}`))));
 }
 
 // ---------- Pestañas del centro ----------
@@ -136,12 +137,12 @@ function fichaView({ app, go, close, paint }) {
         rankBar(p))),
     h('div', { class: 'ficha-stats' },
       ...[['★', 'Estrellas', `${starsTotal} / ${(ACADEMY_ORDER.length + ADVANCED_ORDER.length) * 3}`], ['🚀', 'Misiones cumplidas', missionsTotal], ['🎖️', 'Parches', `${p.achievements} / ${ACHIEVEMENTS.length}`], ['🪽', 'Alas', p.wings ? 'SÍ' : 'todavía no']]
-        .map(([i, l, v]) => h('div', { class: 'stat' }, h('div', { class: 'stat-v' }, `${i} ${v}`), h('div', { class: 'small dim' }, l)))),
-    h('div', { class: 'row' }, h('span', { class: `pill ${p.streak.now ? 'amber' : 'dim'}`, id: 'racha' }, `🔥 Racha: ${p.streak.now} día${p.streak.now === 1 ? '' : 's'}${p.streak.today ? ' (hoy ✔)' : ' · ¡juega hoy!'}`),
+        .map(([i, l, v]) => h('div', { class: 'stat' }, h('div', { class: 'stat-v' }, `${i} ${typeof v === 'string' ? tr(v) : v}`), h('div', { class: 'small dim' }, l)))),
+    h('div', { class: 'row' }, h('span', { class: `pill ${p.streak.now ? 'amber' : 'dim'}`, id: 'racha' }, `${tr('🔥 Racha:')} ${p.streak.now} ${tr(p.streak.now === 1 ? 'día' : 'días')}${tr(p.streak.today ? ' (hoy ✔)' : ' · ¡juega hoy!')}`),
       h('span', { class: 'pill dim' }, `mejor racha ${p.streak.best}`), h('span', { class: 'pill dim' }, `🕹️ Arcade: ${p.arcade}`)),
     h('div', { class: 'row', style: { margin: '.4rem 0' } }, h('span', { class: 'small dim' }, 'Color de pantalla:'),
-      ...PHOSPHORS.map((f) => { const ok = unlockedPhosphors(p.rank.index).includes(f); return h('button', { class: `small ${get('vdl-fosforo', 'verde') === f.id ? 'sel' : ''}`, disabled: !ok, 'data-fosforo': f.id, title: ok ? f.name : `Se desbloquea con rango ${RANKS[f.rank].name}`, onclick: () => { applyPhosphor(f.id); paint(); } }, `${ok ? '' : '🔒 '}${f.name.replace('Fósforo ', '').replace(' (Comandante)', '')}`); })),
-    h('div', { class: 'small dim' }, 'Destinos: ', ...Object.entries(DEST).map(([id, n]) => h('span', { class: `pill ${p.missions[id] ? 'green' : 'dim'}` }, `${n} ${p.missions[id] ? '✔' : '·'}`))),
+      ...PHOSPHORS.map((f) => { const ok = unlockedPhosphors(p.rank.index).includes(f); return h('button', { class: `small ${get('vdl-fosforo', 'verde') === f.id ? 'sel' : ''}`, disabled: !ok, 'data-fosforo': f.id, title: ok ? f.name : `Se desbloquea con rango ${RANKS[f.rank].name}`, onclick: () => { applyPhosphor(f.id); paint(); } }, `${ok ? '' : '🔒 '}${tr(f.name.replace('Fósforo ', '').replace(' (Comandante)', ''))}`); })),
+    h('div', { class: 'small dim' }, 'Destinos: ', ...Object.entries(DEST).map(([id, n]) => h('span', { class: `pill ${p.missions[id] ? 'green' : 'dim'}` }, `${tr(n)} ${p.missions[id] ? '✔' : '·'}`))),
     h('div', { class: 'acad-botones' },
       h('button', { class: 'big', id: 'reto-diario', onclick: () => { close(); startDaily(app, go); } }, `📅 Reto diario · ${DEST[daily.scenario]}`),
       h('button', { id: 'certificado', onclick: () => printCertificate(p) }, '🖨️ Certificado (PDF)'),

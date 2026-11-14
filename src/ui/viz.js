@@ -1,4 +1,5 @@
 // MONITORES DE CONSOLA en canvas: cohete en wireframe, radar, osciloscopio del pulso, esquema vivo de la base e íconos.
+import { tr } from '../i18n/i18n.js';
 import { h } from './dom.js';
 
 const css = (v, d) => getComputedStyle(document.body).getPropertyValue(v).trim() || d;
@@ -99,7 +100,7 @@ export function drawPulse(ctx, w, hgt, t, bpm) {
     x ? ctx.lineTo(x, mid - y) : ctx.moveTo(x, mid - y);
   }
   ctx.stroke();
-  ctx.fillStyle = ctx.strokeStyle; ctx.font = '13px "VT323", monospace'; ctx.fillText(bpm ? `${bpm} LPM` : 'SIN PULSO', 3, 12);
+  ctx.fillStyle = ctx.strokeStyle; ctx.font = '13px "VT323", monospace'; ctx.fillText(bpm ? tr(`${bpm} LPM`) : tr('SIN PULSO'), 3, 12);
 }
 export const pulseCanvas = (getCrew) => liveCanvas(140, 34, (ctx, w, hh, t) => drawPulse(ctx, w, hh, t, bpmOf(getCrew())), { cls: 'pulso' });
 
@@ -119,7 +120,7 @@ export function drawBase(ctx, w, hgt, t, info) {
   // día y noche
   ctx.fillStyle = `rgba(0,0,0,${0.45 * (info.night ?? 0)})`; ctx.fillRect(0, 0, w, hgt);
   ctx.font = '13px "VT323", monospace'; ctx.fillStyle = k.dim;
-  ctx.fillText(`${(info.night ?? 0) > 0.5 ? '☾ NOCHE' : '☀ DÍA'} · DÍA ${info.day ?? 0}`, 6, 14);
+  ctx.fillText(tr(`${(info.night ?? 0) > 0.5 ? '☾ NOCHE' : '☀ DÍA'} · DÍA ${info.day ?? 0}`), 6, 14);
   // conexiones
   ctx.strokeStyle = k.dim; ctx.lineWidth = 2;
   for (const a of mods) for (const b of mods) if ((b.x === a.x + 1 && b.y === a.y) || (b.y === a.y + 1 && b.x === a.x)) { const [x1, y1] = at(a), [x2, y2] = at(b); ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke(); }
@@ -153,7 +154,7 @@ export function drawBase(ctx, w, hgt, t, info) {
   if (info.dust) {
     ctx.fillStyle = 'rgba(255,190,90,.5)';
     for (let i = 0; i < 80; i++) { const px = ((i * 53 + t * 120) % (w + 20)) - 10, py = (i * 29 + Math.sin(t + i) * 8) % hgt; ctx.fillRect(px, py, 2, 1); }
-    ctx.fillStyle = k.amber; ctx.fillText('⚠ TORMENTA DE POLVO', w - 120, 14);
+    ctx.fillStyle = k.amber; ctx.fillText(tr('⚠ TORMENTA DE POLVO'), w - 120, 14);
   }
 }
 
