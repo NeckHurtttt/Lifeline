@@ -10,6 +10,8 @@ import { inCoop, coopInfo, shareDraft, onAction } from '../coop.js';
 import { beep, alarm, radio, hum } from '../audio.js';
 import { say as nova } from '../guide.js';
 import { crewAvatar } from '../avatar.js';
+import { liveCanvas, drawRocket } from '../viz.js';
+import { speak } from '../fx.js';
 
 const ABORT_NAMES = { torre_escape: 'Torre de escape', amarizaje: 'Aborto con amarizaje', aborto_orbita: 'Aborto a órbita' };
 const RADIO = {
@@ -82,6 +84,12 @@ export function render(root, app, go) {
     action: h('div', { id: 'accion', style: { marginTop: '.6rem' } }),
   };
   els.sky = h('div', { class: 'sky' }, h('div', { class: 'planet' }), h('div', { class: 'station' }, art({ estacion: 'estacion', gateway: 'estacion', luna: 'luna', marte: 'marte' }[s.scenarioId])), h('div', { class: 'ground' }), h('div', { class: 'tower' }), els.rocket);
+  // Cohete en wireframe (líneas verdes) con humo de partículas, encima del cielo.
+  els.sky.classList.add('wire');
+  els.sky.append(liveCanvas(300, 240, (ctx, w, hh, tt) => {
+    const v = tel(t);
+    drawRocket(ctx, w, hh, tt, { lift: Math.min(170, v.alt * 1.2), firing: t >= -6 && t < 480 });
+  }, { cls: 'cohete-wire' }));
   const MODE_TXT = { auto: 'automático: solo mira', pausas: 'con pausas: ustedes deciden el clima y el GO', manual: 'manual: ustedes deciden todo, ¡hasta los abortos!' };
   mount(root,
     h('h1', { style: { fontSize: '1.8rem' } }, '🚀 Despegue', h('span', { class: 'dim small' }, ` · ${MODE_TXT[mode]}`)),
@@ -94,6 +102,7 @@ export function render(root, app, go) {
 
   const say = (text, cls = '') => {
     radioLog.unshift(h('div', { class: cls }, `[${clockText(t)}] ${text}`)); els.radio.replaceChildren(...radioLog.slice(0, 60)); radio();
+    speak(text);
     if (inCoop()) shareDraft('radio', radioLog.slice(0, 15).map((e) => [e.textContent, e.className]));
   };
   const drawSteps = (now) => els.steps.replaceChildren(...STEPS.map((st) =>

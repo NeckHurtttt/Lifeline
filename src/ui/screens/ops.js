@@ -30,6 +30,11 @@ import { digPanel, digAvailable } from '../panels/dig.js';
 import { autoAssign } from '../../core/autoplan.js';
 import { CARGO_PLANS, cleanPanels, replaceBatteries, batteryHealth, gardenStage, BATTERY_PARTS, AUTO_RATION_DAYS } from '../../core/extras.js';
 import { inCoop, coopInfo, shareDraft, onDraft, allDrafts } from '../coop.js';
+import { radarCanvas, pulseCanvas, liveCanvas, drawBase, icon } from '../viz.js';
+import { runTraining } from '../academy.js';
+import '../academy2.js';
+import { SENSORS } from '../../data/nasa.js';
+import { glitch } from '../fx.js';
 import { placeOf, FLASH_TYPES, CABLE_COLORS, closeDoor, resolveFlash, modName, allDone, stepDone, flashLeft, leakReading, probeLeak, turnValve, connectCable, pressProtocol, protocolOrder, pressCode, peekCode, adjustPower, timingPress, timingPos, timingZone } from '../../core/flash.js';
 
 // Modo niños: menos trabajos, energía en una barra y Nova reparte sola cada día.
@@ -168,7 +173,8 @@ export function render(root, app, go) {
   // Todo se calcula desde app.state.flash (con la hora límite adentro), así se puede redibujar cuando llega
   // un cambio de otro jugador sin perder la cuenta. Solo el anfitrión (o quien juega solo) cierra el evento.
   let flashTimer = null; let flashKey = null; let flashAlarm = ''; let cableSel = null; let codeSeen = {}; let codeUntil = {}; let flashRaf = null;
-  const flashClose = () => document.getElementById('relampago')?.closest('.modal-bg')?.remove();
+  let flashRadar = null;
+  const flashClose = () => { flashRadar = null; document.getElementById('relampago')?.closest('.modal-bg')?.remove(); };
   const flashOff = () => { clearInterval(flashTimer); if (flashKey) document.removeEventListener('keydown', flashKey); flashKey = null; };
   const VALVE_ARROW = ['↑', '→', '↓', '←'];
   const CABLE_HEX = { rojo: '#ff4b4b', azul: '#4b9dff', amarillo: '#ffd23d', verde: '#4dff88', blanco: '#e8e8e8' };
@@ -378,7 +384,7 @@ export function render(root, app, go) {
     const stepsDone = f.steps.filter((st) => stepDone(f, st)).length;
 
     const content = [
-      h('div', { class: 'big-ico code alerta' }, '⚡ EVENTO RELÁMPAGO'),
+      h('div', { class: 'radar-caja' }, h('div', { class: 'big-ico code alerta' }, '⚡ EVENTO RELÁMPAGO'), flashRadar ??= radarCanvas([{ ang: Math.random() * 6, dist: 1, label: T.name.split(' ')[0].toUpperCase(), speed: 0.95 / f.seconds }], 130)),
       h('h2', { class: 'red' }, `${T.icon} ${T.name}`),
       h('p', { style: { fontSize: '1.05rem' } }, T.text(modName(target))),
       h('div', { class: 'flash-tiempo' }, h('div', { class: 'flash-barra', id: 'flash-barra' }), h('b', { id: 'flash-seg' }, `${Math.ceil(left())} s`)),
@@ -669,7 +675,7 @@ export function render(root, app, go) {
         const frac = days !== null ? (Number.isFinite(days) ? days / 60 : 1) : r[k] / max[k];
         const low = k === 'dataStored' ? frac > 0.8 : frac < 0.15;
         return h('div', { class: `res-card ${low ? 'low' : ''}`, title: name },
-          h('div', { class: 'res-ico code' }, RES_CODE[k]),
+          h('div', { class: 'res-ico code', title: RES_CODE[k] }, icon(k)),
           h('div', {}, h('div', { class: 'res-name' }, name),
             h('div', { class: 'res-val' }, days !== null ? (Number.isFinite(days) ? `${fmt(days)} días` : '♻️ se recicla') : `${fmt(r[k])}${k === 'battery' ? ` / ${fmt(r.batteryMax)}` : ''}`),
             bar(frac, k === 'dataStored' ? { invert: true } : {})));
@@ -747,12 +753,49 @@ export function render(root, app, go) {
         h('div', { class: 'small dim' }, 'Crece solo con la luz, pero mucho más rápido si alguien hace 🌱 Cultivo. Al 100 % se cosechan 45 kg.')) : null);
   }
 
+  // Sensores reales del destino (gravedad, temperatura, radiación).
+  function sensorsMini() {
+    const sen = SENSORS[app.state.scenarioId] ?? SENSORS.estacion;
+    return h('div', { class: 'panel c-cyan', id: 'sensores' }, h('h2', {}, '📡 Sensores (datos reales)'),
+      h('div', { class: 'sensores-mini' }, ...[['Gravedad', sen.grav], ['Temperatura', sen.temp], ['Radiación', sen.rad], ['Día', sen.dia]].map(([k, v]) => h('div', {}, h('b', {}, `${k}: `), v))),
+      h('div', { class: 'small dim' }, `Fuente: ${sen.src}`));
+  }
+
+  // Esquema vivo de la base: día/noche, tripulación caminando, huerto creciendo y polvo.
+  let baseCanvas = null;
+  function baseLive() {
+    baseCanvas ??= liveCanvas(520, 170, (ctx, w, hh, t) => {
+      const s = app.state; if (!s) return;
+      const site = siteOf(s);
+      const night = site?.nightDays ? (isNight(site, s.day) ? 1 : 0) : (Math.sin(t * (2 * Math.PI / 9.2)) > 0 ? 0 : 0.8); // la Estación: amanecer cada 92 min (aquí cada 9 s)
+      drawBase(ctx, w, hh, t, { modules: s.modules.map((m) => ({ ...m, code: MOD_CODE[m.type] })), crew: s.crew, night, day: s.day, dust: (s.dust ?? 0) > 0.25, plants: Math.min(1, (s.garden?.growth ?? 0) / 100) });
+    });
+    return h('div', { class: 'esquema' }, baseCanvas);
+  }
+
+  // Reparación por fuera: minijuego de soldadura; cada estrella repara 15 % y gasta 1 pieza.
+  async function evaRepair(id) {
+    if ((app.state.resources.parts ?? 0) < 1) { banner = { text: '🔧 No quedan piezas para la EVA.', cls: 'red' }; draw(); return; }
+    const name = modName(app.state.modules.find((q) => q.id === id));
+    const r = await runTraining('soldadura', { kids: kids(), intro: `EVA de reparación: ${name}. Suelda la grieta del casco.` });
+    if (!r) return;
+    const st = structuredClone(app.state);
+    const m = st.modules.find((q) => q.id === id);
+    st.resources.parts -= 1;
+    const fix = r.stars * 15;
+    m.health = Math.min(100, m.health + fix);
+    commit(st); glitch(200);
+    banner = { text: r.stars ? `🧑‍🚀 EVA lista: ${name} +${fix} % (1 pieza).` : '🧑‍🚀 La EVA no logró soldar la grieta. Se gastó 1 pieza.', cls: r.stars ? '' : 'red' };
+    draw();
+  }
+
   function ship() {
     const s = app.state;
     const cols = Math.max(...s.modules.map((m) => m.x)) + 1;
     const who = whoDecides(app, 'ingeniero');
     return h('div', { class: 'panel c-violet', id: 'estacion' },
       h('h2', {}, `${DEST} ${HOME} `, who ? h('span', { class: 'tag' }, `decide ${who}`) : null),
+      baseLive(),
       h('div', { class: 'help' }, kids() ? 'Toca un módulo para prenderlo o apagarlo. 🟢 prendido · ⚫ apagado.' : 'Toca un módulo para prenderlo o apagarlo. El número es su turno para apagarse si falta electricidad (el más bajo, primero).'),
       h('div', { class: 'ship', style: { gridTemplateColumns: `repeat(${cols}, 1fr)` } },
         ...s.modules.slice().sort((a, b) => a.y - b.y || a.x - b.x).map((m) => h('div', {
@@ -767,7 +810,7 @@ export function render(root, app, go) {
           },
         }, h('div', { class: 'ico code' }, MOD_CODE[m.type]), h('b', {}, MODULES[m.type].name),
         m.offDays ? h('div', { class: 'amber small' }, `⏸️ ${m.offDays} días`) : null,
-        bar(m.health / 100), h('div', { class: 'row small' }, m.on ? '🟢' : '⚫',
+        bar(m.health / 100), m.health < 60 && !isGuest() ? h('button', { class: 'eva-btn', 'data-eva': m.id, title: 'Sal en EVA y suelda el daño: cada estrella repara 15 % (gasta 1 pieza).', onclick: (e) => { e.stopPropagation(); evaRepair(m.id); } }, '🧑‍🚀 EVA') : null, h('div', { class: 'row small' }, m.on ? '🟢' : '⚫',
           kids() ? null : h('input', { type: 'number', min: 1, max: 10, value: m.priority, style: { width: '3.4rem' }, title: 'Turno para apagarse', onchange: (e) => { commit(setPriority(app.state, m.id, Number(e.target.value))); } }))))),
       s.design.instruments.length ? h('div', { class: 'small', style: { marginTop: '.4rem' } }, '🔬 ', s.design.instruments.map((i) => `${INSTRUMENTS[i].icon} ${INSTRUMENTS[i].name}`).join(' · ')) : null);
   }
@@ -875,7 +918,7 @@ export function render(root, app, go) {
         const mood = moodOf(c);
         return h('div', { class: `crew-card ${['enfermo', 'radiacion', 'agotado', 'hambre', 'triste', 'muerto'].includes(mood) || sleeping ? 'mal' : ''}`, 'data-crew': c.id },
           h('div', { class: 'top' },
-            crewAvatar(c, { size: 80 }),
+            h('div', {}, crewAvatar(c, { size: 80 }), pulseCanvas(() => app.state.crew.find((x) => x.id === c.id) ?? c)),
             h('div', {},
               h('div', { class: 'name' }, c.name),
               h('div', { class: 'small' }, h('span', { class: 'pill role' }, ROLES[c.role]?.name ?? c.role)),
@@ -1048,6 +1091,9 @@ export function render(root, app, go) {
         el('text', { x, y: up ? Y - 7 : Y + 12, 'text-anchor': 'middle', class: `tm-txt tm-${kind}` }, tr(label)));
     });
     const sx = xOf(s.day);
+    for (let k = 1; k <= 3; k++) svg.append(el('circle', { cx: sx - k * 4, cy: Y, r: 1.2 - k * 0.25, class: 'tm-estela', style: `animation-delay:${k * 0.2}s` }));
+    // estrellas de fondo que pasan
+    for (let k = 0; k < 7; k++) svg.append(el('circle', { cx: (k * 37) % W, cy: 3 + (k * 11) % 32, r: 0.5, class: 'tm-estrella', style: `animation-delay:${-k * 0.9}s` }));
     svg.append(el('polygon', { points: `${sx - 3},${Y + 3} ${sx + 3},${Y + 3} ${sx},${Y - 3}`, class: 'tm-nave' }),
       el('text', { x: X0, y: 36, class: 'tm-txt' }, 'T-0'), el('text', { x: X1, y: 36, 'text-anchor': 'end', class: 'tm-txt' }, tr(isMars(s) || !SCENARIOS[s.scenarioId]?.orbital ? 'TIERRA' : 'FIN')));
     return h('div', { class: 'trip-wrap', title: 'Mapa de la misión: ▲ es tu nave. Rojo = peligro avisado; CARGA = próxima nave de carga.' }, svg);
@@ -1194,7 +1240,7 @@ export function render(root, app, go) {
         ...((canExplore(s) || s.map) && !kids() ? [{ id: 'mapa', label: '🗺️ Exploración', color: 'c-green', badge: s.expedition ? 0 : (s.map ?? []).filter((n) => n.known && !n.done).length }] : []),
         ...(kids() ? [] : [{ id: 'diario', label: '📖 Diario', color: 'c-cyan' }]),
       ], tab, pick),
-      tab === 'resumen' ? h('div', { class: 'grid2' }, h('div', {}, resources()), h('div', {}, monitor(), alerts())) : null,
+      tab === 'resumen' ? h('div', { class: 'grid2' }, h('div', {}, resources(), sensorsMini()), h('div', {}, monitor(), alerts())) : null,
       tab === 'tripulacion' ? crewCards() : null,
       tab === 'estacion' ? h('div', { class: 'grid-base' }, ship(), h('div', {}, energyPanel(), kids() ? null : operaciones())) : null,
       tab === 'misiones' ? h('div', { class: 'grid2' }, alerts(), minis()) : null,

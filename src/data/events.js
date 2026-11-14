@@ -279,6 +279,37 @@ export const EVENTS = {
       { id: 'desconectar', label: 'Desconectar el circuito', effects: T({ battery: -3 }, { battery: -10, moduleOff: { random: 5 } }, { battery: -25, moduleOff: { random: 5 }, moduleDamage: { random: 25 } }) },
     ],
   },
+  // DECISIONES DIFÍCILES: no hay respuesta perfecta; cada opción enseña un costo distinto.
+  dilema_agua: {
+    id: 'dilema_agua', name: 'Decisión difícil: el agua', kind: '±', disaster: false, warnDays: 0, weight: 4,
+    text: T('El reciclador anda lento unos días: hay que decidir cómo repartir el agua.', 'El reciclador falla: el agua no alcanza para todo.', 'El reciclador se apaga: cada litro cuenta.'),
+    prepare: [],
+    options: [
+      { id: 'igual', label: 'Repartir igual entre todos (justo, pero nadie trabaja bien)', effects: T({ water: -5, crewMorale: 2 }, { water: -15, crewMorale: 3, crewHealth: -3 }, { water: -30, crewHealth: -6 }) },
+      { id: 'experimentos', label: 'Quitar agua a los experimentos (se pierde ciencia)', effects: T({ science: -3 }, { science: -8, water: -5 }, { science: -15, water: -10 }) },
+      { id: 'reparar_ya', label: 'Gastar piezas y reparar ya (menos repuestos para después)', effects: T({ parts: -2 }, { parts: -4 }, { parts: -7, crewMorale: -3 }) },
+    ],
+  },
+  dilema_reparacion: {
+    id: 'dilema_reparacion', name: 'Decisión difícil: ¿qué se arregla primero?', kind: '±', disaster: false, warnDays: 0, weight: 4,
+    text: T('Dos cosas se rompen a la vez y solo hay tiempo para una.', 'Dos sistemas fallan y la tripulación está cansada.', 'Dos fallas graves al mismo tiempo.'),
+    prepare: [],
+    options: [
+      { id: 'vida', label: 'Primero lo que mantiene la vida (aire y agua)', effects: T({ science: -2 }, { science: -5, crewMorale: -2 }, { science: -10, crewMorale: -4 }) },
+      { id: 'ciencia', label: 'Primero el laboratorio (la Tierra espera los datos)', effects: T({ o2: -5, science: 3 }, { o2: -15, science: 6, crewHealth: -3 }, { o2: -30, science: 10, crewHealth: -8 }) },
+      { id: 'descanso', label: 'Descansar y reparar todo mañana', effects: T({ crewMorale: 3, moduleDamage: { random: 8 } }, { crewMorale: 4, moduleDamage: { random: 18 } }, { moduleDamage: { random: 35 } }) },
+    ],
+  },
+  dilema_llamada: {
+    id: 'dilema_llamada', name: 'Decisión difícil: la antena', kind: '±', disaster: false, warnDays: 0, weight: 4,
+    text: T('Hoy la antena puede mandar datos o una videollamada a las familias.', 'Una escuela pide hablar con la tripulación, pero hay muchos datos por enviar.', 'Es el cumpleaños de alguien de la tripulación y la antena apenas funciona.'),
+    prepare: [],
+    options: [
+      { id: 'familias', label: 'Llamada con las familias (ánimo)', effects: T({ crewMorale: 8 }, { crewMorale: 12, science: -3 }, { crewMorale: 15, science: -6 }) },
+      { id: 'escuela', label: 'Hablar con la escuela (fama, inspira a niños)', effects: T({ reputation: 3 }, { reputation: 5, science: -2 }, { reputation: 7, science: -4, crewMorale: 3 }) },
+      { id: 'datos', label: 'Mandar los datos de ciencia', effects: T({ science: 4, crewMorale: -3 }, { science: 8, crewMorale: -6 }, { science: 12, crewMorale: -10 }) },
+    ],
+  },
 };
 
 // ---------- Luna y Marte ----------

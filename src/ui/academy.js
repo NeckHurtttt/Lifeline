@@ -3,14 +3,15 @@
 import { h, modal } from './dom.js';
 import { beep, clunk, alarm } from './audio.js';
 import { tr } from '../i18n/i18n.js';
+import { ADVANCED, TRAINING_QUIZ } from '../core/academy2.js';
 import { TRAININGS, starsFrom, roverLevel, runRover, ROVER_COLS, ROVER_ROWS } from '../core/academy.js';
 
-const W = 400, H = 300;
-const FG = '#4dff88', DIM = '#2fb35c', AMBER = '#ffc23d', RED = '#ff4b4b', BG = '#020a04', LINE = '#1c6b34';
-const rand = (a, b) => a + Math.random() * (b - a);
-const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+export const W = 400, H = 300;
+export const FG = '#4dff88', DIM = '#2fb35c', AMBER = '#ffc23d', RED = '#ff4b4b', BG = '#020a04', LINE = '#1c6b34';
+export const rand = (a, b) => a + Math.random() * (b - a);
+export const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 
-function text(ctx, t, x, y, { color = FG, size = 18, align = 'left' } = {}) {
+export function text(ctx, t, x, y, { color = FG, size = 18, align = 'left' } = {}) {
   ctx.fillStyle = color; ctx.font = `${size}px "VT323", monospace`; ctx.textAlign = align; ctx.fillText(tr(t), x, y);
 }
 
@@ -276,11 +277,11 @@ function rover({ kids }) {
   };
 }
 
-const GAMES = { flotar, acople, brazo, luna, centrifuga, rover };
+export const GAMES = { flotar, acople, brazo, luna, centrifuga, rover };
 
 /** Abre la prueba `id`. Resuelve { stars, score } al terminar, o null si se cierra antes de empezar. */
 export function runTraining(id, { kids = false, intro = '' } = {}) {
-  const def = TRAININGS[id];
+  const def = TRAININGS[id] ?? ADVANCED[id];
   const seconds = def.seconds + (kids ? 5 : 0);
   return new Promise((resolve) => {
     const box = h('div', { class: 'academia' });
@@ -348,7 +349,22 @@ export function runTraining(id, { kids = false, intro = '' } = {}) {
         h('p', { class: 'small dim' }, def.fact),
         h('div', { class: 'acad-botones' },
           h('button', { class: 'big', id: 'acad-seguir', onclick: () => finish({ stars, score }) }, 'SEGUIR'),
+          TRAINING_QUIZ[id] ? h('button', { id: 'acad-quiz', onclick: () => quiz(stars, score) }, '🧠 Pregunta rápida') : null,
           h('button', { id: 'acad-otra', onclick: () => play() }, 'Otra vez')));
+    }
+
+    // Pregunta del entrenamiento: refuerza lo aprendido (no cambia las estrellas).
+    function quiz(stars, score) {
+      const q = TRAINING_QUIZ[id][Math.floor(Math.random() * TRAINING_QUIZ[id].length)];
+      const out = h('p', { class: 'acad-meta' }, '');
+      const btns = q.a.map((a, i) => h('button', { class: 'acad-op', 'data-op': i, onclick: () => {
+        btns.forEach((b, k) => { b.disabled = true; if (k === q.ok) b.classList.add('sel'); });
+        const ok = i === q.ok; beep(ok ? 1100 : 260, 120, 'sine');
+        out.textContent = ok ? '¡Correcto! 🎉' : `Era: ${q.a[q.ok]}`;
+      } }, a));
+      box.replaceChildren(h('h2', {}, `🧠 ${def.name.toUpperCase()}`), h('p', { class: 'acad-meta' }, q.q),
+        h('div', { class: 'acad-ops' }, ...btns), out,
+        h('div', { class: 'acad-botones' }, h('button', { class: 'big', id: 'acad-seguir', onclick: () => finish({ stars, score }) }, 'SEGUIR')));
     }
 
     introView();

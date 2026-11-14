@@ -13,6 +13,8 @@ import { music } from './music.js';
 import { initCoop, onCoopChange, coopInfo, coopScreen, isGuest, getDraft, onDraft, coopAction, sendChat, onChat } from './coop.js';
 import { h, modal } from './dom.js';
 import { GLOSSARY } from '../data/glossary.js';
+import { initFx, boot, transition, ambient, stopAmbient, crt, voiceEnabled, setVoice, ambientOn, setAmbient, readAloud, setReadAloud } from './fx.js';
+import { openCenter } from './cadete.js';
 
 export const PLAYER_ROLES = {
   comandante: 'Comandante',
@@ -66,7 +68,9 @@ export function go(name, params = {}) {
   cleanup = null;
   root.replaceChildren();
   document.querySelectorAll('.modal-bg, .static').forEach((e) => e.remove());
+  if (app.screen && app.screen !== name) transition(name);
   app.screen = name;
+  if (name === 'ops' && app.state) ambient(app.state.scenarioId); else stopAmbient();
   hideGuide();
   updateBar();
   // En el cooperativo en línea el anfitrión dirige el diseño, el despegue y la reentrada; el invitado mira el resultado.
@@ -222,5 +226,27 @@ onChat((from, text) => {
   setTimeout(() => t.remove(), 4000);
 });
 
+// Consola: CRT, voz de Control, ambiente y el Centro de cadetes en la barra.
+const crtBtn = document.getElementById('crt');
+const voiceBtn = document.getElementById('voz');
+const ambBtn = document.getElementById('ambiente');
+const leerBtn = document.getElementById('leer');
+leerBtn.addEventListener('click', () => { setReadAloud(!readAloud()); fxLabels(); beep(650, 30); });
+const fxLabels = () => {
+  crtBtn.textContent = document.body.classList.contains('crt') ? 'CRT: SÍ' : 'CRT: NO';
+  voiceBtn.textContent = voiceEnabled() ? 'VOZ: SÍ' : 'VOZ: NO';
+  ambBtn.textContent = ambientOn() ? 'AMBIENTE: SÍ' : 'AMBIENTE: NO';
+  leerBtn.textContent = readAloud() ? 'LEER EN VOZ: SÍ' : 'LEER EN VOZ: NO';
+};
+crtBtn.addEventListener('click', () => { crt(!document.body.classList.contains('crt')); fxLabels(); beep(600, 30); });
+voiceBtn.addEventListener('click', () => { setVoice(!voiceEnabled()); fxLabels(); beep(700, 30); });
+ambBtn.addEventListener('click', () => { setAmbient(!ambientOn(), app.screen === 'ops' ? app.state?.scenarioId : null); fxLabels(); beep(500, 30); });
+const ajMenu = document.getElementById('ajustes-menu');
+document.getElementById('ajustes').addEventListener('click', () => { ajMenu.hidden = !ajMenu.hidden; beep(800, 25); });
+document.getElementById('cadetes').addEventListener('click', () => openCenter(app, go));
+initFx(); fxLabels();
+// Se puede instalar y jugar sin internet (PWA).
+if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js').catch(() => {});
+
 window.vdl = { app, go }; // útil para depurar desde la consola
-go('title');
+boot().then(() => go('title'));

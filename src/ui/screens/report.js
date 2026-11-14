@@ -1,3 +1,5 @@
+import { recordMissionEnd, profile, printCertificate, openCenter, qrBlock, PUBLIC_URL } from '../cadete.js';
+import { compareReal } from '../../core/cadete.js';
 // Informe final: resultado, medalla, gráfico de recursos, causas, lecciones, rediseño y ranking local.
 import { loadCampaign, saveCampaign, recordResult } from '../../core/campaign.js';
 import { SCENARIOS } from '../../data/catalog.js';
@@ -132,6 +134,7 @@ export function render(root, app, go) {
     ranking.push({ id, score: rep.score, medal: rep.medal, success: rep.success, days: rep.daysSurvived, difficulty: `${s.difficulty} ${OBJECTIVES[rep.breakdown.objective].icon}${app.reto ? ' 🏁' : ''}`,
       players: app.players.map((p) => p.name).join(', '), design: summary(s.design), date: new Date().toISOString().slice(0, 10) });
     ranking = ranking.sort((a, b) => b.score - a.score).slice(0, 10);
+    recordMissionEnd(s.scenarioId, rep.success, rep.score);
     try { localStorage.setItem(RANK_KEY, JSON.stringify(ranking)); } catch { /* sin espacio */ }
   }
   let campInfo = null;
@@ -168,6 +171,17 @@ export function render(root, app, go) {
         h('button', { onclick: () => go('arbol') }, '🌳 Ver mejoras')) : null,
       h('div', { class: 'capsule', style: { margin: '.6rem 0' } }, ...s.crew.map((c) => h('div', { style: { textAlign: 'center' } },
         crewAvatar(c, { size: 76 }), h('div', { class: 'small' }, h('b', {}, c.name.split(' ')[0])), h('div', { class: 'small dim' }, MOOD_TEXT[moodOf(c)]))))),
+    (() => {
+      const real = compareReal(s.scenarioId, rep.daysSurvived);
+      const p = profile();
+      return h('div', { class: 'panel c-amber', id: 'real' },
+        h('h2', {}, '🌍 Comparado con misiones reales'),
+        real ? h('p', { class: 'real-comp' }, real.text) : null,
+        h('div', { class: 'row' }, h('span', { class: 'pill amber' }, `🧑‍🚀 ${p.name}: ${p.rank.icon} ${p.rank.name} · ${p.points} puntos`),
+          h('button', { onclick: () => printCertificate(p) }, '🖨️ Certificado'),
+          h('button', { onclick: () => openCenter(app, go, 'parches') }, '🎖️ Parches y récords')),
+        qrBlock(PUBLIC_URL, 'Jueguen en su celular'));
+    })(),
     h('div', { class: 'panel c-cyan', id: 'puntaje' },
       h('h2', {}, `🏅 Puntaje: ${rep.score} / 1000`, before ? delta(rep.score, before.score) : null),
       h('div', { class: 'small dim' }, `Objetivo: ${obj.icon} ${obj.name}. Las categorías con ×2 o más valen más para este objetivo.`,

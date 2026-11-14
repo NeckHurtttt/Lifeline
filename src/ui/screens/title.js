@@ -22,6 +22,8 @@ import { crewAvatar } from '../avatar.js';
 import { decodeMission } from '../../core/share.js';
 import { TRAININGS, ACADEMY_ORDER, hasWings } from '../../core/academy.js';
 import { runTraining, academyRecord, saveAcademy } from '../academy.js';
+import { openCenter, openAcademy as openAcademyCenter, startDaily, attractDemo, profile } from '../cadete.js';
+import { dailyChallenge } from '../../core/cadete.js';
 
 const MODES = {
   campana: { icon: '🗺️', name: 'Campaña', desc: 'Estación → Luna → Marte. Cada misión cumplida abre la siguiente y da puntos para mejoras.' },
@@ -184,7 +186,7 @@ export function render(root, app, go) {
           beep(990, 80); go('design', { design: SUGGESTED('estacion') });
           say('🎓 Práctica guiada: la nave ya está armada. Toca 🚀 LANZAR y te explico todo en la misión.', { mood: 'feliz', target: '#lanzar' });
         } }, '🎓 Práctica guiada'),
-        ' ', h('button', { id: 'academia', title: 'Las 6 pruebas de entrenamiento de astronauta. Con 2 estrellas en todas ganas tus alas.', onclick: () => openAcademy() }, '🎓 Academia de astronautas'),
+        ' ', h('button', { id: 'academia', title: 'Las 6 pruebas de entrenamiento de astronauta. Con 2 estrellas en todas ganas tus alas.', onclick: () => openAcademyCenter(app, go) }, '🎓 Academia de astronautas'),
         ' ', h('button', { id: 'jurado', title: 'Recorrido de 3 minutos por lo principal: nave, despegue, una emergencia y el informe.', onclick: () => startJurado(app, go) }, '🏛️ Modo jurado (3 min)'),
         ' ', h('button', { id: 'simulacro', title: 'Misión fácil con muchas emergencias relámpago para practicar los minijuegos.', onclick: () => {
           Object.assign(app, { mode: 'demo', scenario: 'estacion', difficulty: 'facil', objective: 'ciencia', historica: null, reto: null, practice: null, state: null, lastDesign: null, lastSeed: null, budgetMult: 1, simulacro: true });
@@ -204,14 +206,14 @@ export function render(root, app, go) {
               } }, '▶ Jugar esta misión'))),
             h('button', { onclick: () => close() }, 'Cerrar')));
         } }, '📜 Misiones históricas'),
-        ' ', h('button', { id: 'ver-logros', onclick: () => {
-          const got = loadAchievements();
-          const close = modal(h('div', {}, h('h2', {}, `🏅 Logros (${Object.keys(got).length} de ${ACHIEVEMENTS.length})`),
-            ...ACHIEVEMENTS.map((a) => h('div', { class: got[a.id] ? '' : 'dim' }, `${got[a.id] ? '✅' : '⬜'} ${a.icon} ${a.name}: ${a.desc}${got[a.id] ? ` (${got[a.id]})` : ''}`)),
-            h('button', { onclick: () => close() }, 'Cerrar')));
-        } }, '🏅 Logros')),
+        ' ', h('button', { id: 'centro', class: 'warn', onclick: () => openCenter(app, go) }, `🧑‍🚀 Mi ficha · ${profile().rank.name}`),
+        ' ', h('button', { id: 'diario', title: 'La misma misión para todos hoy: comparen puntajes.', onclick: () => startDaily(app, go, SUGGESTED) }, `📅 Reto diario · ${{ estacion: 'Estación', gateway: 'Gateway', luna: 'Luna', marte: 'Marte' }[dailyChallenge().scenario]}`),
+        ' ', h('button', { id: 'datos-nasa', onclick: () => openCenter(app, go, 'data') }, '📡 Datos NASA en vivo'),
+        ' ', h('button', { id: 'escuelas', onclick: () => openCenter(app, go, 'clase') }, '🏫 Para escuelas'),
+        ' ', h('button', { id: 'demo-auto-btn', title: 'Presentación sola de 60 segundos (para el stand).', onclick: () => attractDemo() }, '🎬 Demo automática'),
+        ' ', h('button', { id: 'ver-logros', onclick: () => openCenter(app, go, 'parches') }, '🎖️ Parches y récords')),
       h('div', { class: 'small dim', style: { textAlign: 'center' } },
-        'Agencia ficticia. Inspirado en procedimientos y datos abiertos de NASA. Hecho para NASA Space Apps 2026 · desafío Space Mission Design Game.',
+        'Agencia ficticia. Inspirado en procedimientos y datos abiertos de NASA. Hecho para NASA Space Apps 2026 · desafío Junior Astronaut Mission Trainer.',
         secretCalmButton()),
     );
   };
@@ -236,6 +238,7 @@ export function render(root, app, go) {
       h('button', { onclick: () => close() }, 'Cerrar')));
   };
   redrawTitle = draw;
+  app.suggested = SUGGESTED;
   // ?jurado en la dirección: entra directo al recorrido de 3 minutos (para el link del jurado).
   if (new URLSearchParams(location.search).has('jurado') && !app.juradoAuto && !coopInfo().role) { app.juradoAuto = true; startJurado(app, go); return () => {}; }
   app.jurado = null;

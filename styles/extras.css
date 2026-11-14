@@ -1,0 +1,156 @@
+/* EXTRAS DE CONSOLA: CRT con barra que rueda y borde curvo, arranque, transiciones, glitch, números que cuentan,
+   pestañas Pip-Boy, cursor de Nova, monitores, centro de cadetes, parches, demo automática. */
+
+/* ---------- CRT ---------- */
+body:not(.crt)::before, body:not(.crt)::after { display: none; }
+#crt-capa { pointer-events: none; position: fixed; inset: 0; z-index: 97; border-radius: 18px / 26px;
+  box-shadow: inset 0 0 0 3px #000, inset 0 0 90px rgba(0, 0, 0, .75), inset 0 0 18px rgba(77, 255, 136, .12); }
+#crt-capa::after { content: ""; position: absolute; left: 0; right: 0; height: 18vh; top: -20vh;
+  background: linear-gradient(180deg, transparent, rgba(77, 255, 136, .05), transparent); animation: crt-rueda 7s linear infinite; }
+@keyframes crt-rueda { to { top: 110vh; } }
+body.crt #app { animation: crt-respira 4s ease-in-out infinite; }
+@keyframes crt-respira { 50% { filter: brightness(1.04) contrast(1.02); } }
+#barra-info { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#barra button { white-space: nowrap; }
+.ajustes { position: relative; }
+#ajustes-menu { position: absolute; right: 0; top: calc(100% + .4rem); display: flex; flex-direction: column; gap: .3rem; padding: .5rem;
+  background: var(--panel); border: 2px solid var(--fg); z-index: 60; box-shadow: 0 6px 24px rgba(0, 0, 0, .6); }
+#ajustes-menu[hidden] { display: none; }
+#cadetes { border-color: var(--amber); color: var(--amber); }
+
+/* ---------- Arranque ---------- */
+#arranque { position: fixed; inset: 0; z-index: 300; background: #010603; color: var(--fg); padding: 6vh 7vw;
+  font-family: var(--mono); display: flex; flex-direction: column; gap: 1rem; cursor: pointer; transition: opacity .45s, transform .45s; }
+#arranque.fuera { opacity: 0; transform: scaleY(.02); }
+.boot-txt { margin: 0; font: inherit; font-size: clamp(16px, 2.4vw, 24px); white-space: pre-wrap; text-shadow: 0 0 8px var(--fg); }
+.boot-txt .bl.ok { color: var(--fg); } .boot-txt .bl.big { font-size: 1.5em; margin-top: .4em; }
+.boot-txt .bl:last-child::after { content: "█"; animation: parpadeo .8s steps(1) infinite; }
+.boot-fact { color: var(--amber); max-width: 60ch; border-left: 3px solid var(--amber); padding-left: .8rem; }
+.boot-skip { margin-top: auto; color: var(--dim); font-size: .85rem; }
+@keyframes parpadeo { 50% { opacity: 0; } }
+
+/* ---------- Transición con estática ---------- */
+.trans { position: fixed; inset: 0; z-index: 250; pointer-events: none; animation: trans-fuera .42s forwards;
+  background: repeating-linear-gradient(0deg, rgba(77, 255, 136, .14) 0 2px, rgba(0, 0, 0, .9) 2px 4px), #000; }
+.trans::before { content: ""; position: absolute; left: 0; right: 0; height: 3px; top: 50%; background: var(--fg); box-shadow: 0 0 20px var(--fg); animation: trans-linea .4s forwards; }
+.trans.con-dato { animation: trans-fuera 1.5s forwards; display: grid; place-items: center; }
+.trans-dato { max-width: min(560px, 86vw); text-align: center; color: var(--fg); background: #010603; border: 2px solid var(--fg); padding: 1rem 1.3rem; font-size: 1.15rem; }
+.trans-dato b { display: block; color: var(--amber); letter-spacing: .2em; margin-bottom: .3rem; }
+@keyframes trans-fuera { 0% { opacity: 1; } 70% { opacity: 1; } 100% { opacity: 0; } }
+@keyframes trans-linea { from { transform: scaleX(0); } to { transform: scaleX(1); opacity: 0; } }
+
+/* ---------- Glitch ---------- */
+body.glitch #app { animation: glitch .38s steps(2) 1; }
+@keyframes glitch {
+  0% { transform: translate(0); filter: none; }
+  20% { transform: translate(-6px, 2px) skewX(4deg); filter: hue-rotate(-60deg) saturate(3); clip-path: inset(10% 0 60% 0); }
+  40% { transform: translate(5px, -2px); clip-path: inset(50% 0 20% 0); }
+  60% { transform: translate(-3px, 0) skewX(-3deg); filter: contrast(2); clip-path: none; }
+  100% { transform: translate(0); filter: none; }
+}
+
+/* ---------- Números que cuentan ---------- */
+.res-val.baja { color: var(--amber); } .res-val.sube { color: #b6ffcf; }
+.res-card.low .res-val { animation: critico 1s steps(1) infinite; color: var(--red); }
+@keyframes critico { 50% { color: var(--amber); } }
+.res-card.low { border-color: var(--red) !important; box-shadow: 0 0 10px rgba(255, 75, 75, .35); }
+.ico-linea { display: inline-flex; vertical-align: middle; color: var(--fg); filter: drop-shadow(0 0 3px rgba(77, 255, 136, .6)); }
+.res-card.low .ico-linea { color: var(--red); }
+
+/* ---------- Cursor de Nova ---------- */
+#guia .g-text::after { content: "▌"; animation: parpadeo .7s steps(1) infinite; margin-left: 2px; }
+
+/* ---------- Pestañas Pip-Boy ---------- */
+.tabs { border-bottom: 2px solid var(--fg) !important; padding-bottom: 0 !important; }
+.tabs .tab { border-bottom: none !important; margin-bottom: -2px; text-transform: uppercase; letter-spacing: .06em; }
+.tabs .tab.on { box-shadow: 0 -4px 14px rgba(77, 255, 136, .35); }
+.pip-tabs { display: flex; gap: .2rem; border-bottom: 2px solid var(--fg); margin-bottom: .8rem; flex-wrap: wrap; position: sticky; top: -1rem; background: var(--panel); z-index: 2; padding-top: .3rem; }
+.pip-tab { border: 2px solid var(--dim); border-bottom: none; letter-spacing: .2em; padding: .2rem .9rem; margin-bottom: -2px; }
+.pip-tab.on { background: var(--fg) !important; color: #021006 !important; text-shadow: none; }
+.pip-cerrar { margin-left: auto; border: none; }
+
+/* ---------- Monitores ---------- */
+canvas.viz { display: block; image-rendering: auto; }
+.radar-caja { display: flex; gap: .8rem; align-items: center; justify-content: center; margin: .4rem 0; }
+.radar-caja canvas { max-width: 130px !important; border-radius: 50%; box-shadow: 0 0 14px rgba(77, 255, 136, .3); }
+canvas.pulso { margin-top: .2rem; border: 1px solid var(--line); background: #010603; }
+.esquema { border: 1px solid var(--line); background: #010603; margin-bottom: .6rem; }
+.esquema canvas { width: 100%; max-width: none !important; }
+.sensores-mini { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: .3rem .8rem; font-size: .85rem; }
+.sensores-mini b { color: var(--amber); font-weight: normal; }
+.cohete-wire { position: absolute; inset: 0; width: 100% !important; max-width: none !important; height: 100%; pointer-events: none; }
+.sky.wire .rocket { visibility: hidden; }
+.eva-btn { font-size: .75rem; padding: .05rem .35rem; margin-top: .2rem; border-color: var(--amber); color: var(--amber); }
+
+/* ---------- Academia: opciones del quiz ---------- */
+.acad-ops { display: grid; gap: .4rem; margin: .6rem 0; }
+.acad-op { text-align: left; }
+
+/* ---------- Centro de cadetes ---------- */
+.modal:has(.centro) { max-width: min(860px, 96vw); width: 860px; }
+.centro h2 { margin-top: .8rem; }
+.ficha-top { display: flex; gap: 1rem; align-items: flex-start; flex-wrap: wrap; }
+.pixel-av { image-rendering: pixelated; border: 2px solid var(--fg); box-shadow: 0 0 14px rgba(77, 255, 136, .4); width: 96px; height: 96px; }
+.ficha-top > div { flex: 1; min-width: 220px; }
+.ficha-nombre { font-size: 1.5rem; width: 100%; margin: .2rem 0 .5rem; }
+.rango-nombre { font-size: 1.6rem; color: var(--amber); letter-spacing: .15em; text-shadow: 0 0 8px var(--amber); }
+.rangos { display: flex; gap: .4rem; flex-wrap: wrap; font-size: .8rem; margin-top: .3rem; }
+.rangos span { opacity: .4; border: 1px solid var(--dim); padding: 0 .4rem; } .rangos span.on { opacity: 1; border-color: var(--fg); }
+.ficha-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: .5rem; margin: .8rem 0; }
+.ficha-stats .stat { border: 1px solid var(--line); padding: .4rem .6rem; }
+.stat-v { font-size: 1.3rem; }
+.pill.dim { opacity: .5; }
+.sensores td { padding: .1rem .6rem .1rem 0; vertical-align: top; }
+.iss-mapa { border: 1px solid var(--line); background: #010603; margin: .3rem 0; }
+.apod img { display: block; max-width: 100%; max-height: 260px; margin: .4rem 0; filter: var(--tint); border: 1px solid var(--line); }
+.fuentes a { color: var(--fg); }
+.parches { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: .6rem; }
+.parche { text-align: center; opacity: .45; }
+.parche.on { opacity: 1; }
+.parche-ico { width: 84px; height: 84px; margin: 0 auto .3rem; border-radius: 50%; display: grid; place-items: center; font-size: 2.2rem;
+  border: 3px double var(--dim); background: radial-gradient(circle, #072112, #010603); }
+.parche.on .parche-ico { border-color: var(--amber); box-shadow: 0 0 14px rgba(255, 194, 61, .45); animation: parche-in .6s; }
+@keyframes parche-in { from { transform: scale(1.4) rotate(-20deg); filter: brightness(3); } }
+.parche-txt { font-size: .9rem; }
+.clase th, .clase td { padding: .1rem .5rem; text-align: left; }
+.escuela li { margin: .35rem 0; }
+.qr { display: flex; gap: 1rem; align-items: center; margin-top: .8rem; flex-wrap: wrap; }
+.qr-img { width: 130px; height: 130px; background: #fff; padding: 4px; display: grid; place-items: center; color: #000; font-size: .7rem; }
+.qr-img svg { width: 100%; height: 100%; }
+
+/* ---------- Demo automática ---------- */
+#demo-auto { position: fixed; inset: 0; z-index: 260; background: rgba(1, 6, 3, .97); display: grid; place-items: center; cursor: pointer; }
+.demo-marco { width: min(720px, 94vw); text-align: center; border: 2px solid var(--fg); padding: 1rem 1.2rem; box-shadow: 0 0 30px rgba(77, 255, 136, .25); }
+.demo-t { font-size: clamp(1.8rem, 5vw, 3rem); letter-spacing: .15em; text-shadow: 0 0 12px var(--fg); }
+.demo-c { margin: .4rem auto; width: 100% !important; max-width: 420px !important; }
+.demo-d { font-size: 1.2rem; min-height: 3em; }
+.demo-f { color: var(--amber); font-size: .95rem; margin-top: .5rem; }
+.demo-pie { color: var(--dim); font-size: .8rem; margin-top: .8rem; letter-spacing: .1em; }
+
+/* ---------- Informe ---------- */
+.real-comp { border-left: 3px solid var(--amber); padding-left: .7rem; }
+
+@media (max-width: 600px) {
+  .pip-tab { padding: .15rem .45rem; letter-spacing: .05em; }
+  .pip-tabs { position: static; }
+  .ficha-stats { grid-template-columns: 1fr 1fr; }
+  .pixel-av { width: 64px; height: 64px; }
+  #crt-capa { border-radius: 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  #crt-capa::after, body.crt #app, .res-card.low .res-val { animation: none; }
+}
+
+/* Nova no tapa el Centro de cadetes ni las pruebas de la academia. */
+body:has(#centro-cadetes) #guia, body:has(.academia) #guia, body:has(#centro-cadetes) #flecha, body:has(.academia) #flecha { display: none; }
+.qr a { color: var(--fg); word-break: break-all; }
+/* Mapa del viaje: la nave late y deja estela. */
+.trip-map .tm-nave { animation: nave-late 1.6s ease-in-out infinite; }
+.trip-map .tm-estela { fill: var(--fg); animation: estela 1s linear infinite; }
+.trip-map .tm-estrella { fill: var(--dim); animation: estrella-pasa 6s linear infinite; }
+@keyframes estela { 50% { opacity: .2; } }
+@keyframes estrella-pasa { from { transform: translateX(0); } to { transform: translateX(-200px); } }
+@keyframes nave-late { 50% { filter: drop-shadow(0 0 6px var(--fg)) brightness(1.5); } }
+/* El Centro de cadetes es alto: se desplaza por dentro y nunca corta la parte de arriba. */
+.modal:has(.centro) { max-height: 92vh; overflow-y: auto; }
+.modal:has(.centro) .pip-tabs { top: -1.2rem; }
